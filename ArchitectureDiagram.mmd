@@ -1,0 +1,150 @@
+flowchart TD
+    %% Main processing steps
+    A[Raw Video] --> B[AWS Transcribe]
+    B -->|Diarization Enabled| C[Transcript with Speaker Tags]
+    C --> D[Topic Segmentation]
+    D --> E[Speaker Identification]
+    E --> F[Generate Topic Summaries per Speaker]
+    F --> G[Generate Overall Speaker Summaries]
+    
+    %% New Vote Aggregation Flow
+    C --> H[Action Words Detection]
+    H --> I[Vote Aggregation per Topic]
+    I --> J[Topic Vote Summary]
+    J --> F
+
+    %% Grand Summary Feature
+    F --> K[Grand Summary Generation]
+    G --> K
+    J --> K
+    L[Board Agenda Document] --> K
+    
+    %% Subprocesses for topic segmentation
+    D --> D1[LLM Topic Transition Detection]
+    D --> D2[Agenda-based Vector Embedding Comparison]
+    D1 --> D3[Combined Topic Boundaries]
+    D2 --> D3
+    
+    %% Vote detection subprocess
+    H --> H1[Keyword Detection: 'moved', 'motion', 'vote', 'aye', 'nay']
+    H --> H2[LLM Analysis of Topic Chunks]
+    H1 --> I
+    H2 --> I
+    
+    %% Examples
+    subgraph "Examples"
+        %% Input example
+        A1[Input: Raw school board meeting video, duration 2 hours]
+        
+        %% AWS Transcribe output example
+        B1["Output: Raw transcript with timestamps and speaker IDs
+        00:01:15 spk_0: We'll now call this meeting to order.
+        00:01:20 spk_1: Thank you Superintendent Johnson.
+        00:01:25 spk_2: I'd like to begin with the attendance."]
+        
+        %% Topic segmentation input/output
+        D1_ex["Input: Transcript chunks
+        spk_0: We'll move to agenda item 3, the budget proposal.
+        spk_1: Thank you. As treasurer, I've prepared the following..."]
+        
+        D1_out["Output: Topic transition detected
+        TOPIC_TRANSITION: 'Meeting Call to Order' → 'Budget Proposal'"]
+        
+        D2_ex["Input: Agenda Items and Transcript Chunks
+        Agenda: '3. Budget Proposal for 2025-2026'
+        Chunk Vector Similarity: 0.82 (high match)"]
+        
+        D2_out["Output: Topic boundary identified at timestamp 00:15:30
+        TOPIC: 'Budget Proposal for 2025-2026'"]
+        
+        %% Speaker identification example
+        E1["Input: Speaker chunks and context
+        spk_0: 'As the superintendent, I believe...'
+        spk_1: 'Board member Martinez would like to respond'
+        spk_2: 'Thank you, I'd like to address...'"]
+        
+        E2["Output: Identified speakers
+        spk_0: 'Dr. Sarah Johnson, Superintendent'
+        spk_1: 'Robert Chen, Board President'
+        spk_2: 'Maria Martinez, Board Member'"]
+        
+        %% Vote detection and aggregation example
+        H1_ex["Input: Transcript chunks for 'Budget Proposal' topic
+        spk_1: 'I move to approve the budget as presented.'
+        spk_2: 'I second the motion.'
+        spk_0: 'All in favor say aye.'
+        spk_1, spk_2, spk_3: 'Aye.'
+        spk_0: 'Any opposed? [silence] Motion carries unanimously.'"]
+        
+        H1_out["Output: Vote detection
+        ACTION: 'move to approve'
+        MOTION_BY: 'Robert Chen, Board President'
+        SECOND_BY: 'Maria Martinez, Board Member'
+        VOTE_RESULT: 'Approved unanimously (3-0)'"]
+        
+        %% Topic summaries example with vote
+        F1["Input: All statements from a speaker on one topic
+        spk_1 (Robert Chen) on 'Technology Budget':
+        - 'I'm concerned about the allocation for new tablets.'
+        - 'We should consider a phased approach to implementation.'
+        - 'The technology committee recommends reducing this by 15%.'"]
+        
+        F2["Output: Speaker's topic summary with vote
+        'Board President Chen expressed concern about the tablet budget,
+        suggested a phased implementation approach, and supported the
+        technology committee's recommendation for a 15% reduction.
+        
+        VOTE OUTCOME: The board approved a 15% reduction to the technology
+        budget with a phased implementation plan by a vote of 4-1, with
+        Member Jackson dissenting.'"]
+        
+        %% Overall speaker summaries
+        G1["Input: All identified statements from a speaker with topics
+        spk_2 (Maria Martinez):
+        - TOPIC 'Budget': 'We need to prioritize teacher salaries...'
+        - TOPIC 'Facilities': 'The elementary school roof needs repair...'
+        - TOPIC 'Curriculum': 'I support the new science standards...'"]
+        
+        G2["Output: Overall speaker summary
+        'Throughout the meeting, Board Member Martinez advocated for 
+        teacher salary increases, highlighted facility maintenance needs
+        at the elementary school, and expressed support for the proposed
+        science curriculum standards.'"]
+        
+        %% Grand summary example
+        K1["Input: 
+        - All topic summaries with votes
+        - All speaker summaries
+        - Board agenda document"]
+        
+        K2["Output: Grand meeting summary
+        'The April 22, 2025 school board meeting covered 5 main agenda items.
+        The board unanimously approved the minutes from the previous meeting
+        and the proposed budget for 2025-2026 with amendments to reduce the
+        technology allocation by 15%. The facilities improvement plan was
+        approved 4-1, with focused attention on the elementary school roof
+        repair. The new science curriculum standards passed unanimously after
+        substantial discussion of implementation timelines. Board Member
+        Martinez consistently advocated for teacher resources while Board
+        President Chen emphasized fiscal responsibility across all topics.
+        The meeting adjourned at 8:45pm with all critical action items resolved.'"]
+    end
+    
+    %% Connect examples to main flow
+    A -.-> A1
+    B -.-> B1
+    D1 -.-> D1_ex -.-> D1_out
+    D2 -.-> D2_ex -.-> D2_out
+    E -.-> E1 -.-> E2
+    H -.-> H1_ex -.-> H1_out
+    F -.-> F1 -.-> F2
+    G -.-> G1 -.-> G2
+    K -.-> K1 -.-> K2
+    
+    %% Add some styling
+    classDef process fill:#f9f,stroke:#333,stroke-width:2px
+    classDef newFeature fill:#ff9,stroke:#333,stroke-width:2px
+    classDef example fill:#bbf,stroke:#333,stroke-width:1px,color:#000
+    class A,B,C,D,E,F,G process
+    class H,I,J,K,L newFeature
+    class A1,B1,D1_ex,D1_out,D2_ex,D2_out,E1,E2,H1_ex,H1_out,F1,F2,G1,G2,K1,K2 example
