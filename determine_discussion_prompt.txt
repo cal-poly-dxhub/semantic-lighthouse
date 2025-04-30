@@ -1,0 +1,1 @@
+Given this board meeting discussion, determine if the speakers are currently in the process of making a decision or taking any parliamentary action. Return only YES or NO verbatim in between <decision> tags like so <decision>YES</decision>
