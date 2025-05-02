@@ -1,7 +1,7 @@
 from yt_dlp import YoutubeDL
 from tqdm import tqdm
 
-URLS = ['https://www.youtube.com/watch?v=wCYCR55gDjM&t=2004s']
+URLS = ['https://www.youtube.com/watch?v=jNH3uQmHO3E']
 
 ydl_opts = {
     'format': 'bestaudio',

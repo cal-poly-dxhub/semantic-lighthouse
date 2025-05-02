@@ -13,7 +13,7 @@ def format_timestamp(seconds):
 
 def create_youtube_link(base_url, timestamp):
     """Create a clickable YouTube link with timestamp"""
-    return f"{base_url}&t={timestamp}"
+    return f"{base_url}#t={timestamp}"
 
 def replace_segments_with_links(text, segments_data, base_url):
     """Replace segment references in text with YouTube links"""
@@ -66,7 +66,7 @@ def replace_segments_with_links(text, segments_data, base_url):
     return text
 
 def main():
-    youtube_url = "https://www.youtube.com/watch?v=wCYCR55gDjM"
+    youtube_url = "https://www.youtube.com/watch?v=jNH3uQmHO3E"
 
     try:
         with open("transcript_analysis.txt", "r", encoding="utf-8") as file:

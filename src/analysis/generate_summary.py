@@ -54,7 +54,7 @@ TRANSCRIPT:
 {formatted_transcript}
 
 I want you to reference specific segments for topic transitions, segments where a vote takes place, which segments refer to which agenda item, etc. Please also mention what each agenda item is about and what the vote was about. Also include what discussions were had about each agenda item and other information. Be very thorough in the discussion of each agenda item and the vote. Be sure to include what things were discussed, debated etc in detail.
-Please be EXTREMELY comprehensive and specific in your analysis, always referencing segment IDs when discussing parts of the transcript.
+Please be EXTREMELY comprehensive and specific in your analysis, always referencing segment IDs when discussing parts of the transcript. For the references i want you to use the format [seg_0] or [seg_0-55] if using a range of segments.
 """
     # prompt = "What is the capital of Colombia?, please answer in detail and include the history of the capital and its significance.\n\n"
     with open("prompt.txt", "w") as f:
@@ -82,12 +82,12 @@ Please be EXTREMELY comprehensive and specific in your analysis, always referenc
             accept='application/json',
             body=json.dumps(request_body)
         )
-        
+
         # Process the streaming response
         analysis_chunks = []
         print("\nStreaming response:")
         print("-" * 80)
-        
+
         # Iterate through the streaming chunks
         for event in response.get('body'):
             # Process each chunk
@@ -97,9 +97,9 @@ Please be EXTREMELY comprehensive and specific in your analysis, always referenc
                     text_chunk = chunk_data['delta']['text']
                     print(text_chunk, end='', flush=True)
                     analysis_chunks.append(text_chunk)
-        
+
         print("\n" + "-" * 80)
-        
+
         # Combine all chunks to return the complete analysis
         analysis = ''.join(analysis_chunks)
         return analysis
