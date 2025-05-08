@@ -5,7 +5,16 @@ import markdown
 import pdfkit
 from datetime import timedelta
 from weasyprint import HTML
+import os, platform, subprocess
 
+# on macOS, make sure Homebrew’s libs get loaded
+if platform.system() == "Darwin":
+    try:
+        prefix = subprocess.check_output(["brew", "--prefix"], text=True).strip()
+        libdir = os.path.join(prefix, "lib")
+        os.environ["DYLD_LIBRARY_PATH"] = f"{libdir}:{os.environ.get('DYLD_LIBRARY_PATH','')}"
+    except Exception:
+        pass
 
 def format_timestamp(seconds):
     """Convert seconds to HH:MM:SS format for YouTube timestamps"""
