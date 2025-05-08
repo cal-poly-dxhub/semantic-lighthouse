@@ -43,7 +43,7 @@ def analyze_transcript(transcript, agenda):
     formatted_transcript = format_transcript_for_prompt(transcript)
 
     # Prepare the prompt
-    prompt = f"""Go through this transcript for a K12 school board meeting for the Lynwood Unified School District.
+    prompt = f"""Go through this transcript for a board meeting. The context of the board meeting should be clear from the agenda and the transcript.
 I want you to go through this and look for the segments where there is a vote taking place or where there is a topic transition.
 Refer to the agenda for more info:
 
@@ -103,23 +103,6 @@ Please be EXTREMELY comprehensive and specific in your analysis, always referenc
         # Combine all chunks to return the complete analysis
         analysis = ''.join(analysis_chunks)
         return analysis
-    # try:
-    #     # Make the API call
-    #     print("Invoking Claude...")
-    #     response = bedrock_runtime.invoke_model(
-    #         modelId='us.anthropic.claude-3-7-sonnet-20250219-v1:0',
-    #         contentType='application/json',
-    #         accept='application/json',
-    #         body=json.dumps(request_body)
-    #     )
-    #     print("Claude invoked successfully.")
-    #     # Parse the response
-    #     response_body = json.loads(response['body'].read())
-
-    #     # Get the response text
-    #     analysis = response_body['content'][0]['text']
-
-    #     return analysis
 
     except Exception as e:
         print(f"Error invoking Claude: {e}")
