@@ -75,7 +75,7 @@ def replace_segments_with_links(text, segments_data, base_url):
     return text
 
 def main():
-    youtube_url = "https://www.youtube.com/watch?v=jNH3uQmHO3E"
+    youtube_url = "https://k12-video-public.s3.us-west-2.amazonaws.com/nevada_trimmed.mp4"
 
     try:
         with open("transcript_analysis.txt", "r", encoding="utf-8") as file:
