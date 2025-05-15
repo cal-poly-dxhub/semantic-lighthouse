@@ -1,0 +1,35 @@
+Go through this transcript and produce concise action minutes for this meeting. Focus ONLY on:
+
+1. Actions taken (votes, approvals, adoptions, appointments)
+2. Motions made (including who made and seconded them)
+3. Vote results
+4. Presentations or reports delivered
+5. Basic descriptions of agenda items (1-2 sentences max)
+
+For each item, ALWAYS include specific segment references using the format [seg_X] or [seg_X-Y] for ranges. These segment references are CRITICAL for verifying information in the transcript.
+
+Do NOT include:
+- Detailed discussions
+- Back-and-forth conversations 
+- Questions and answers
+- Personal opinions of members
+- Lengthy explanations
+
+Format your response like formal action minutes:
+
+1. CALL TO ORDER (time, who called it) [seg_X]
+2. ROLL CALL/ATTENDANCE (who was present) [seg_X-Y]
+3. For each agenda item:
+   a. Item title and very brief description [seg_X-Y]
+   b. If a presentation occurred, note who presented [seg_X-Y] (without presentation details)
+   c. For public comments, simply note if there were any and who spoke [seg_X-Y]
+   d. For actions: "Motion By [Name] [seg_X], Second By [Name] [seg_X], To [action]"
+   e. Vote results: "Motion [approved/failed] ([vote count])" [seg_X-Y]
+
+The minutes should be official-looking, sparse, and focused only on actions and decisions made during the meeting, not on discussions or deliberations. Always include segment references for verification.
+
+AGENDA:
+{agenda}
+
+TRANSCRIPT:
+{transcript}

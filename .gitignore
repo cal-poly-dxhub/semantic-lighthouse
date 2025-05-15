@@ -31,7 +31,7 @@ output/
 *.html
 
 # Include prompt files
-!prompts/*.txt
+!src/prompts/*.txt
 
 # Virtual Environment
 venv/
