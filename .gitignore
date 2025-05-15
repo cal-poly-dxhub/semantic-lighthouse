@@ -30,6 +30,9 @@ output/
 *.pdf
 *.html
 
+# Include prompt files
+!prompts/*.txt
+
 # Virtual Environment
 venv/
 ENV/
