@@ -11,16 +11,27 @@ def read_agenda(file_path):
         return "No agenda available."
 
 def read_transcript(file_path):
-    """Read the sequential transcript JSON file and return its contents."""
+    """Read the transcript file and return its contents."""
     try:
         with open(file_path, 'r') as file:
-            return json.load(file)
+            content = file.read()
+            # Try to parse as JSON first
+            try:
+                return json.loads(content)
+            except json.JSONDecodeError:
+                # If not JSON, return as text
+                return content
     except Exception as e:
         print(f"Error reading transcript file: {e}")
-        return []
+        return None
 
 def format_transcript_for_prompt(transcript):
     """Format the transcript in a way that's suitable for the prompt."""
+    # If transcript is a string (text file), return it as is
+    if isinstance(transcript, str):
+        return transcript
+        
+    # If transcript is a list (JSON), format it
     formatted_transcript = []
     for segment in transcript:
         formatted_transcript.append(
@@ -116,6 +127,29 @@ def save_analysis(analysis, output_file="transcript_analysis.txt"):
         print(f"Analysis saved to {output_file}")
     except Exception as e:
         print(f"Error saving analysis: {e}")
+
+def generate_summary(transcript_file: str, output_file: str):
+    """
+    Generate a summary from a transcript file and save it to an output file.
+    
+    Args:
+        transcript_file (str): Path to the transcript file
+        output_file (str): Path where the summary should be saved
+    """
+    # Read the transcript
+    transcript = read_transcript(transcript_file)
+    
+    if not transcript:
+        print("Failed to load transcript. Exiting.")
+        return False
+    
+    # Analyze the transcript
+    analysis = analyze_transcript(transcript, "No agenda available.")
+    
+    # Save the analysis
+    save_analysis(analysis, output_file)
+    
+    return True
 
 def main():
     # File paths
