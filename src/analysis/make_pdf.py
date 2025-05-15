@@ -2,10 +2,15 @@ import datetime
 import re
 import json
 import markdown
+from markdown.extensions import fenced_code, tables, toc, nl2br, sane_lists
 import pdfkit
 from datetime import timedelta
 import os, platform, subprocess
 from weasyprint import HTML
+from colorama import init, Fore, Style
+
+# Initialize colorama
+init()
 
 def setup_macos_libraries():
     """Setup Homebrew library paths for macOS"""
@@ -94,8 +99,12 @@ def create_pdf(summary_file: str, sequential_json: str, output_file: str, youtub
     try:
         with open(summary_file, 'r', encoding='utf-8') as f:
             summary_text = f.read()
+            print(f"\n{Fore.CYAN}=== Original Summary Content ==={Style.RESET_ALL}")
+            print(f"{Fore.GREEN}{summary_text}{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}=== End of Summary Content ==={Style.RESET_ALL}\n")
     except Exception as e:
         summary_text = f"Error reading summary: {str(e)}"
+        print(f"{Fore.RED}Error reading summary file: {str(e)}{Style.RESET_ALL}")
 
     # Read transcript data for segment timestamps
     try:
@@ -108,8 +117,19 @@ def create_pdf(summary_file: str, sequential_json: str, output_file: str, youtub
     # Replace segment references with YouTube links
     summary_text = replace_segments_with_links(summary_text, segments_data, youtube_url)
 
-    # Convert markdown to HTML
-    html_content = markdown.markdown(summary_text)
+    # Convert markdown to HTML with extensions
+    html_content = markdown.markdown(
+        summary_text,
+        extensions=[
+            'fenced_code',  # For code blocks
+            'tables',       # For tables
+            'toc',         # For table of contents
+            'nl2br',       # For newlines
+            'sane_lists',  # For better list handling
+            'extra',       # Includes many common extensions
+            'codehilite'   # For syntax highlighting
+        ]
+    )
 
     # Create the HTML content with styling
     styled_html = f"""
@@ -256,8 +276,11 @@ def main():
     try:
         with open("transcript_analysis.txt", "r", encoding="utf-8") as file:
             analysis_text = file.read()
+            print(f"\n{Fore.CYAN}=== Original Analysis Content ==={Style.RESET_ALL}")
+            print(f"{Fore.GREEN}{analysis_text}{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}=== End of Analysis Content ==={Style.RESET_ALL}\n")
     except FileNotFoundError:
-        print("Error: transcript_analysis.txt file not found.")
+        print(f"{Fore.RED}Error: transcript_analysis.txt file not found.{Style.RESET_ALL}")
         return
 
     try:
@@ -273,8 +296,19 @@ def main():
     # Replace segment references with YouTube links
     updated_text = replace_segments_with_links(analysis_text, segments_data, youtube_url)
 
-    # Convert markdown to HTML
-    html_content = markdown.markdown(updated_text)
+    # Convert markdown to HTML with extensions
+    html_content = markdown.markdown(
+        updated_text,
+        extensions=[
+            'fenced_code',  # For code blocks
+            'tables',       # For tables
+            'toc',         # For table of contents
+            'nl2br',       # For newlines
+            'sane_lists',  # For better list handling
+            'extra',       # Includes many common extensions
+            'codehilite'   # For syntax highlighting
+        ]
+    )
 
     # Add styling to make the PDF look better
     styled_html = f"""

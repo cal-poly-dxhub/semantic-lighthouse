@@ -26,7 +26,10 @@ Format your response like formal action minutes:
    d. For actions: "Motion By [Name] [seg_X], Second By [Name] [seg_X], To [action]"
    e. Vote results: "Motion [approved/failed] ([vote count])" [seg_X-Y]
 
-The minutes should be official-looking, sparse, and focused only on actions and decisions made during the meeting, not on discussions or deliberations. Always include segment references for verification.
+The minutes should be official-looking, sparse, and focused only on actions and decisions made during the meeting, not on discussions or deliberations. For agenda items and actions, please give a detailed description of the items based on the info in the agenda. Use official terminology and language wherever possible. Don't be excessively brief for example feel free to include people's full names. For consent agenda, please be as detailed as possible (use bullet points instead of a flat list/paragraph).
+
+Always include segment references for verification.
+Use your judgment to format the document appropriately based on the type of meeting and organization. Don't clump together multiple agenda items in a single section. And prefer heirarchial bullet points over a flat list/paragraph.
 
 AGENDA:
 {agenda}
