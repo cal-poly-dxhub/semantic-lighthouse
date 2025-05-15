@@ -36,11 +36,15 @@ def setup_macos_libraries():
     return True
 
 class TranscriptionPipeline:
-    def __init__(self, youtube_url: str, agenda_path: str, output_dir: str = "output"):
+    def __init__(self, youtube_url: str, agenda_path: str, output_dir: str = "output", summary_type: str = "detailed"):
         print(f"\n{Fore.CYAN}[Initialization] Starting pipeline setup...{Style.RESET_ALL}")
         self.youtube_url = youtube_url
         self.agenda_path = agenda_path
         self.output_dir = Path(output_dir)
+        self.summary_type = summary_type.lower()
+        if self.summary_type not in ["detailed", "sparse"]:
+            raise ValueError("summary_type must be either 'detailed' or 'sparse'")
+        
         self.output_dir.mkdir(exist_ok=True)
         print(f"{Fore.GREEN}✓ Output directory created/verified at: {self.output_dir}{Style.RESET_ALL}")
         
@@ -152,10 +156,43 @@ class TranscriptionPipeline:
 
     def generate_summary(self):
         """Generate summary of the transcript"""
-        print(f"\n{Fore.CYAN}[Step 7] Generating transcript summary...{Style.RESET_ALL}")
+        print(f"\n{Fore.CYAN}[Step 7] Generating {self.summary_type} transcript summary...{Style.RESET_ALL}")
         from analysis.generate_summary import generate_summary
-        generate_summary(str(self.human_readable_file), str(self.summary_file))
-        print(f"{Fore.GREEN}✓ Summary saved to: {self.summary_file}{Style.RESET_ALL}")
+        
+        # Read the appropriate prompt template
+        prompt_file = f"prompts/{self.summary_type}_prompt.txt"
+        try:
+            with open(prompt_file, 'r') as f:
+                prompt_template = f.read()
+        except FileNotFoundError:
+            print(f"{Fore.RED}❌ Error: Prompt file {prompt_file} not found{Style.RESET_ALL}")
+            raise
+        
+        # Read the agenda
+        try:
+            with open(self.agenda_path, 'r') as f:
+                agenda_text = f.read()
+        except FileNotFoundError:
+            print(f"{Fore.YELLOW}⚠ Warning: Agenda file not found, using empty agenda{Style.RESET_ALL}")
+            agenda_text = "No agenda provided"
+        
+        # Read the transcript
+        try:
+            with open(self.human_readable_file, 'r') as f:
+                transcript_text = f.read()
+        except FileNotFoundError:
+            print(f"{Fore.RED}❌ Error: Transcript file not found{Style.RESET_ALL}")
+            raise
+        
+        # Generate the summary using the template
+        generate_summary(
+            str(self.human_readable_file),
+            str(self.summary_file),
+            prompt_template,
+            agenda_text,
+            transcript_text
+        )
+        print(f"{Fore.GREEN}✓ {self.summary_type.capitalize()} summary saved to: {self.summary_file}{Style.RESET_ALL}")
 
     def create_pdf(self):
         """Create PDF with transcript and summary"""
@@ -189,18 +226,21 @@ class TranscriptionPipeline:
             raise
 
 def main():
-    if len(sys.argv) != 3:
-        print(f"{Fore.RED}Usage: python pipeline.py <youtube_url> <agenda_path>{Style.RESET_ALL}")
+    if len(sys.argv) < 3 or len(sys.argv) > 4:
+        print(f"{Fore.RED}Usage: python pipeline.py <youtube_url> <agenda_path> [summary_type]{Style.RESET_ALL}")
+        print(f"{Fore.WHITE}summary_type (optional): 'detailed' or 'sparse' (default: 'detailed'){Style.RESET_ALL}")
         sys.exit(1)
     
     youtube_url = sys.argv[1]
     agenda_path = sys.argv[2]
+    summary_type = sys.argv[3] if len(sys.argv) > 3 else "detailed"
     
     print(f"\n{Fore.MAGENTA}=== Transcription Pipeline ==={Style.RESET_ALL}")
     print(f"{Fore.WHITE}YouTube URL: {youtube_url}{Style.RESET_ALL}")
     print(f"{Fore.WHITE}Agenda Path: {agenda_path}{Style.RESET_ALL}")
+    print(f"{Fore.WHITE}Summary Type: {summary_type}{Style.RESET_ALL}")
     
-    pipeline = TranscriptionPipeline(youtube_url, agenda_path)
+    pipeline = TranscriptionPipeline(youtube_url, agenda_path, summary_type=summary_type)
     pipeline.run()
 
 if __name__ == "__main__":
