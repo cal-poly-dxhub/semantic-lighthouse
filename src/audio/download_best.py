@@ -1,21 +1,29 @@
 from yt_dlp import YoutubeDL
 from tqdm import tqdm
 
-URLS = ['https://www.youtube.com/watch?v=dQw4w9WgXcQ']
+URLS = ['https://www.youtube.com/watch?v=8446QlY9nw4']
 
 ydl_opts = {
-    'format': 'bestaudio/best',
+    'format': 'bestaudio',
     'postprocessors': [{
         'key': 'FFmpegExtractAudio',
         'preferredcodec': 'mp3',
-        'preferredquality': '192',
+        'preferredquality': '320',
     }],
     'outtmpl': '%(title)s.%(ext)s',
+    'verbose': True,
+    'quiet': False,
+    'no_warnings': False,
+    'audio_quality': 0,
+    'extract_audio': True,
 }
 
 def download_audio(url):
     with YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
+        try:
+            ydl.download([url])
+        except Exception as e:
+            print(f"Error downloading {url}: {str(e)}")
 
 if __name__ == '__main__':
     for url in tqdm(URLS, desc="Downloading", unit="file"):
