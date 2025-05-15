@@ -212,11 +212,11 @@ class TranscriptionPipeline:
         """Run the complete pipeline"""
         print(f"\n{Fore.MAGENTA}=== Starting Transcription Pipeline ==={Style.RESET_ALL}")
         try:
-            self.download_youtube_audio()
-            s3_uri = self.upload_to_s3()
-            job_name = self.start_transcription_job(s3_uri)
-            self.wait_for_transcription(job_name)
-            self.generate_human_readable()
+            # self.download_youtube_audio()
+            # s3_uri = self.upload_to_s3()
+            # job_name = self.start_transcription_job(s3_uri)
+            # self.wait_for_transcription(job_name)
+            # self.generate_human_readable()
             self.generate_summary()
             self.create_pdf()
             print(f"\n{Fore.MAGENTA}=== Pipeline completed successfully! ==={Style.RESET_ALL}")
