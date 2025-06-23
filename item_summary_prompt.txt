@@ -1,1 +1,0 @@
-Given this item and the discussion surrounding it that occured at this board meeting, summarize the discussion regarding the item and identify whether a vote was made. IF a vote took place, identify what the outcome was. (For example, The vote passed 5 - 0)
