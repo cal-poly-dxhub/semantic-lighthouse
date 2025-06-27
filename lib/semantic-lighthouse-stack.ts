@@ -19,6 +19,8 @@ export class SemanticLighthouseStack extends cdk.Stack {
         email: true,
         username: true,
       },
+      selfSignUpEnabled: true,
+      autoVerify: { email: true },
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
@@ -32,6 +34,7 @@ export class SemanticLighthouseStack extends cdk.Stack {
           adminUserPassword: true,
           userPassword: true,
           custom: true,
+          // once first user logs in, trigger disables self-signup
           userSrp: true,
         },
       }
@@ -40,102 +43,62 @@ export class SemanticLighthouseStack extends cdk.Stack {
     // user groups
 
     const adminGroup = userPool.addGroup("SemanticLighthouseAdminsGroup", {
+      groupName: "SemanticLighthouseAdminsGroup",
       description: "Administrators group",
+      precedence: 1,
     });
 
     const usersGroup = userPool.addGroup("SemanticLighthouseUsersGroup", {
+      groupName: "SemanticLighthouseUsersGroup",
       description: "Users group",
+      precedence: 2,
     });
-
-    // default admin user
-    // TODO: cannot log in to default admin user
-    const adminUser = new cdk.aws_cognito.CfnUserPoolUser(this, "AdminUser", {
-      userPoolId: userPool.userPoolId,
-      username: "admin",
-    });
-
-    adminUser.addOverride("Properties.UserAttributes", [
-      {
-        Name: "email",
-        Value: "admin@example.com",
-      },
-      {
-        Name: "email_verified",
-        Value: "true",
-      },
-    ]);
-
-    new cdk.aws_cognito.CfnUserPoolUserToGroupAttachment(
-      this,
-      "SemanticLighthouseAdminUserGroupAttachment",
-      {
-        userPoolId: userPool.userPoolId,
-        username: adminUser.ref,
-        groupName: adminGroup.groupName,
-      }
-    );
 
     // lambda
 
-    const lambdaLogGroup = new cdk.aws_logs.LogGroup(
+    const postConfirmationLambda = new cdk.aws_lambda.Function(
       this,
-      "SemanticLighthouseAdminPasswordLambdaLogGroup",
+      "PostConfirmationLambda",
       {
-        logGroupName: `/aws/lambda/${adminUser.ref}-set-password`,
-        retention: cdk.aws_logs.RetentionDays.ONE_DAY,
-        removalPolicy: cdk.RemovalPolicy.DESTROY,
-      }
-    );
-
-    const adminPasswordLambda = new cdk.aws_lambda.Function(
-      this,
-      "AdminPasswordLambda",
-      {
+        description: "lambda function handling post-confirmation",
         runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
-        handler: "video/adminPassword.handler",
-        code: cdk.aws_lambda.Code.fromAsset("lambda/dist"),
-        initialPolicy: [
-          new cdk.aws_iam.PolicyStatement({
-            actions: ["cognito-idp:AdminSetUserPassword"],
-            resources: [userPool.userPoolArn],
-          }),
-        ],
+        code: cdk.aws_lambda.Code.fromAsset("lambda/dist/auth"),
+        handler: "post-confirmation.handler",
+        timeout: cdk.Duration.seconds(30),
       }
     );
 
-    new cdk.custom_resources.AwsCustomResource(
-      this,
-      "SemanticLighthouseAdminDefaultPasswordCustomResource",
-      {
-        onCreate: {
-          service: "Lambda",
-          action: "invoke",
-          parameters: {
-            FunctionName: adminPasswordLambda.functionName,
-            InvocationType: "Event",
-            arguments: [
-              {
-                ResourceProperties: {
-                  UserPoolId: userPool.userPoolId,
-                  Username: adminUser.ref,
-                  Password: "AdminPassword123!",
-                },
-              },
-            ],
-          },
-          physicalResourceId: cdk.custom_resources.PhysicalResourceId.of(
-            `${adminUser.ref}-set-password`
-          ),
-        },
-        policy: cdk.custom_resources.AwsCustomResourcePolicy.fromStatements([
-          new cdk.aws_iam.PolicyStatement({
-            actions: ["lambda:InvokeFunction"],
-            resources: [adminPasswordLambda.functionArn],
-          }),
-        ]),
-        logGroup: lambdaLogGroup,
-      }
+    // grant lambda permission to add users to groups and list users in the user pool
+    postConfirmationLambda.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        actions: [
+          "cognito-idp:AdminAddUserToGroup",
+          "cognito-idp:ListUsers",
+          "cognito-idp:UpdateUserPool",
+        ],
+        resources: [
+          `arn:aws:cognito-idp:${this.region}:${this.account}:userpool/*`,
+        ],
+      })
     );
+
+    // trigger to signup first user and disable self-signup
+    userPool.addTrigger(
+      cdk.aws_cognito.UserPoolOperation.POST_CONFIRMATION,
+      postConfirmationLambda
+    );
+
+    // outputs
+
+    new cdk.CfnOutput(this, "UserPoolId", {
+      value: userPool.userPoolId,
+      description: "The ID of the Cognito User Pool",
+    });
+
+    new cdk.CfnOutput(this, "UserPoolClientId", {
+      value: userPoolClient.userPoolClientId,
+      description: "The ID of the Cognito User Pool Client",
+    });
 
     // ------------ VIDEO AUTH ------------
 
@@ -226,8 +189,6 @@ export class SemanticLighthouseStack extends cdk.Stack {
         code: cdk.aws_lambda.Code.fromAsset("lambda/dist"),
         environment: {
           VIDEO_BUCKET_NAME: videoBucket.bucketName,
-          COGNITO_USER_POOL_ID: userPool.userPoolId,
-          COGNITO_APP_CLIENT_ID: userPoolClient.userPoolClientId,
           CLOUDFRONT_DOMAIN_NAME: videoDistribution.distributionDomainName,
         },
       }
@@ -240,16 +201,6 @@ export class SemanticLighthouseStack extends cdk.Stack {
     );
 
     // ------------ OUTPUTS ------------
-
-    // new cdk.CfnOutput(this, "AdminUserId", {
-    //   value: adminUser.ref,
-    //   description: "The ID of the Cognito Admin User",
-    // });
-
-    new cdk.CfnOutput(this, "AdminUserPasswordLambdaArn", {
-      value: adminPasswordLambda.functionArn,
-      description: "The ARN of the Admin Password Lambda function",
-    });
 
     new cdk.CfnOutput(this, "VideoAuthApiEndpoint", {
       value: videoAuthApi.url,
