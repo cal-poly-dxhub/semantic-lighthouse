@@ -3,6 +3,7 @@
 import {
   AuthenticationDetails,
   CognitoUser,
+  CognitoUserAttribute,
   CognitoUserPool,
 } from "amazon-cognito-identity-js";
 import {
@@ -27,6 +28,19 @@ interface AuthContextType {
   handleLogin: (
     emailOrUsername: string,
     password: string,
+    onSuccess: (result: unknown) => void,
+    onFailure: (err: unknown) => void
+  ) => void;
+  handleSignup: (
+    email: string,
+    username: string,
+    password: string,
+    onSuccess: (result: unknown) => void,
+    onFailure: (err: unknown) => void
+  ) => void;
+  handleConfirmSignup: (
+    username: string,
+    confirmationCode: string,
     onSuccess: (result: unknown) => void,
     onFailure: (err: unknown) => void
   ) => void;
@@ -102,12 +116,64 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
         onFailure(new Error("MFA required but not implemented yet"));
       },
       newPasswordRequired: function (userAttributes, requiredAttributes) {
-        console.log("New password required:", userAttributes);
+        console.log(
+          "New password required:",
+          userAttributes,
+          requiredAttributes
+        );
         // Handle password change requirement
         onFailure(
           new Error("Password change required but not implemented yet")
         );
       },
+    });
+  };
+
+  const handleSignup = async (
+    email: string,
+    username: string,
+    password: string,
+    onSuccess: (result: unknown) => void,
+    onFailure: (err: unknown) => void
+  ) => {
+    const attributeList = [
+      new CognitoUserAttribute({
+        Name: "email",
+        Value: email,
+      }),
+    ];
+
+    userPool.signUp(username, password, attributeList, [], (err, result) => {
+      if (err) {
+        console.error("Signup failed:", err);
+        onFailure(err);
+      } else {
+        console.log("Signup successful:", result);
+        onSuccess(result);
+      }
+    });
+  };
+
+  const handleConfirmSignup = (
+    username: string,
+    confirmationCode: string,
+    onSuccess: (result: unknown) => void,
+    onFailure: (err: unknown) => void
+  ) => {
+    const userData = {
+      Username: username,
+      Pool: userPool,
+    };
+    const cognitoUser = new CognitoUser(userData);
+
+    cognitoUser.confirmRegistration(confirmationCode, true, (err, result) => {
+      if (err) {
+        console.error("Email confirmation failed:", err);
+        onFailure(err);
+      } else {
+        console.log("Email confirmed successfully:", result);
+        onSuccess(result);
+      }
     });
   };
 
@@ -180,6 +246,8 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
         user,
         token,
         handleLogin,
+        handleSignup,
+        handleConfirmSignup,
         handleLogout,
         handleChangePassword,
       }}

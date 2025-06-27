@@ -26,6 +26,19 @@ const blue: MantineColorsTuple = [
   "#0043b5",
 ];
 
+const cyan: MantineColorsTuple = [
+  "#e5f9f9",
+  "#cdeef0",
+  "#9adfe2",
+  "#64cfd2",
+  "#38c0c4",
+  "#1db2b6",
+  "#0d9ea8",
+  "#008a9b",
+  "#007a8f",
+  "#006b82",
+];
+
 const black: MantineColorsTuple = [
   "#f5f5f5",
   "#e7e7e7",
@@ -53,8 +66,8 @@ const dark: MantineColorsTuple = [
 ];
 
 export const theme = createTheme({
-  colors: { red, blue, black, dark },
-  primaryColor: "green",
+  colors: { red, blue, cyan, black, dark },
+  primaryColor: "cyan",
   primaryShade: {
     light: 5,
     dark: 7,

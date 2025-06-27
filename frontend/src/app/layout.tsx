@@ -1,5 +1,6 @@
 import "@mantine/core/styles.css";
 
+import Header from "@/components/Header";
 import { AuthProvider } from "@/constants/AuthContext";
 import { theme } from "@/constants/theme";
 import {
@@ -13,6 +14,13 @@ export const metadata = {
   description: "Create meeting minutes from a video and agenda.",
 };
 
+const RootWrapper = ({ children }: { children: React.ReactNode }) => (
+  <>
+    <Header />
+    {children}
+  </>
+);
+
 export default function RootLayout({
   children,
 }: {
@@ -25,7 +33,9 @@ export default function RootLayout({
       </head>
       <body>
         <AuthProvider>
-          <MantineProvider theme={theme}>{children}</MantineProvider>
+          <MantineProvider theme={theme} defaultColorScheme="light">
+            <RootWrapper>{children}</RootWrapper>
+          </MantineProvider>
         </AuthProvider>
       </body>
     </html>

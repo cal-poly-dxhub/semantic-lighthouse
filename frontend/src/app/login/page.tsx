@@ -1,16 +1,20 @@
 // filepath: /Users/gusflusser/DxHub/semantic-lighthouse/frontend/src/app/login/page.tsx
 "use client";
 
+import { theme } from "@/constants/theme";
 import {
   Alert,
+  Anchor,
   Button,
   Container,
   Paper,
   PasswordInput,
+  Text,
   TextInput,
   Title,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "../../constants/AuthContext";
@@ -90,13 +94,25 @@ export default function LoginPage() {
             fullWidth
             mt="xl"
             loading={loading}
-            style={{
-              background: "linear-gradient(45deg, #1c7ed6, #339af0)",
-            }}
+            bg={theme.primaryColor}
           >
             Sign in
           </Button>
         </form>
+
+        <Text ta="center" mt="md" size="sm" c="dimmed">
+          Need to verify your email?{" "}
+          <Anchor component={Link} href="/verify" size="sm">
+            Verify account
+          </Anchor>
+        </Text>
+
+        <Text ta="center" mt="xs" size="sm" c="dimmed">
+          Don&apos;t have an account?{" "}
+          <Anchor component={Link} href="/signup" size="sm">
+            Sign up here
+          </Anchor>
+        </Text>
       </Paper>
     </Container>
   );
