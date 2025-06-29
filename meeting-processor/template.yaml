@@ -1,0 +1,123 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Meeting Processor: Step Functions workflow to transcribe videos.
+
+Parameters:
+  S3BucketName:
+    Type: String
+    Description: "The name of the S3 bucket for storing all meeting files."
+    Default: "meeting-minutes-processor-files-us-west-2"
+
+Resources:
+  # S3 Bucket for all application files
+  MeetingFilesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref S3BucketName
+      LifecycleConfiguration:
+        Rules:
+          - Id: AutoDeleteProcessingFiles
+            Prefix: "transcripts/"
+            Status: Enabled
+            ExpirationInDays: 7
+      NotificationConfiguration:
+        EventBridgeConfiguration:
+          EventBridgeEnabled: true
+
+  # Explicit Bucket Policy to allow S3 to publish events and Transcribe to access the bucket
+  S3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref MeetingFilesBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "AllowS3ToPublishEventsToEventBridge"
+            Effect: "Allow"
+            Principal:
+              Service: "s3.amazonaws.com"
+            Action: "s3:PutBucketNotification"
+            Resource: !GetAtt MeetingFilesBucket.Arn
+            Condition:
+              StringEquals:
+                "s3:ResourceAccount": !Ref AWS::AccountId
+          - Sid: "AllowTranscribeService"
+            Effect: "Allow"
+            Principal:
+              Service: "transcribe.amazonaws.com"
+            Action:
+              - "s3:GetObject"
+              - "s3:PutObject"
+            Resource: !Sub "arn:aws:s3:::${MeetingFilesBucket}/*"
+
+  # Lambda Function to process the final transcript
+  ProcessTranscriptLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/process_transcript/
+      Handler: handler.handler
+      Runtime: python3.9
+      Timeout: 300
+      MemorySize: 512
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource: !Sub "arn:aws:s3:::${MeetingFilesBucket}/*"
+      Environment:
+        Variables:
+          S3_BUCKET: !Ref MeetingFilesBucket
+
+  # Step Functions State Machine to orchestrate the workflow
+  TranscriptionStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Type: STANDARD
+      DefinitionUri: statemachine/transcribe.asl.json
+      DefinitionSubstitutions:
+        ProcessTranscriptLambdaArn: !GetAtt ProcessTranscriptLambda.Arn
+        OutputBucketName: !Ref S3BucketName
+      Events:
+        S3UploadTrigger:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source:
+                - aws.s3
+              detail-type:
+                - "Object Created"
+              detail:
+                bucket:
+                  name:
+                    - !Ref S3BucketName
+                object:
+                  key:
+                    - prefix: "uploads/"
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ProcessTranscriptLambda
+        - Statement:
+            - Effect: Allow
+              Action:
+                - "transcribe:StartTranscriptionJob"
+                - "transcribe:GetTranscriptionJob"
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - "s3:GetObject"
+              Resource: !Sub "arn:aws:s3:::${S3BucketName}/uploads/*"
+            - Effect: Allow
+              Action:
+                - "s3:PutObject"
+              Resource: !Sub "arn:aws:s3:::${S3BucketName}/transcripts/*"
+
+Outputs:
+  S3Bucket:
+    Description: "Name of the S3 bucket for meeting files"
+    Value: !Ref MeetingFilesBucket
+  StateMachineArn:
+    Description: "ARN of the Step Functions State Machine"
+    Value: !Ref TranscriptionStateMachine

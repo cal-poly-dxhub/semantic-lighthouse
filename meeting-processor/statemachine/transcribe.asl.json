@@ -1,0 +1,74 @@
+{
+  "Comment": "A state machine that transcribes a video file and processes the result.",
+  "StartAt": "StartTranscriptionJob",
+  "States": {
+    "StartTranscriptionJob": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:transcribe:startTranscriptionJob",
+      "Parameters": {
+        "LanguageCode": "en-US",
+        "Media": {
+          "MediaFileUri.$": "States.Format('s3://{}/{}', $.detail.bucket.name, $.detail.object.key)"
+        },
+        "TranscriptionJobName.$": "States.Format('transcribe-{}', $$.Execution.Name)",
+        "OutputBucketName": "${OutputBucketName}",
+        "OutputKey.$": "States.Format('transcripts/{}.json', $$.Execution.Name)",
+        "Settings": {
+          "ShowSpeakerLabels": true,
+          "MaxSpeakerLabels": 10
+        }
+      },
+      "ResultPath": "$.startTranscriptionResult",
+      "Next": "Wait"
+    },
+    "Wait": {
+      "Type": "Wait",
+      "Seconds": 30,
+      "Next": "GetTranscriptionJobStatus"
+    },
+    "GetTranscriptionJobStatus": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:transcribe:getTranscriptionJob",
+      "Parameters": {
+        "TranscriptionJobName.$": "$.startTranscriptionResult.TranscriptionJob.TranscriptionJobName"
+      },
+      "ResultPath": "$.getTranscriptionJobResult",
+      "Next": "IsJobFinished"
+    },
+    "IsJobFinished": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.getTranscriptionJobResult.TranscriptionJob.TranscriptionJobStatus",
+          "StringEquals": "COMPLETED",
+          "Next": "ProcessTranscript"
+        },
+        {
+          "Variable": "$.getTranscriptionJobResult.TranscriptionJob.TranscriptionJobStatus",
+          "StringEquals": "FAILED",
+          "Next": "TranscriptionFailed"
+        }
+      ],
+      "Default": "Wait"
+    },
+    "TranscriptionFailed": {
+      "Type": "Fail",
+      "Cause": "Transcription Job Failed",
+      "Error": "The AWS Transcribe job failed to complete."
+    },
+    "ProcessTranscript": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${ProcessTranscriptLambdaArn}",
+        "Payload": {
+          "transcriptionResult": {
+            "TranscriptionJob.$": "$.getTranscriptionJobResult.TranscriptionJob"
+          }
+        }
+      },
+      "ResultPath": "$.processResult",
+      "End": true
+    }
+  }
+}
