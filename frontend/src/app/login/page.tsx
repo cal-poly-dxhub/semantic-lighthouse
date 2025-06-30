@@ -44,7 +44,7 @@ export default function LoginPage() {
       values.password,
       () => {
         setLoading(false);
-        router.push("/dashboard");
+        router.push("/");
       },
       (err: unknown) => {
         setLoading(false);

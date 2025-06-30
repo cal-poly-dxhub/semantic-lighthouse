@@ -27,12 +27,12 @@ export default function ResendVerificationPage() {
       username: "",
     },
     validate: {
-      username: (value) =>
+      username: (value: string | unknown[]) =>
         value.length < 3 ? "Username must be at least 3 characters" : null,
     },
   });
 
-  const onSubmit = async (_values: { username: string }) => {
+  const onSubmit = async () => {
     setLoading(true);
     setError(null);
     setSuccess(null);

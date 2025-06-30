@@ -1,20 +1,36 @@
 import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
-// import * as sqs from 'aws-cdk-lib/aws-sqs';
+import { SemanticLighthouseStackProps } from "../bin/semantic-lighthouse";
 
 export class SemanticLighthouseStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(
+    scope: Construct,
+    id: string,
+    props: SemanticLighthouseStackProps
+  ) {
     super(scope, id, props);
 
-    // ------------ AUTH AND ADMIN SETUP ------------
+    // TODO: upload route
 
-    // TODO: remove
-    const uniqueId = "dev-1";
+    // TODO: mediaconvert for audio isolation
+    // TODO: lambda 1: agenda ORC + extract headers
+
+    // TODO:
+    // build and upload frontend assets to S3 bucket
+    // see if things are working
+
+    const { uniqueId } = props;
+
+    // cannot get dynamically from group creation - circular dependency
+    const adminGroupName = "AdminsGroup";
+
+    // TODO: change all .DESTROY to .RETAIN in production
+
+    // ------------ AUTH AND ADMIN SETUP ------------
 
     // cognito
 
     const userPool = new cdk.aws_cognito.UserPool(this, "UserPool", {
-      userPoolName: `SemanticLighthouseUserPool-${uniqueId}`,
       signInAliases: {
         email: true,
         username: true,
@@ -29,7 +45,6 @@ export class SemanticLighthouseStack extends cdk.Stack {
       "UserPoolClient",
       {
         userPool,
-        userPoolClientName: `SemanticLighthouseUserPoolClient-${uniqueId}`,
         authFlows: {
           adminUserPassword: true,
           userPassword: true,
@@ -42,14 +57,14 @@ export class SemanticLighthouseStack extends cdk.Stack {
 
     // user groups
 
-    const adminGroup = userPool.addGroup("SemanticLighthouseAdminsGroup", {
-      groupName: "SemanticLighthouseAdminsGroup",
+    const adminGroup = userPool.addGroup("AdminsGroup", {
+      groupName: adminGroupName,
       description: "Administrators group",
       precedence: 1,
     });
 
-    const usersGroup = userPool.addGroup("SemanticLighthouseUsersGroup", {
-      groupName: "SemanticLighthouseUsersGroup",
+    const usersGroup = userPool.addGroup("UsersGroup", {
+      groupName: "UsersGroup",
       description: "Users group",
       precedence: 2,
     });
@@ -65,6 +80,9 @@ export class SemanticLighthouseStack extends cdk.Stack {
         code: cdk.aws_lambda.Code.fromAsset("lambda/dist/auth"),
         handler: "post-confirmation.handler",
         timeout: cdk.Duration.seconds(30),
+        environment: {
+          ADMIN_GROUP_NAME: adminGroupName,
+        },
       }
     );
 
@@ -103,40 +121,27 @@ export class SemanticLighthouseStack extends cdk.Stack {
     // ------------ VIDEO AUTH ------------
 
     // s3 bucket for videos
-    const videoBucket = new cdk.aws_s3.Bucket(
-      this,
-      "SemanticLighthouseVideosBucket",
-      {
-        bucketName: "semantic-lighthouse-videos",
-        removalPolicy: cdk.RemovalPolicy.DESTROY,
-        autoDeleteObjects: true,
-        publicReadAccess: false,
-        encryption: cdk.aws_s3.BucketEncryption.S3_MANAGED,
-        blockPublicAccess: cdk.aws_s3.BlockPublicAccess.BLOCK_ACLS_ONLY,
-        cors: [
-          {
-            allowedMethods: [cdk.aws_s3.HttpMethods.GET],
-            allowedOrigins: ["*"],
-            allowedHeaders: ["*"],
-            maxAge: 3000,
-          },
-        ],
-      }
-    );
-
-    // TODO: remove
-    videoBucket.addToResourcePolicy(
-      new cdk.aws_iam.PolicyStatement({
-        actions: ["s3:GetObject"],
-        resources: [videoBucket.arnForObjects("*")],
-        principals: [new cdk.aws_iam.AnyPrincipal()],
-      })
-    );
+    const videoBucket = new cdk.aws_s3.Bucket(this, "VideosBucket", {
+      bucketName: `semantic-lighthouse-videos-${uniqueId}`,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+      publicReadAccess: false,
+      encryption: cdk.aws_s3.BucketEncryption.S3_MANAGED,
+      blockPublicAccess: cdk.aws_s3.BlockPublicAccess.BLOCK_ALL,
+      cors: [
+        {
+          allowedMethods: [cdk.aws_s3.HttpMethods.GET],
+          allowedOrigins: ["*"],
+          allowedHeaders: ["*"],
+          maxAge: 3000,
+        },
+      ],
+    });
 
     // cloudfront distribution for video bucket
     const videoDistribution = new cdk.aws_cloudfront.Distribution(
       this,
-      "SemanticLighthouseVideoDistribution",
+      "VideosDistribution",
       {
         defaultBehavior: {
           origin:
@@ -154,8 +159,8 @@ export class SemanticLighthouseStack extends cdk.Stack {
               corsBehavior: {
                 accessControlAllowCredentials: false,
                 accessControlAllowHeaders: ["*"],
-                accessControlAllowMethods: ["ALL"],
-                accessControlAllowOrigins: ["*"],
+                accessControlAllowMethods: ["GET", "HEAD", "OPTIONS"],
+                accessControlAllowOrigins: ["*"], // TODO: restrict in production
                 accessControlExposeHeaders: ["Access-Control-Allow-Origin"],
                 originOverride: true,
               },
@@ -165,9 +170,12 @@ export class SemanticLighthouseStack extends cdk.Stack {
       }
     );
 
+    // TODO: add dynamo table
+
+    // TODO: add video upload lambda
+
     // separate api for fetching video presigned urls
     const videoAuthApi = new cdk.aws_apigateway.RestApi(this, "VideoAuthApi", {
-      restApiName: "SemanticLighthouseVideoAuthApi",
       description: "API for video authentication",
       deployOptions: {
         stageName: "prod",
@@ -175,18 +183,29 @@ export class SemanticLighthouseStack extends cdk.Stack {
         dataTraceEnabled: true,
         metricsEnabled: true,
       },
+      defaultCorsPreflightOptions: {
+        // TODO: restrict in production
+        allowOrigins: cdk.aws_apigateway.Cors.ALL_ORIGINS,
+        allowMethods: cdk.aws_apigateway.Cors.ALL_METHODS,
+      },
     });
 
-    const videoAuthResource = videoAuthApi.root.addResource("presigned");
-
-    // lambda for generating presigned urls
-    const videoAuthLambda = new cdk.aws_lambda.Function(
+    const authorizer = new cdk.aws_apigateway.CognitoUserPoolsAuthorizer(
       this,
-      "VideoAuthLambda",
+      "CognitoAuthorizer",
+      {
+        cognitoUserPools: [userPool],
+      }
+    );
+
+    const uploadResource = videoAuthApi.root.addResource("upload");
+    const videoUploadLambda = new cdk.aws_lambda.Function(
+      this,
+      "VideoUploadLambda",
       {
         runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
-        handler: "presigned.handler",
-        code: cdk.aws_lambda.Code.fromAsset("lambda/dist"),
+        handler: "upload.handler",
+        code: cdk.aws_lambda.Code.fromAsset("lambda/dist/video"),
         environment: {
           VIDEO_BUCKET_NAME: videoBucket.bucketName,
           CLOUDFRONT_DOMAIN_NAME: videoDistribution.distributionDomainName,
@@ -194,17 +213,95 @@ export class SemanticLighthouseStack extends cdk.Stack {
       }
     );
 
-    videoBucket.grantRead(videoAuthLambda);
+    videoBucket.grantReadWrite(videoUploadLambda);
+    uploadResource.addMethod(
+      "POST",
+      new cdk.aws_apigateway.LambdaIntegration(videoUploadLambda),
+      {
+        authorizationType: cdk.aws_apigateway.AuthorizationType.COGNITO,
+        authorizer,
+      }
+    );
+
+    // lambda route for generating presigned urls for private videos
+    const videoAuthResource =
+      videoAuthApi.root.addResource("private-presigned");
+    const videoAuthLambdaPrivateVideo = new cdk.aws_lambda.Function(
+      this,
+      "VideoAuthLambdaPrivateVideo",
+      {
+        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
+        handler: "private-presigned.handler",
+        code: cdk.aws_lambda.Code.fromAsset("lambda/dist/video"),
+        environment: {
+          VIDEO_BUCKET_NAME: videoBucket.bucketName,
+          CLOUDFRONT_DOMAIN_NAME: videoDistribution.distributionDomainName,
+        },
+      }
+    );
+
+    videoBucket.grantRead(videoAuthLambdaPrivateVideo);
     videoAuthResource.addMethod(
       "GET",
-      new cdk.aws_apigateway.LambdaIntegration(videoAuthLambda)
+      new cdk.aws_apigateway.LambdaIntegration(videoAuthLambdaPrivateVideo),
+      {
+        authorizationType: cdk.aws_apigateway.AuthorizationType.COGNITO,
+        authorizer,
+      }
     );
+
+    // TODO: add public video route
+
+    // ------------ FRONTEND HOSTING ------------
+
+    const frontendBucket = new cdk.aws_s3.Bucket(this, "FrontendBucket", {
+      bucketName: `semantic-lighthouse-frontend-${uniqueId}`,
+      publicReadAccess: false,
+      blockPublicAccess: cdk.aws_s3.BlockPublicAccess.BLOCK_ALL,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+    });
+
+    const rewriteFunction = new cdk.aws_cloudfront.Function(
+      this,
+      "RewriteFunction",
+      {
+        code: cdk.aws_cloudfront.FunctionCode.fromFile({
+          filePath: "lambda/dist/frontend-rewrite.js",
+        }),
+      }
+    );
+
+    const frontendDistribution = new cdk.aws_cloudfront.Distribution(
+      this,
+      "FrontendDistribution",
+      {
+        defaultBehavior: {
+          origin:
+            cdk.aws_cloudfront_origins.S3BucketOrigin.withOriginAccessControl(
+              frontendBucket
+            ),
+          functionAssociations: [
+            {
+              function: rewriteFunction,
+              eventType: cdk.aws_cloudfront.FunctionEventType.VIEWER_REQUEST,
+            },
+          ],
+          viewerProtocolPolicy:
+            cdk.aws_cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        },
+        defaultRootObject: "index.html",
+      }
+    );
+
+    // TODO: build and upload frontend assets to S3 bucket
+    // do as much in lambda custom resource as possible so minimal requirements for deployer
 
     // ------------ OUTPUTS ------------
 
-    new cdk.CfnOutput(this, "VideoAuthApiEndpoint", {
-      value: videoAuthApi.url,
-      description: "The endpoint of the Video Auth API",
+    new cdk.CfnOutput(this, "FrontendDistributionUrl", {
+      value: `https://${frontendDistribution.distributionDomainName}`,
+      description: "URL of the deployed frontend application",
     });
   }
 }

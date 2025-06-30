@@ -34,13 +34,16 @@ export default function SignupPage() {
       confirmPassword: "",
     },
     validate: {
-      email: (value) => (/^\S+@\S+$/.test(value) ? null : "Invalid email"),
-      username: (value) =>
+      email: (value: string) =>
+        /^\S+@\S+$/.test(value) ? null : "Invalid email",
+      username: (value: string | unknown[]) =>
         value.length < 3 ? "Username must be at least 3 characters" : null,
-      password: (value) =>
+      password: (value: string | unknown[]) =>
         value.length < 8 ? "Password must be at least 8 characters" : null,
-      confirmPassword: (value, values) =>
-        value !== values.password ? "Passwords do not match" : null,
+      confirmPassword: (value: string | unknown[], values: unknown) =>
+        value !== (values as { password: string }).password
+          ? "Passwords do not match"
+          : null,
     },
   });
 

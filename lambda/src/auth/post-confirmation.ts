@@ -36,7 +36,7 @@ export const handler = async (event: PostConfirmationTriggerEvent) => {
       const adminAddUserToGroupCommand = new AdminAddUserToGroupCommand({
         UserPoolId: userPoolId,
         Username: userName,
-        GroupName: "SemanticLighthouseAdminsGroup",
+        GroupName: process.env.ADMIN_GROUP_NAME,
       });
       await cognitoClient.send(adminAddUserToGroupCommand);
       console.log(`INFO: User ${userName} added to Admins group.`);

@@ -1,82 +1,152 @@
 "use client";
-import { Container, Text } from "@mantine/core";
 
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import Hls from "hls.js";
+import { useAuth } from "@/constants/AuthContext";
+import { Alert, Paper, Title, useMantineTheme } from "@mantine/core";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
-const Video = () => {
+interface VideoRequestResponse {
+  videoId: string;
+  presignedUrl: string;
+}
+
+export default function VideoPage() {
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
   const time = searchParams.get("time");
   const videoRef = useRef<HTMLVideoElement>(null);
+  const theme = useMantineTheme();
 
-  const m3u8Url = `${process.env.NEXT_PUBLIC_DISTRIBUTION_BASE_URL}/${id}/output.m3u8`;
+  const { token } = useAuth();
+
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // fetch presigned url and setup video player
+  useEffect(() => {
+    const videoElement = videoRef.current;
+    if (!videoElement) {
+      setError("Video element not found.");
+      return;
+    }
+
+    const fetchVideoUrl = async () => {
+      if (!id) {
+        setError("No video ID provided in the URL.");
+        return;
+      }
+
+      try {
+        if (!token) {
+          // NOTE: this will display in dev, in prod will have lazy initialization (see AuthContext)
+          setError("You are not authorized to view this video.");
+          return;
+        }
+
+        const apiUrl = `${process.env.NEXT_PUBLIC_VIDEO_AUTH_API_URL}/private-presigned?videoId=${id}`;
+
+        console.log(`Fetching video URL from: ${apiUrl}`);
+
+        const response = await fetch(apiUrl, {
+          headers: {
+            Authorization: token,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(
+            `Failed to fetch video URL. Status: ${response.status}`
+          );
+        }
+
+        const data: VideoRequestResponse = await response.json();
+        setVideoUrl(data.presignedUrl);
+      } catch (err) {
+        console.error(err);
+        setError(
+          (err as { message?: string }).message ||
+            "An error occurred while loading the video."
+        );
+      }
+    };
+
+    // run above functions
+    fetchVideoUrl();
+  }, [id, token]);
 
   useEffect(() => {
-    if (videoRef.current && id) {
-      videoRef.current.src = m3u8Url;
-      videoRef.current.load();
-    }
+    if (videoUrl && videoRef.current) {
+      const videoElement = videoRef.current;
 
-    if (videoRef.current && time) {
-      const parsedTime = parseFloat(time);
-      if (!isNaN(parsedTime)) {
-        videoRef.current.currentTime = parsedTime;
-      }
-    }
+      const handleMetadataLoaded = () => {
+        if (time) {
+          const parsedTime = parseFloat(time);
+          if (!isNaN(parsedTime) && videoElement) {
+            console.log(`Setting video time to: ${parsedTime}`);
+            videoElement.currentTime = parsedTime;
+          }
+        }
+      };
 
-    if (videoRef.current && Hls.isSupported()) {
-      const hls = new Hls();
-      hls.loadSource(m3u8Url);
-      hls.attachMedia(videoRef.current);
+      videoElement.addEventListener("loadedmetadata", handleMetadataLoaded);
+      videoElement.src = videoUrl;
+
+      return () => {
+        videoElement.removeEventListener(
+          "loadedmetadata",
+          handleMetadataLoaded
+        );
+      };
     }
-  }, [id, m3u8Url, time]);
+  }, [videoUrl, time]);
+
+  useEffect(() => {
+    if (videoUrl && videoRef.current) {
+      videoRef.current.src = videoUrl;
+    }
+  }, [videoUrl]);
 
   return (
-    <Container size="lg" py="xl">
-      <Text size="xl" fw={700} ta="center" mb="md">
+    <Paper
+      p="xl"
+      shadow="xs"
+      w={900}
+      mx="auto"
+      mt={10}
+      radius={theme.radius.lg}
+    >
+      <Title order={2} mb="md" ta="center">
         Semantic Lighthouse Video Player
-      </Text>
+      </Title>
 
-      {id ? (
-        <div
+      <Paper
+        p="md"
+        radius={theme.radius.md}
+        style={{
+          overflow: "hidden",
+          backgroundColor: "#000",
+        }}
+      >
+        <video
+          ref={videoRef}
+          controls
+          width="100%"
+          height="auto"
           style={{
-            borderRadius: "12px",
-            overflow: "hidden",
-            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
-            backgroundColor: "#000",
+            borderRadius: theme.radius.md,
+            display: "block",
           }}
+          autoPlay
+          key={videoUrl}
         >
-          <video
-            ref={videoRef}
-            controls
-            width="100%"
-            height="450"
-            style={{
-              borderRadius: "12px",
-              display: "block",
-            }}
-          >
-            Your browser does not support the video tag.
-          </video>
-        </div>
-      ) : (
-        <div
-          style={{
-            padding: "2rem",
-            textAlign: "center",
-            border: "2px dashed #e0e0e0",
-            borderRadius: "12px",
-            backgroundColor: "#f8f9fa",
-          }}
-        >
-          <Text>Loading video...</Text>
-        </div>
+          Your browser does not support the video tag.
+        </video>
+      </Paper>
+      {error && (
+        <Alert color="red" mt="md">
+          {error}
+        </Alert>
       )}
-    </Container>
+    </Paper>
   );
-};
-export default Video;
+}

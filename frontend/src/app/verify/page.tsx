@@ -25,7 +25,7 @@ export default function VerifyPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Get username from URL params if available (passed from signup)
+  // get username from URL params if available (passed from signup)
   const usernameFromParams = searchParams.get("username") || "";
 
   const form = useForm({
@@ -35,13 +35,13 @@ export default function VerifyPage() {
       password: "",
     },
     validate: {
-      username: (value) =>
+      username: (value: string) =>
         value.length < 3 ? "Username must be at least 3 characters" : null,
-      confirmationCode: (value) =>
+      confirmationCode: (value: string) =>
         value.length < 6
           ? "Confirmation code must be at least 6 characters"
           : null,
-      password: (value) =>
+      password: (value: string) =>
         value.length < 8 ? "Password must be at least 8 characters" : null,
     },
   });
@@ -55,30 +55,17 @@ export default function VerifyPage() {
     setError(null);
     setSuccess(null);
 
-    // First, confirm the signup
     handleConfirmSignup(
       values.username,
       values.confirmationCode,
       () => {
-        setSuccess("Email verified successfully! Logging you in...");
-
-        // After successful verification, auto-login the user
+        // verification handles login automatically
+        setSuccess(
+          "Email verified successfully! Taking you to the dashboard..."
+        );
         setTimeout(() => {
-          handleLogin(
-            values.username,
-            values.password,
-            () => {
-              setLoading(false);
-              router.push("/dashboard");
-            },
-            () => {
-              setLoading(false);
-              setSuccess("Email verified! Please go to login page to sign in.");
-              setTimeout(() => {
-                router.push("/login");
-              }, 2000);
-            }
-          );
+          setLoading(false);
+          router.push("/dashboard");
         }, 1000);
       },
       (err: unknown) => {

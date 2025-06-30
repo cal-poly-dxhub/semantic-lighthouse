@@ -7,6 +7,7 @@ import {
   Container,
   Paper,
   Progress,
+  Select,
   Text,
   TextInput,
   Title,
@@ -36,9 +37,10 @@ export default function UploadPage() {
       description: "",
     },
     validate: {
-      meetingTitle: (value) =>
+      meetingTitle: (value: string) =>
         value.length < 3 ? "Meeting title must be at least 3 characters" : null,
-      meetingDate: (value) => (!value ? "Meeting date is required" : null),
+      meetingDate: (value: string) =>
+        !value ? "Meeting date is required" : null,
     },
   });
 
@@ -91,37 +93,22 @@ export default function UploadPage() {
     setUploadProgress(0);
 
     try {
-      // Simulate upload progress
-      const progressInterval = setInterval(() => {
-        setUploadProgress((prev) => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return 90;
-          }
-          return prev + 10;
-        });
-      }, 200);
-
       // TODO: Implement actual file upload to S3
       // This would involve:
       // 1. Getting presigned URLs for both video and agenda files
       // 2. Uploading files to S3
       // 3. Saving metadata to database
-
-      setTimeout(() => {
-        clearInterval(progressInterval);
-        setUploadProgress(100);
-        setLoading(false);
-        setSuccess(
-          `Meeting "${values.meetingTitle}" uploaded successfully! Processing will begin shortly.`
-        );
-
-        // reset form
-        form.reset();
-        setVideoFile(null);
-        setAgendaFile(null);
-        setUploadProgress(0);
-      }, 2000);
+      // after upload
+      // setUploadProgress(100);
+      // setLoading(false);
+      // setSuccess(
+      //   `Meeting "${values.meetingTitle}" uploaded successfully! Processing will begin shortly.`
+      // );
+      // // reset form
+      // form.reset();
+      // setVideoFile(null);
+      // setAgendaFile(null);
+      // setUploadProgress(0);
     } catch (uploadError) {
       setLoading(false);
       setUploadProgress(0);
@@ -200,6 +187,24 @@ export default function UploadPage() {
             {...form.getInputProps("description")}
           />
 
+          <Select
+            label="Visibility"
+            placeholder="Select visibility"
+            required
+            mt="md"
+            data={[
+              {
+                value: "private",
+                label: "Private - Only you can see this meeting",
+              },
+              {
+                value: "public",
+                label: "Public - Anyone can view this meeting",
+              },
+            ]}
+            {...form.getInputProps("visibility")}
+          />
+
           <Text size="sm" fw={500} mt="md" mb="xs">
             Board Meeting Video *
           </Text>
@@ -247,7 +252,7 @@ export default function UploadPage() {
           </Dropzone>
 
           <Text size="sm" fw={500} mt="md" mb="xs">
-            Meeting Agenda (PDF)
+            Meeting Agenda (PDF) *
           </Text>
           <Dropzone
             onDrop={handleAgendaUpload}
@@ -282,7 +287,7 @@ export default function UploadPage() {
                     style={{ margin: "0 auto" }}
                   />
                   <Text size="sm" mt="xs">
-                    Drop PDF file here or click to select (optional)
+                    Drop PDF file here or click to select
                   </Text>
                   <Text size="xs" color="dimmed" mt="xs">
                     Upload the meeting agenda for better analysis

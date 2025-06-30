@@ -61,8 +61,34 @@ const userPool = new CognitoUserPool({
 });
 
 const AuthProvider = ({ children }: { children: ReactNode }) => {
+  // TODO: in prod use lazy initialization because will be deployed statically
+  // const [user, setUser] = useState<User | null>(() => {
+  //   if (typeof window === "undefined") return null;
+  //   const storedUser = localStorage.getItem("user");
+  //   return storedUser ? JSON.parse(storedUser) : null;
+  // });
+  // const [token, setToken] = useState<string | null>(() => {
+  //   if (typeof window === "undefined") return null;
+  //   return localStorage.getItem("token");
+  // });
+  // end prod section
+
+  // TODO: for development use this whole block (flickery buttons)
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  useEffect(() => {
+    // check localStorage for user and token on initial load
+    const storedUser = localStorage.getItem("user");
+    const storedToken = localStorage.getItem("token");
+
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+    if (storedToken) {
+      setToken(storedToken);
+    }
+  }, []);
+  // end development section
 
   const handleLogin = async (
     emailOrUsername: string,
@@ -88,8 +114,8 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
         const newToken = result.getIdToken().getJwtToken();
         const payload = result.getIdToken().payload;
 
-        console.log("Authentication successful, token:", newToken);
-        console.log("User data:", payload);
+        // console.log("Authentication successful, token:", newToken);
+        // console.log("User data:", payload);
 
         // Extract user information from the token payload
         const newUser: User = {
@@ -101,8 +127,11 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         setUser(newUser);
         setToken(newToken);
-        sessionStorage.setItem("token", newToken);
-        sessionStorage.setItem("user", JSON.stringify(newUser));
+        localStorage.setItem("token", newToken);
+        localStorage.setItem("user", JSON.stringify(newUser));
+
+        // console.log("User logged in:", newUser);
+        // console.log(localStorage.getItem("user"));
 
         onSuccess(result);
       },
@@ -157,6 +186,7 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
   const handleConfirmSignup = (
     username: string,
     confirmationCode: string,
+    password: string,
     onSuccess: (result: unknown) => void,
     onFailure: (err: unknown) => void
   ) => {
@@ -172,7 +202,8 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
         onFailure(err);
       } else {
         console.log("Email confirmed successfully:", result);
-        onSuccess(result);
+        // automatically log in the user after confirmation
+        handleLogin(username, password, onSuccess, onFailure);
       }
     });
   };
@@ -190,7 +221,7 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     setUser(null);
     setToken(null);
-    sessionStorage.clear();
+    localStorage.clear();
   };
 
   const handleChangePassword = (
@@ -220,25 +251,6 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     });
   };
-
-  useEffect(() => {
-    const storedUser = sessionStorage.getItem("user");
-    const storedToken = sessionStorage.getItem("token");
-
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
-      } catch (error) {
-        console.error("Error parsing stored user:", error);
-        sessionStorage.removeItem("user");
-      }
-    }
-
-    if (storedToken) {
-      setToken(storedToken);
-    }
-  }, []);
 
   return (
     <AuthContext.Provider

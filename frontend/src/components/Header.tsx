@@ -31,8 +31,14 @@ const Header = memo(function DefaultHeader() {
             >
               Home
             </Anchor>
+            <Anchor
+              href="/upload"
+              className={classes.link}
+              style={{ textDecoration: "none" }}
+            >
+              Upload
+            </Anchor>
           </Group>
-          {/* TODO: rerendering every page change */}
           {user ? (
             <Group visibleFrom="sm">
               <Button variant="default" onClick={handleLogout}>
