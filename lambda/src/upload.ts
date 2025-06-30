@@ -28,7 +28,7 @@ export const handler = async (
 ): Promise<APIGatewayProxyResult> => {
   console.log("INFO: Received event:", JSON.stringify(event, null, 2));
 
-  // Handle CORS preflight
+  // cors
   if (event.httpMethod === "OPTIONS") {
     return {
       statusCode: 200,
@@ -37,42 +37,29 @@ export const handler = async (
     };
   }
 
-  // Validate environment variables
-  if (!process.env.VIDEO_BUCKET_NAME) {
-    console.error("ERROR: VIDEO_BUCKET_NAME environment variable not set");
-    return {
-      statusCode: 500,
-      headers: corsHeaders,
-      body: JSON.stringify({
-        error: "Server configuration error",
-        details: "Missing required environment variables",
-      }),
-    };
-  }
-
   const videoId = randomUUID();
 
   try {
     const videoKey = `${videoId}/video.mp4`;
     const command = new PutObjectCommand({
-      Bucket: process.env.VIDEO_BUCKET_NAME,
+      Bucket: process.env.MEETING_BUCKET_NAME,
       Key: videoKey,
       ContentType: "video/mp4",
     });
 
     const agendaKey = `${videoId}/agenda.pdf`;
     const agendaCommand = new PutObjectCommand({
-      Bucket: process.env.VIDEO_BUCKET_NAME,
+      Bucket: process.env.MEETING_BUCKET_NAME,
       Key: agendaKey,
       ContentType: "application/pdf",
     });
 
     const videoPresignedUrl = await getSignedUrl(s3Client, command, {
-      expiresIn: 600, // 10 min
+      expiresIn: 3600, // 60 min
     });
 
     const agendaPresignedUrl = await getSignedUrl(s3Client, agendaCommand, {
-      expiresIn: 600, // 10 min
+      expiresIn: 3600, // 60 min
     });
 
     // TODO: maybe log user as well

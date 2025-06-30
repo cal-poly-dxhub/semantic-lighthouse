@@ -15,13 +15,21 @@ import {
 import { useForm } from "@mantine/form";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 
-export default function VerifyPage() {
+export default function SuspenseWrap() {
+  return (
+    <Suspense>
+      <VerifyPage />
+    </Suspense>
+  );
+}
+
+const VerifyPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const { handleConfirmSignup, handleLogin } = useAuth();
+  const { handleConfirmSignup } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -58,6 +66,7 @@ export default function VerifyPage() {
     handleConfirmSignup(
       values.username,
       values.confirmationCode,
+      values.password,
       () => {
         // verification handles login automatically
         setSuccess(
@@ -156,13 +165,6 @@ export default function VerifyPage() {
           </Button>
         </form>
 
-        <Text ta="center" mt="md">
-          Didn&apos;t receive the email?{" "}
-          <Anchor component={Link} href="/resend-verification" size="sm">
-            Resend verification code
-          </Anchor>
-        </Text>
-
         <Text ta="center" mt="xs">
           Already verified?{" "}
           <Anchor
@@ -175,4 +177,4 @@ export default function VerifyPage() {
       </Paper>
     </Container>
   );
-}
+};

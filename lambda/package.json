@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "license": "MIT",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc && cp src/frontend-rewrite.js dist/frontend-rewrite.js"
   },
   "dependencies": {
     "@aws-sdk/client-textract": "^3.840.0",

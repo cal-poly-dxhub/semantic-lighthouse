@@ -83,9 +83,11 @@ export default function SignupPage() {
           setError(
             "New user registration is currently closed. Please contact an administrator to get an account."
           );
-        } else if (typedErr.code?.includes("self")) {
+        } else if (
+          typedErr.code?.toLowerCase().includes("signup is not permitted")
+        ) {
           setError(
-            "Self-signup is currently disabled. Please contact an administrator to get an account."
+            "Signup is currently disabled. Please contact an administrator to get an account."
           );
         } else {
           setError(typedErr.message || "Signup failed. Please try again.");

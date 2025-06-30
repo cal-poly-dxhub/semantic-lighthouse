@@ -6,13 +6,7 @@ import {
   CognitoUserAttribute,
   CognitoUserPool,
 } from "amazon-cognito-identity-js";
-import {
-  createContext,
-  ReactNode,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
+import { createContext, ReactNode, useContext, useState } from "react";
 import awsConfig from "./aws-config";
 
 export interface User {
@@ -41,6 +35,7 @@ interface AuthContextType {
   handleConfirmSignup: (
     username: string,
     confirmationCode: string,
+    password: string,
     onSuccess: (result: unknown) => void,
     onFailure: (err: unknown) => void
   ) => void;
@@ -62,32 +57,32 @@ const userPool = new CognitoUserPool({
 
 const AuthProvider = ({ children }: { children: ReactNode }) => {
   // TODO: in prod use lazy initialization because will be deployed statically
-  // const [user, setUser] = useState<User | null>(() => {
-  //   if (typeof window === "undefined") return null;
-  //   const storedUser = localStorage.getItem("user");
-  //   return storedUser ? JSON.parse(storedUser) : null;
-  // });
-  // const [token, setToken] = useState<string | null>(() => {
-  //   if (typeof window === "undefined") return null;
-  //   return localStorage.getItem("token");
-  // });
+  const [user, setUser] = useState<User | null>(() => {
+    if (typeof window === "undefined") return null;
+    const storedUser = localStorage.getItem("user");
+    return storedUser ? JSON.parse(storedUser) : null;
+  });
+  const [token, setToken] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem("token");
+  });
   // end prod section
 
   // TODO: for development use this whole block (flickery buttons)
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  useEffect(() => {
-    // check localStorage for user and token on initial load
-    const storedUser = localStorage.getItem("user");
-    const storedToken = localStorage.getItem("token");
+  // const [user, setUser] = useState<User | null>(null);
+  // const [token, setToken] = useState<string | null>(null);
+  // useEffect(() => {
+  //   // check localStorage for user and token on initial load
+  //   const storedUser = localStorage.getItem("user");
+  //   const storedToken = localStorage.getItem("token");
 
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    if (storedToken) {
-      setToken(storedToken);
-    }
-  }, []);
+  //   if (storedUser) {
+  //     setUser(JSON.parse(storedUser));
+  //   }
+  //   if (storedToken) {
+  //     setToken(storedToken);
+  //   }
+  // }, []);
   // end development section
 
   const handleLogin = async (
@@ -224,6 +219,7 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.clear();
   };
 
+  // TODO: check
   const handleChangePassword = (
     oldPassword: string,
     newPassword: string,

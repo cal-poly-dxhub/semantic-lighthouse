@@ -3,14 +3,22 @@
 import { useAuth } from "@/constants/AuthContext";
 import { Alert, Paper, Title, useMantineTheme } from "@mantine/core";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 
 interface VideoRequestResponse {
   videoId: string;
   presignedUrl: string;
 }
 
-export default function VideoPage() {
+export default function SuspenseWrap() {
+  return (
+    <Suspense>
+      <VideoPage />
+    </Suspense>
+  );
+}
+
+const VideoPage = () => {
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
   const time = searchParams.get("time");
@@ -149,4 +157,4 @@ export default function VideoPage() {
       )}
     </Paper>
   );
-}
+};

@@ -1,17 +1,27 @@
 import { FeatureType, Textract } from "@aws-sdk/client-textract";
 import { S3Event } from "aws-lambda";
 
+/**
+ * lambda to process video files uploaded to S3
+ * @param event
+ */
 export const handler = async (event: S3Event): Promise<void> => {
   console.log("Received S3 event:", JSON.stringify(event, null, 2));
 
   for (const record of event.Records) {
     if (record.eventName?.startsWith("ObjectCreated")) {
-      await processVideo(record.s3.bucket.name, record.s3.object.key);
+      await processPdf(record.s3.bucket.name, record.s3.object.key);
     }
   }
 };
 
-async function processVideo(
+/**
+ * process a pdf file uploaded to S3
+ * @param bucketName
+ * @param objectKey
+ * @returns
+ */
+async function processPdf(
   bucketName: string,
   objectKey: string
 ): Promise<void> {
@@ -30,10 +40,8 @@ async function processVideo(
 
     console.log(`INFO: Processing file: ${objectKey}`);
 
-    // start a textract job
-
+    // start the textract job
     const textract = new Textract();
-
     const params = {
       DocumentLocation: {
         S3Object: {

@@ -10,18 +10,10 @@ export class SemanticLighthouseStack extends cdk.Stack {
   ) {
     super(scope, id, props);
 
-    // TODO: rename bucket to: semantic-lighthouse-meetings
-
-    // TODO: lambda 1: agenda ORC + extract headers
-
-    // TODO:
-    // build and upload frontend assets to S3 bucket
-    // see if things are working
-
     const { uniqueId } = props;
 
     // cannot get dynamically from group creation - circular dependency
-    const adminGroupName = "AdminsGroup";
+    const adminGroupName = `SemanticLighthouseAdminsGroup-${uniqueId}`;
 
     // TODO: change all .DESTROY to .RETAIN in production
 
@@ -63,7 +55,6 @@ export class SemanticLighthouseStack extends cdk.Stack {
     });
 
     const usersGroup = userPool.addGroup("UsersGroup", {
-      groupName: "UsersGroup",
       description: "Users group",
       precedence: 2,
     });
@@ -105,23 +96,10 @@ export class SemanticLighthouseStack extends cdk.Stack {
       postConfirmationLambda
     );
 
-    // outputs
-
-    new cdk.CfnOutput(this, "UserPoolId", {
-      value: userPool.userPoolId,
-      description: "The ID of the Cognito User Pool",
-    });
-
-    new cdk.CfnOutput(this, "UserPoolClientId", {
-      value: userPoolClient.userPoolClientId,
-      description: "The ID of the Cognito User Pool Client",
-    });
-
     // ------------ VIDEO AUTH ------------
 
-    // s3 bucket for videos
-    const videoBucket = new cdk.aws_s3.Bucket(this, "VideosBucket", {
-      bucketName: `semantic-lighthouse-videos-${uniqueId}`,
+    // s3 bucket for meetings
+    const meetingsBucket = new cdk.aws_s3.Bucket(this, "MeetingsBucket", {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
       publicReadAccess: false,
@@ -142,18 +120,18 @@ export class SemanticLighthouseStack extends cdk.Stack {
     });
 
     // lambda to extract audio from video
-    const videoProcessingLambda = new cdk.aws_lambda.Function(
+    const textractPdfLambda = new cdk.aws_lambda.Function(
       this,
-      "VideoProcessingLambda",
+      "TextractPdfLambda",
       {
         runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
-        handler: "video-processor.handler",
-        code: cdk.aws_lambda.Code.fromAsset("lambda/dist/processing"),
+        handler: "textract-pdf.handler",
+        code: cdk.aws_lambda.Code.fromAsset("lambda/dist"),
       }
     );
 
     // textract lambda permissions
-    videoProcessingLambda.addToRolePolicy(
+    textractPdfLambda.addToRolePolicy(
       new cdk.aws_iam.PolicyStatement({
         effect: cdk.aws_iam.Effect.ALLOW,
         actions: [
@@ -164,12 +142,12 @@ export class SemanticLighthouseStack extends cdk.Stack {
       })
     );
 
-    videoBucket.grantReadWrite(videoProcessingLambda);
+    meetingsBucket.grantReadWrite(textractPdfLambda);
 
     // s3 trigger
-    videoBucket.addEventNotification(
+    meetingsBucket.addEventNotification(
       cdk.aws_s3.EventType.OBJECT_CREATED,
-      new cdk.aws_s3_notifications.LambdaDestination(videoProcessingLambda),
+      new cdk.aws_s3_notifications.LambdaDestination(textractPdfLambda),
       {
         prefix: "", // process all uploads
         suffix: ".pdf", // only process PDF files
@@ -184,7 +162,7 @@ export class SemanticLighthouseStack extends cdk.Stack {
         defaultBehavior: {
           origin:
             cdk.aws_cloudfront_origins.S3BucketOrigin.withOriginAccessControl(
-              videoBucket
+              meetingsBucket
             ),
           viewerProtocolPolicy:
             cdk.aws_cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
@@ -210,23 +188,25 @@ export class SemanticLighthouseStack extends cdk.Stack {
 
     // TODO: add dynamo table
 
-    // TODO: add video upload lambda
-
     // separate api for fetching video presigned urls
-    const videoAuthApi = new cdk.aws_apigateway.RestApi(this, "VideoAuthApi", {
-      description: "API for video authentication",
-      deployOptions: {
-        stageName: "prod",
-        loggingLevel: cdk.aws_apigateway.MethodLoggingLevel.INFO,
-        dataTraceEnabled: true,
-        metricsEnabled: true,
-      },
-      defaultCorsPreflightOptions: {
-        // TODO: restrict in production
-        allowOrigins: cdk.aws_apigateway.Cors.ALL_ORIGINS,
-        allowMethods: cdk.aws_apigateway.Cors.ALL_METHODS,
-      },
-    });
+    const meetingAuthApi = new cdk.aws_apigateway.RestApi(
+      this,
+      "MeetingAuthApi",
+      {
+        description: "API for video authentication",
+        deployOptions: {
+          stageName: "prod",
+          loggingLevel: cdk.aws_apigateway.MethodLoggingLevel.INFO,
+          dataTraceEnabled: true,
+          metricsEnabled: true,
+        },
+        defaultCorsPreflightOptions: {
+          // TODO: restrict in production
+          allowOrigins: cdk.aws_apigateway.Cors.ALL_ORIGINS,
+          allowMethods: cdk.aws_apigateway.Cors.ALL_METHODS,
+        },
+      }
+    );
 
     const authorizer = new cdk.aws_apigateway.CognitoUserPoolsAuthorizer(
       this,
@@ -236,25 +216,21 @@ export class SemanticLighthouseStack extends cdk.Stack {
       }
     );
 
-    const uploadResource = videoAuthApi.root.addResource("upload");
-    const videoUploadLambda = new cdk.aws_lambda.Function(
-      this,
-      "VideoUploadLambda",
-      {
-        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
-        handler: "upload.handler",
-        code: cdk.aws_lambda.Code.fromAsset("lambda/dist/video"),
-        environment: {
-          VIDEO_BUCKET_NAME: videoBucket.bucketName,
-          CLOUDFRONT_DOMAIN_NAME: videoDistribution.distributionDomainName,
-        },
-      }
-    );
+    const uploadResource = meetingAuthApi.root.addResource("upload");
+    const uploadLambda = new cdk.aws_lambda.Function(this, "UploadLambda", {
+      runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
+      handler: "upload.handler",
+      code: cdk.aws_lambda.Code.fromAsset("lambda/dist"),
+      environment: {
+        MEETING_BUCKET_NAME: meetingsBucket.bucketName,
+        CLOUDFRONT_DOMAIN_NAME: videoDistribution.distributionDomainName,
+      },
+    });
 
-    videoBucket.grantReadWrite(videoUploadLambda);
+    meetingsBucket.grantReadWrite(uploadLambda);
     uploadResource.addMethod(
       "POST",
-      new cdk.aws_apigateway.LambdaIntegration(videoUploadLambda),
+      new cdk.aws_apigateway.LambdaIntegration(uploadLambda),
       {
         authorizationType: cdk.aws_apigateway.AuthorizationType.COGNITO,
         authorizer,
@@ -263,7 +239,7 @@ export class SemanticLighthouseStack extends cdk.Stack {
 
     // lambda route for generating presigned urls for private videos
     const videoAuthResource =
-      videoAuthApi.root.addResource("private-presigned");
+      meetingAuthApi.root.addResource("private-presigned");
     const videoAuthLambdaPrivateVideo = new cdk.aws_lambda.Function(
       this,
       "VideoAuthLambdaPrivateVideo",
@@ -272,13 +248,13 @@ export class SemanticLighthouseStack extends cdk.Stack {
         handler: "private-presigned.handler",
         code: cdk.aws_lambda.Code.fromAsset("lambda/dist/video"),
         environment: {
-          VIDEO_BUCKET_NAME: videoBucket.bucketName,
+          MEETING_BUCKET_NAME: meetingsBucket.bucketName,
           CLOUDFRONT_DOMAIN_NAME: videoDistribution.distributionDomainName,
         },
       }
     );
 
-    videoBucket.grantRead(videoAuthLambdaPrivateVideo);
+    meetingsBucket.grantRead(videoAuthLambdaPrivateVideo);
     videoAuthResource.addMethod(
       "GET",
       new cdk.aws_apigateway.LambdaIntegration(videoAuthLambdaPrivateVideo),
@@ -293,7 +269,6 @@ export class SemanticLighthouseStack extends cdk.Stack {
     // ------------ FRONTEND HOSTING ------------
 
     const frontendBucket = new cdk.aws_s3.Bucket(this, "FrontendBucket", {
-      bucketName: `semantic-lighthouse-frontend-${uniqueId}`,
       publicReadAccess: false,
       blockPublicAccess: cdk.aws_s3.BlockPublicAccess.BLOCK_ALL,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
@@ -310,6 +285,15 @@ export class SemanticLighthouseStack extends cdk.Stack {
       }
     );
 
+    // origin access control for the frontend bucket
+    const originAccessControl = new cdk.aws_cloudfront.S3OriginAccessControl(
+      this,
+      "FrontendOAC",
+      {
+        description: "OAC for frontend bucket",
+      }
+    );
+
     const frontendDistribution = new cdk.aws_cloudfront.Distribution(
       this,
       "FrontendDistribution",
@@ -317,7 +301,10 @@ export class SemanticLighthouseStack extends cdk.Stack {
         defaultBehavior: {
           origin:
             cdk.aws_cloudfront_origins.S3BucketOrigin.withOriginAccessControl(
-              frontendBucket
+              frontendBucket,
+              {
+                originAccessControl,
+              }
             ),
           functionAssociations: [
             {
@@ -332,10 +319,47 @@ export class SemanticLighthouseStack extends cdk.Stack {
       }
     );
 
-    // TODO: build and upload frontend assets to S3 bucket
+    // grant cloudfront access to the S3 bucket
+    frontendBucket.addToResourcePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        effect: cdk.aws_iam.Effect.ALLOW,
+        principals: [
+          new cdk.aws_iam.ServicePrincipal("cloudfront.amazonaws.com"),
+        ],
+        actions: ["s3:GetObject"],
+        resources: [frontendBucket.arnForObjects("*")],
+        conditions: {
+          StringEquals: {
+            "AWS:SourceArn": `arn:aws:cloudfront::${this.account}:distribution/${frontendDistribution.distributionId}`,
+          },
+        },
+      })
+    );
+
+    // TODO: deploy time build and upload frontend assets to S3 bucket
     // do as much in lambda custom resource as possible so minimal requirements for deployer
 
     // ------------ OUTPUTS ------------
+
+    new cdk.CfnOutput(this, "UserPoolId", {
+      value: userPool.userPoolId,
+      description: "The ID of the Cognito User Pool",
+    });
+
+    new cdk.CfnOutput(this, "UserPoolClientId", {
+      value: userPoolClient.userPoolClientId,
+      description: "The ID of the Cognito User Pool Client",
+    });
+
+    new cdk.CfnOutput(this, "VideoDistributionDomain", {
+      value: videoDistribution.distributionDomainName,
+      description: "Domain name of the CloudFront distribution for videos",
+    });
+
+    new cdk.CfnOutput(this, "MeetingsAuthApiUrl", {
+      value: meetingAuthApi.url,
+      description: "URL of the Meeting Authentication API",
+    });
 
     new cdk.CfnOutput(this, "FrontendDistributionUrl", {
       value: `https://${frontendDistribution.distributionDomainName}`,

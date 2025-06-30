@@ -11,3 +11,4 @@ deploy.sh
 creds.csv
 .vscode
 assets
+!frontend-rewrite.js

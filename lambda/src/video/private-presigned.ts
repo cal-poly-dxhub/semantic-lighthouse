@@ -41,7 +41,7 @@ export const handler = async (
     const key = `${videoId}/video.mp4`;
 
     const command = new GetObjectCommand({
-      Bucket: process.env.VIDEO_BUCKET_NAME,
+      Bucket: process.env.MEETING_BUCKET_NAME,
       Key: key,
     });
 
