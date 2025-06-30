@@ -2,6 +2,7 @@ import os
 import boto3
 import json
 import logging
+from urllib.parse import urlparse
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -68,6 +69,9 @@ def convert_to_human_readable(transcript_data):
                 f"{timestamp} {current_speaker}: {current_line.strip()}"
             )
 
+        logger.info(
+            f"Successfully converted transcript to human readable format with {len(output_lines)} lines"
+        )
         return "\n".join(output_lines)
     except Exception as e:
         logger.error(f"Error during transcript conversion: {e}")
@@ -80,52 +84,106 @@ def handler(event, context):
     Fetches a completed Transcribe job's result, converts it to a
     human-readable format, and saves it back to S3.
     """
-    logger.info("Received event: %s", json.dumps(event))
+    logger.info("=== ProcessTranscript Lambda Started ===")
+    logger.info(f"Received event: {json.dumps(event, indent=2)}")
 
     bucket_name = os.environ["S3_BUCKET"]
+    logger.info(f"Using S3 bucket: {bucket_name}")
 
     try:
         # Get transcription result from the Step Function event
         transcription_job = event["transcriptionResult"]["TranscriptionJob"]
         job_name = transcription_job["TranscriptionJobName"]
+        job_status = transcription_job["TranscriptionJobStatus"]
 
-        transcript_uri = transcription_job["Transcript"]["TranscriptFileUri"]
+        logger.info(f"Processing transcript for job: {job_name}")
+        logger.info(f"Job status: {job_status}")
 
-        # Parse bucket and key from the transcript URI
-        uri_path = transcript_uri.split(f"s3://")[1]
-        transcript_bucket, transcript_key = uri_path.split("/", 1)
+        if job_status != "COMPLETED":
+            raise ValueError(
+                f"Transcription job is not completed. Status: {job_status}"
+            )
+
+        uri = transcription_job["Transcript"]["TranscriptFileUri"]
+        logger.info(f"Transcript URI: {uri}")
+
+        parsed = urlparse(uri)
+        logger.info(
+            f"Parsed URI - scheme: {parsed.scheme}, netloc: {parsed.netloc}, path: {parsed.path}"
+        )
+
+        # Since we control the output bucket via OutputBucketName in the state machine,
+        # the transcript should be in our bucket. Let's use that instead of parsing.
+        # But we still need the key from the URI path.
+        input_key = parsed.path.lstrip("/")
+
+        # For HTTPS URLs like https://s3.region.amazonaws.com/bucket/key,
+        # the path includes the bucket name, so we need to strip it off
+        if parsed.scheme == "https" and input_key.startswith(f"{bucket_name}/"):
+            input_key = input_key[len(f"{bucket_name}/") :]
+            logger.info(
+                f"Stripped bucket name from HTTPS URL path. New key: {input_key}"
+            )
+
+        # Use our own bucket since we set OutputBucketName in the state machine
+        input_bucket = bucket_name
 
         logger.info(
-            f"Processing transcript for job: {job_name} from {transcript_bucket}/{transcript_key}"
+            f"Will fetch transcript from bucket: {input_bucket}, key: {input_key}"
         )
 
         # Get the transcript JSON from S3
-        response = s3_client.get_object(Bucket=transcript_bucket, Key=transcript_key)
+        logger.info("Fetching transcript JSON from S3...")
+        response = s3_client.get_object(Bucket=input_bucket, Key=input_key)
         transcript_data = json.loads(response["Body"].read().decode("utf-8"))
 
+        logger.info("Successfully fetched and parsed transcript JSON")
+        logger.info(
+            f"Transcript contains {len(transcript_data.get('results', {}).get('items', []))} items"
+        )
+
         # Convert to human-readable format
-        human_readable_text = convert_to_human_readable(transcript_data)
+        logger.info("Converting transcript to human-readable format...")
+        human_readable_transcript = convert_to_human_readable(transcript_data)
 
         # Save human-readable version to S3
         human_readable_key = f"transcripts/{job_name}_human_readable.txt"
 
+        logger.info(
+            f"Saving human-readable transcript to s3://{bucket_name}/{human_readable_key}"
+        )
         s3_client.put_object(
             Bucket=bucket_name,
             Key=human_readable_key,
-            Body=human_readable_text.encode("utf-8"),
+            Body=human_readable_transcript.encode("utf-8"),
             ContentType="text/plain",
         )
+
+        logger.info("=== ProcessTranscript Lambda Completed Successfully ===")
         logger.info(
-            f"Saved human-readable transcript to s3://{bucket_name}/{human_readable_key}"
+            f"Human-readable transcript saved to: s3://{bucket_name}/{human_readable_key}"
         )
 
         return {
             "statusCode": 200,
             "message": "Transcript processing completed successfully",
             "humanReadableKey": human_readable_key,
+            "transcriptLength": len(human_readable_transcript),
         }
 
     except Exception as e:
-        logger.error(f"Unexpected error in transcript processing: {e}")
+        logger.error("=== ProcessTranscript Lambda FAILED ===")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Error message: {str(e)}")
+        logger.error(f"Full traceback:", exc_info=True)
+
+        # Log additional debugging info
+        if "event" in locals():
+            logger.error(f"Event data: {json.dumps(event, indent=2)}")
+        if "bucket_name" in locals():
+            logger.error(f"Bucket name: {bucket_name}")
+        if "input_bucket" in locals() and "input_key" in locals():
+            logger.error(f"Attempted to access: s3://{input_bucket}/{input_key}")
+
         # Fail the Step Function state on error
         raise e

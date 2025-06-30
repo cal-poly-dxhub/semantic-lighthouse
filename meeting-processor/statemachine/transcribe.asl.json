@@ -12,7 +12,7 @@
         },
         "TranscriptionJobName.$": "States.Format('transcribe-{}', $$.Execution.Name)",
         "OutputBucketName": "${OutputBucketName}",
-        "OutputKey.$": "States.Format('transcripts/{}.json', $$.Execution.Name)",
+        "OutputKey": "transcripts/",
         "Settings": {
           "ShowSpeakerLabels": true,
           "MaxSpeakerLabels": 10
