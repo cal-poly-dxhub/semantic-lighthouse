@@ -58,8 +58,8 @@ Resources:
       CodeUri: src/process_transcript/
       Handler: handler.handler
       Runtime: python3.9
-      Timeout: 300
-      MemorySize: 512
+      Timeout: 900 # Increased for Bedrock calls
+      MemorySize: 1024 # Increased for processing larger transcripts
       Policies:
         - Statement:
             - Effect: Allow
@@ -71,6 +71,35 @@ Resources:
               Action:
                 - s3:ListBucket
               Resource: !Sub "arn:aws:s3:::${S3BucketName}"
+            # Access to external bucket for prompt and agenda
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource: "arn:aws:s3:::k12-temp-testing-static-files/*"
+            - Effect: Allow
+              Action:
+                - s3:ListBucket
+              Resource: "arn:aws:s3:::k12-temp-testing-static-files"
+            # 1. Allow the cross-region inference profile itself
+            - Sid: AllowBedrockProfile
+              Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:InvokeModelWithResponseStream
+              Resource:
+                # use !Sub so ${AWS::AccountId} resolves before IAM parses JSON
+                - !Sub arn:aws:bedrock:us-west-2:${AWS::AccountId}:inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0
+            # 2. Allow every foundation-model ARN the profile may route to
+            - Sid: AllowBedrockFoundationModels
+              Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:InvokeModelWithResponseStream
+              Resource:
+                - arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0
+                - arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0
+                - arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0
+
       Environment:
         Variables:
           S3_BUCKET: !Ref MeetingFilesBucket

@@ -8,6 +8,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 s3_client = boto3.client("s3")
+bedrock_runtime = boto3.client("bedrock-runtime", region_name="us-west-2")
 
 
 def convert_to_human_readable(transcript_data):
@@ -157,6 +158,83 @@ def convert_to_human_readable(transcript_data):
         return "Could not process transcript."
 
 
+def fetch_s3_text_content(bucket, key):
+    """Fetch text content from S3."""
+    try:
+        logger.info(f"Fetching content from s3://{bucket}/{key}")
+        response = s3_client.get_object(Bucket=bucket, Key=key)
+        content = response["Body"].read().decode("utf-8")
+        logger.info(
+            f"Successfully fetched {len(content)} characters from s3://{bucket}/{key}"
+        )
+        return content
+    except Exception as e:
+        logger.error(f"Error fetching content from s3://{bucket}/{key}: {e}")
+        raise e
+
+
+def analyze_transcript_with_bedrock(
+    human_readable_transcript, prompt_template, agenda_text
+):
+    """
+    Use Claude via Bedrock to analyze the transcript using the provided prompt template.
+    """
+    logger.info("=== Starting Bedrock Analysis ===")
+
+    try:
+        # Format the prompt by replacing placeholders
+        logger.info("Formatting prompt with agenda and transcript...")
+        formatted_prompt = prompt_template.format(
+            agenda=agenda_text, formatted_transcript=human_readable_transcript
+        )
+
+        logger.info(f"Formatted prompt length: {len(formatted_prompt)} characters")
+
+        # Create the request payload for Claude
+        request_body = {
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": 8000,
+            "temperature": 0.2,
+            "messages": [{"role": "user", "content": formatted_prompt}],
+        }
+
+        logger.info("Invoking Claude via Bedrock...")
+
+        # Make the streaming API call
+        response = bedrock_runtime.invoke_model_with_response_stream(
+            modelId="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+            contentType="application/json",
+            accept="application/json",
+            body=json.dumps(request_body),
+        )
+
+        # Process the streaming response
+        analysis_chunks = []
+        logger.info("Processing Claude's streaming response...")
+
+        # Iterate through the streaming chunks
+        for event in response.get("body"):
+            if "chunk" in event:
+                chunk_data = json.loads(event["chunk"]["bytes"])
+                if chunk_data.get("type") == "content_block_delta" and chunk_data.get(
+                    "delta", {}
+                ).get("text"):
+                    text_chunk = chunk_data["delta"]["text"]
+                    analysis_chunks.append(text_chunk)
+
+        # Combine all chunks to return the complete analysis
+        analysis = "".join(analysis_chunks)
+        logger.info(
+            f"Bedrock analysis completed successfully. Response length: {len(analysis)} characters"
+        )
+
+        return analysis
+
+    except Exception as e:
+        logger.error(f"Error during Bedrock analysis: {e}")
+        raise e
+
+
 def handler(event, context):
     """
     Lambda function handler invoked by Step Functions.
@@ -238,17 +316,78 @@ def handler(event, context):
             ContentType="text/plain",
         )
 
-        logger.info("=== ProcessTranscript Lambda Completed Successfully ===")
+        logger.info("Human-readable transcript saved successfully")
+
+        # === BEDROCK ANALYSIS SECTION ===
+        logger.info("=== Starting Bedrock Analysis Phase ===")
+
+        analysis_error = None
+        try:
+            # Fetch prompt template and agenda from external S3 bucket
+            external_bucket = "k12-temp-testing-static-files"
+            prompt_key = "detailed_prompt.txt"
+            agenda_key = "agenda.txt"
+
+            logger.info(
+                "Fetching prompt template and agenda from external S3 bucket..."
+            )
+            prompt_template = fetch_s3_text_content(external_bucket, prompt_key)
+            agenda_text = fetch_s3_text_content(external_bucket, agenda_key)
+
+            # Perform Bedrock analysis
+            logger.info("Performing Bedrock analysis...")
+            analysis_result = analyze_transcript_with_bedrock(
+                human_readable_transcript, prompt_template, agenda_text
+            )
+
+            # Save analysis result to S3
+            analysis_key = f"analysis/{job_name}_analysis.txt"
+            logger.info(f"Saving analysis result to s3://{bucket_name}/{analysis_key}")
+
+            s3_client.put_object(
+                Bucket=bucket_name,
+                Key=analysis_key,
+                Body=analysis_result.encode("utf-8"),
+                ContentType="text/plain",
+            )
+
+            logger.info("=== Bedrock Analysis Completed Successfully ===")
+
+            analysis_success = True
+            analysis_error = None
+
+        except Exception as e:
+            logger.error(f"=== Bedrock Analysis FAILED ===")
+            logger.error(f"Analysis error: {e}")
+            logger.error(f"Analysis error traceback:", exc_info=True)
+
+            analysis_success = False
+            analysis_key = None
+            analysis_result = None
+            analysis_error = e
+
+        logger.info("=== ProcessTranscript Lambda Completed ===")
         logger.info(
             f"Human-readable transcript saved to: s3://{bucket_name}/{human_readable_key}"
         )
 
-        return {
+        result = {
             "statusCode": 200,
             "message": "Transcript processing completed successfully",
             "humanReadableKey": human_readable_key,
             "transcriptLength": len(human_readable_transcript),
+            "analysisCompleted": analysis_success,
         }
+
+        if analysis_success:
+            result["analysisKey"] = analysis_key
+            result["analysisLength"] = len(analysis_result)
+            logger.info(f"Analysis saved to: s3://{bucket_name}/{analysis_key}")
+        else:
+            result["analysisError"] = str(analysis_error)
+            logger.warning("Analysis failed but transcript processing succeeded")
+
+        return result
 
     except Exception as e:
         logger.error("=== ProcessTranscript Lambda FAILED ===")
