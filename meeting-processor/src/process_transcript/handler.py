@@ -3,6 +3,17 @@ import boto3
 import json
 import logging
 from urllib.parse import urlparse
+import datetime
+import re
+import markdown
+import html2text
+from io import BytesIO
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
+from reportlab.lib.colors import HexColor
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -235,6 +246,190 @@ def analyze_transcript_with_bedrock(
         raise e
 
 
+def generate_pdf_from_analysis(analysis_text, job_name, bucket_name):
+    """
+    Generate a PDF from the Bedrock analysis text using ReportLab and save it to S3.
+
+    Args:
+        analysis_text (str): The analysis text from Bedrock
+        job_name (str): The transcription job name for file naming
+        bucket_name (str): S3 bucket to save the PDF
+
+    Returns:
+        str: S3 key where the PDF was saved
+    """
+    try:
+        logger.info("Starting PDF generation from analysis text using ReportLab...")
+
+        # Create a BytesIO buffer to store the PDF
+        buffer = BytesIO()
+
+        # Create the PDF document
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            rightMargin=72,
+            leftMargin=72,
+            topMargin=72,
+            bottomMargin=72,
+        )
+
+        # Get the default stylesheet and create custom styles
+        styles = getSampleStyleSheet()
+
+        # Define custom styles
+        title_style = ParagraphStyle(
+            "CustomTitle",
+            parent=styles["Heading1"],
+            fontSize=24,
+            spaceAfter=30,
+            alignment=TA_CENTER,
+            textColor=HexColor("#2c3e50"),
+        )
+
+        heading_style = ParagraphStyle(
+            "CustomHeading",
+            parent=styles["Heading2"],
+            fontSize=16,
+            spaceAfter=12,
+            spaceBefore=20,
+            textColor=HexColor("#3498db"),
+            leftIndent=0,
+        )
+
+        subheading_style = ParagraphStyle(
+            "CustomSubHeading",
+            parent=styles["Heading3"],
+            fontSize=14,
+            spaceAfter=10,
+            spaceBefore=15,
+            textColor=HexColor("#2c3e50"),
+        )
+
+        body_style = ParagraphStyle(
+            "CustomBody",
+            parent=styles["Normal"],
+            fontSize=11,
+            spaceAfter=12,
+            alignment=TA_JUSTIFY,
+            leftIndent=0,
+            rightIndent=0,
+        )
+
+        # Create the story (content) for the PDF
+        story = []
+
+        # Add title
+        story.append(Paragraph("Meeting Analysis Report", title_style))
+        story.append(Spacer(1, 12))
+
+        # Add metadata
+        story.append(
+            Paragraph(
+                f"<b>Generated:</b> {datetime.datetime.now().strftime('%B %d, %Y at %H:%M UTC')}",
+                body_style,
+            )
+        )
+        story.append(Paragraph(f"<b>Job Name:</b> {job_name}", body_style))
+        story.append(Spacer(1, 20))
+
+        # Convert markdown to HTML first, then to plain text with some formatting
+        html_content = markdown.markdown(analysis_text)
+
+        # Convert HTML to text while preserving some structure
+        h = html2text.HTML2Text()
+        h.ignore_links = False
+        h.body_width = 0  # Don't wrap lines
+        converted_text = h.handle(html_content)
+
+        # Process the text line by line to create proper PDF formatting
+        lines = converted_text.split("\n")
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                story.append(Spacer(1, 6))
+                continue
+
+            # Check for different types of content and style accordingly
+            if line.startswith("# "):
+                # Main heading
+                text = line[2:].strip()
+                story.append(Paragraph(text, heading_style))
+            elif line.startswith("## "):
+                # Subheading
+                text = line[3:].strip()
+                story.append(Paragraph(text, subheading_style))
+            elif line.startswith("### "):
+                # Sub-subheading
+                text = line[4:].strip()
+                story.append(Paragraph(f"<b>{text}</b>", body_style))
+            elif line.startswith("- ") or line.startswith("* "):
+                # Bullet point
+                text = line[2:].strip()
+                story.append(Paragraph(f"• {text}", body_style))
+            elif line.startswith("1. ") or (
+                len(line) > 2 and line[0].isdigit() and line[1:3] == ". "
+            ):
+                # Numbered list
+                story.append(Paragraph(line, body_style))
+            elif line.startswith("**") and line.endswith("**"):
+                # Bold text
+                text = line[2:-2].strip()
+                story.append(Paragraph(f"<b>{text}</b>", body_style))
+            else:
+                # Regular paragraph
+                if len(line) > 0:
+                    # Handle bold markdown syntax
+                    line = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", line)
+                    # Handle italic markdown syntax
+                    line = re.sub(r"\*(.*?)\*", r"<i>\1</i>", line)
+                    story.append(Paragraph(line, body_style))
+
+        # Add footer
+        story.append(Spacer(1, 30))
+        footer_style = ParagraphStyle(
+            "Footer",
+            parent=styles["Normal"],
+            fontSize=10,
+            alignment=TA_CENTER,
+            textColor=HexColor("#777777"),
+        )
+        story.append(
+            Paragraph(
+                f"© {datetime.datetime.now().year} Meeting Analysis Report",
+                footer_style,
+            )
+        )
+
+        # Build the PDF
+        doc.build(story)
+
+        # Get the PDF data
+        pdf_data = buffer.getvalue()
+        buffer.close()
+
+        # Save PDF to S3
+        pdf_key = f"analysis/{job_name}_analysis.pdf"
+        logger.info(f"Saving PDF to s3://{bucket_name}/{pdf_key}")
+
+        s3_client.put_object(
+            Bucket=bucket_name,
+            Key=pdf_key,
+            Body=pdf_data,
+            ContentType="application/pdf",
+        )
+
+        logger.info(
+            f"Successfully generated and saved PDF: {pdf_key} ({len(pdf_data)} bytes)"
+        )
+        return pdf_key
+
+    except Exception as e:
+        logger.error(f"Error generating PDF: {e}")
+        raise e
+
+
 def handler(event, context):
     """
     Lambda function handler invoked by Step Functions.
@@ -353,6 +548,22 @@ def handler(event, context):
 
             logger.info("=== Bedrock Analysis Completed Successfully ===")
 
+            # Generate PDF from analysis result
+            logger.info("=== Starting PDF Generation ===")
+            try:
+                pdf_key = generate_pdf_from_analysis(
+                    analysis_result, job_name, bucket_name
+                )
+                logger.info(f"=== PDF Generation Completed Successfully: {pdf_key} ===")
+                pdf_success = True
+                pdf_error = None
+            except Exception as pdf_e:
+                logger.error(f"=== PDF Generation FAILED ===")
+                logger.error(f"PDF error: {pdf_e}")
+                pdf_success = False
+                pdf_key = None
+                pdf_error = pdf_e
+
             analysis_success = True
             analysis_error = None
 
@@ -366,6 +577,11 @@ def handler(event, context):
             analysis_result = None
             analysis_error = e
 
+            # Set PDF generation as not attempted since analysis failed
+            pdf_success = False
+            pdf_key = None
+            pdf_error = "PDF generation skipped due to analysis failure"
+
         logger.info("=== ProcessTranscript Lambda Completed ===")
         logger.info(
             f"Human-readable transcript saved to: s3://{bucket_name}/{human_readable_key}"
@@ -377,14 +593,23 @@ def handler(event, context):
             "humanReadableKey": human_readable_key,
             "transcriptLength": len(human_readable_transcript),
             "analysisCompleted": analysis_success,
+            "pdfGenerated": pdf_success,
         }
 
         if analysis_success:
             result["analysisKey"] = analysis_key
             result["analysisLength"] = len(analysis_result)
             logger.info(f"Analysis saved to: s3://{bucket_name}/{analysis_key}")
+
+            if pdf_success:
+                result["pdfKey"] = pdf_key
+                logger.info(f"PDF saved to: s3://{bucket_name}/{pdf_key}")
+            else:
+                result["pdfError"] = str(pdf_error)
+                logger.warning("PDF generation failed but analysis succeeded")
         else:
             result["analysisError"] = str(analysis_error)
+            result["pdfError"] = str(pdf_error)
             logger.warning("Analysis failed but transcript processing succeeded")
 
         return result
