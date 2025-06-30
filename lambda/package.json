@@ -6,12 +6,13 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@aws-sdk/client-bedrock-agent": "^3.450.0",
-    "@aws-sdk/client-bedrock-agent-runtime": "^3.830.0",
-    "@aws-sdk/client-cognito-identity-provider": "^3.835.0",
+    "@aws-sdk/client-textract": "^3.840.0",
     "aws-sdk": "^2.1692.0"
   },
   "devDependencies": {
+    "@aws-sdk/client-bedrock-agent": "^3.450.0",
+    "@aws-sdk/client-bedrock-agent-runtime": "^3.830.0",
+    "@aws-sdk/client-cognito-identity-provider": "^3.835.0",
     "@aws-sdk/client-s3": "^3.839.0",
     "@aws-sdk/s3-request-presigner": "^3.839.0",
     "@types/aws-lambda": "^8.10.109",

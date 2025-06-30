@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/constants/AuthContext";
+import awsConfig from "@/constants/aws-config";
 import {
   Alert,
   Button,
@@ -21,7 +22,7 @@ import { useState } from "react";
 export default function UploadPage() {
   const theme = useMantineTheme();
 
-  const { user } = useAuth();
+  const { user, token } = useAuth();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,28 +88,95 @@ export default function UploadPage() {
       return;
     }
 
+    if (!agendaFile) {
+      setError("Please select an agenda PDF file to upload");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setSuccess(null);
     setUploadProgress(0);
 
     try {
-      // TODO: Implement actual file upload to S3
-      // This would involve:
-      // 1. Getting presigned URLs for both video and agenda files
-      // 2. Uploading files to S3
-      // 3. Saving metadata to database
-      // after upload
-      // setUploadProgress(100);
-      // setLoading(false);
-      // setSuccess(
-      //   `Meeting "${values.meetingTitle}" uploaded successfully! Processing will begin shortly.`
-      // );
-      // // reset form
-      // form.reset();
-      // setVideoFile(null);
-      // setAgendaFile(null);
-      // setUploadProgress(0);
+      // fetch presigned URLs from lambda
+      const response = await fetch(`${awsConfig.videoAuthApiUrl}/upload`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token || ""}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to get presigned URLs: ${response.statusText}`);
+      }
+
+      const responseData = (await response.json()) as {
+        videoId: string;
+        videoPresignedUrl: string;
+        agendaPresignedUrl: string;
+      };
+
+      const { videoId, videoPresignedUrl, agendaPresignedUrl } = responseData;
+
+      console.log("Got presigned URLs for videoId:", videoId);
+
+      // Step 2: Upload video file to S3
+      setUploadProgress(10);
+      const uploadFileWithProgress = async (
+        url: string,
+        file: File,
+        contentType: string
+      ) => {
+        return new Promise<Response>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+
+          xhr.upload.addEventListener("progress", (event) => {
+            if (event.lengthComputable) {
+              const fileProgress = (event.loaded / event.total) * 100;
+              setUploadProgress(10 + fileProgress * 0.8);
+            }
+          });
+
+          xhr.addEventListener("load", () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(new Response(xhr.response, { status: xhr.status }));
+            } else {
+              reject(new Error(`Upload failed with status ${xhr.status}`));
+            }
+          });
+
+          xhr.addEventListener("error", () => {
+            reject(new Error("Upload failed"));
+          });
+
+          xhr.open("PUT", url);
+          xhr.setRequestHeader("Content-Type", contentType);
+          xhr.send(file);
+        });
+      };
+
+      await uploadFileWithProgress(videoPresignedUrl, videoFile, "video/mp4");
+
+      // upload agenda to s3
+      await uploadFileWithProgress(
+        agendaPresignedUrl,
+        agendaFile,
+        "application/pdf"
+      );
+
+      setUploadProgress(100);
+      setLoading(false);
+      setSuccess(
+        `Meeting "${values.meetingTitle}" uploaded successfully! Processing will begin shortly.`
+      );
+
+      // Reset form
+      form.reset();
+      setVideoFile(null);
+      setAgendaFile(null);
+      setUploadProgress(0);
     } catch (uploadError) {
       setLoading(false);
       setUploadProgress(0);
@@ -139,7 +207,7 @@ export default function UploadPage() {
   }
 
   return (
-    <Container size={620} my={40}>
+    <Container size={620} my={20}>
       <Title
         ta="center"
         style={{
@@ -300,7 +368,7 @@ export default function UploadPage() {
           {loading && (
             <div style={{ marginTop: "1rem" }}>
               <Text size="sm" mb="xs">
-                Uploading... {uploadProgress}%
+                Uploading... {Math.round(uploadProgress)}%
               </Text>
               <Progress value={uploadProgress} />
             </div>
@@ -311,7 +379,7 @@ export default function UploadPage() {
             fullWidth
             mt="xl"
             loading={loading}
-            disabled={!!success || !videoFile}
+            disabled={!videoFile || !agendaFile}
             bg={theme.primaryColor}
           >
             Upload Meeting Files

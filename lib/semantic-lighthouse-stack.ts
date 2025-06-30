@@ -10,9 +10,8 @@ export class SemanticLighthouseStack extends cdk.Stack {
   ) {
     super(scope, id, props);
 
-    // TODO: upload route
+    // TODO: rename bucket to: semantic-lighthouse-meetings
 
-    // TODO: mediaconvert for audio isolation
     // TODO: lambda 1: agenda ORC + extract headers
 
     // TODO:
@@ -130,13 +129,52 @@ export class SemanticLighthouseStack extends cdk.Stack {
       blockPublicAccess: cdk.aws_s3.BlockPublicAccess.BLOCK_ALL,
       cors: [
         {
-          allowedMethods: [cdk.aws_s3.HttpMethods.GET],
+          allowedMethods: [
+            cdk.aws_s3.HttpMethods.GET,
+            cdk.aws_s3.HttpMethods.PUT,
+            cdk.aws_s3.HttpMethods.POST,
+          ],
           allowedOrigins: ["*"],
           allowedHeaders: ["*"],
           maxAge: 3000,
         },
       ],
     });
+
+    // lambda to extract audio from video
+    const videoProcessingLambda = new cdk.aws_lambda.Function(
+      this,
+      "VideoProcessingLambda",
+      {
+        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
+        handler: "video-processor.handler",
+        code: cdk.aws_lambda.Code.fromAsset("lambda/dist/processing"),
+      }
+    );
+
+    // textract lambda permissions
+    videoProcessingLambda.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        effect: cdk.aws_iam.Effect.ALLOW,
+        actions: [
+          "textract:StartDocumentAnalysis",
+          "textract:GetDocumentAnalysis",
+        ],
+        resources: ["*"],
+      })
+    );
+
+    videoBucket.grantReadWrite(videoProcessingLambda);
+
+    // s3 trigger
+    videoBucket.addEventNotification(
+      cdk.aws_s3.EventType.OBJECT_CREATED,
+      new cdk.aws_s3_notifications.LambdaDestination(videoProcessingLambda),
+      {
+        prefix: "", // process all uploads
+        suffix: ".pdf", // only process PDF files
+      }
+    );
 
     // cloudfront distribution for video bucket
     const videoDistribution = new cdk.aws_cloudfront.Distribution(

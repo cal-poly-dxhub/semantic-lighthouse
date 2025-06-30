@@ -63,12 +63,12 @@ export const handler = async (
       body: JSON.stringify(responseBody),
     };
   } catch (error) {
-    console.error("Error processing question:", error);
+    console.error("ERROR: Failed to generate presigned URL:", error);
     return {
       statusCode: 500,
       headers: corsHeaders,
       body: JSON.stringify({
-        error: "Failed to process question",
+        error: "Failed to process request",
         details: error instanceof Error ? error.message : "Unknown error",
       }),
     };

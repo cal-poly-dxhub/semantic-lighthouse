@@ -10,3 +10,4 @@ cdk.out
 deploy.sh
 creds.csv
 .vscode
+assets
