@@ -3,4 +3,5 @@
 # Dependencies for transcript processing and PDF generation
 markdown==3.5.1
 reportlab==4.0.7
+pillow==10.3.0
 html2text==2020.1.16 

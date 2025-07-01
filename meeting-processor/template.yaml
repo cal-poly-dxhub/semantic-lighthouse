@@ -21,6 +21,10 @@ Resources:
             Prefix: "transcripts/"
             Status: Enabled
             ExpirationInDays: 7
+          - Id: AutoDeleteConvertedFiles
+            Prefix: "converted/"
+            Status: Enabled
+            ExpirationInDays: 7
       NotificationConfiguration:
         EventBridgeConfiguration:
           EventBridgeEnabled: true
@@ -46,6 +50,14 @@ Resources:
             Effect: "Allow"
             Principal:
               Service: "transcribe.amazonaws.com"
+            Action:
+              - "s3:GetObject"
+              - "s3:PutObject"
+            Resource: !Sub "arn:aws:s3:::${MeetingFilesBucket}/*"
+          - Sid: "AllowMediaConvertService"
+            Effect: "Allow"
+            Principal:
+              Service: "mediaconvert.amazonaws.com"
             Action:
               - "s3:GetObject"
               - "s3:PutObject"
@@ -104,6 +116,53 @@ Resources:
         Variables:
           S3_BUCKET: !Ref MeetingFilesBucket
 
+  # Lambda Function to verify S3 file exists
+  VerifyS3FileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/verify_s3_file/
+      Handler: handler.lambda_handler
+      Runtime: python3.12
+      Timeout: 30
+      MemorySize: 128
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - S3ReadPolicy:
+            BucketName: !Ref MeetingFilesBucket
+
+  # Lambda Function to trigger MediaConvert jobs (uses existing pymediainfo layer by ARN)
+  MediaConvertTriggerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/mediaconvert_trigger/
+      Handler: handler.lambda_handler
+      Runtime: python3.12
+      Timeout: 330
+      MemorySize: 2048
+      Architectures: [x86_64]
+      Layers:
+        - arn:aws:lambda:us-west-2:412072465402:layer:pymediainfo:3
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - S3ReadPolicy:
+            BucketName: !Ref MeetingFilesBucket
+        - S3CrudPolicy:
+            BucketName: !Ref MeetingFilesBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - mediaconvert:CreateJob
+                - mediaconvert:GetJob
+                - mediaconvert:DescribeEndpoints
+              Resource: "*"
+            - Effect: Allow
+              Action:
+                - iam:PassRole
+              Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/MediaConvertServiceRole"
+      Environment:
+        Variables:
+          LD_LIBRARY_PATH: "/opt/python/"
+
   # Step Functions State Machine to orchestrate the workflow
   TranscriptionStateMachine:
     Type: AWS::Serverless::StateMachine
@@ -112,6 +171,8 @@ Resources:
       DefinitionUri: statemachine/transcribe.asl.json
       DefinitionSubstitutions:
         ProcessTranscriptLambdaArn: !GetAtt ProcessTranscriptLambda.Arn
+        MediaConvertLambdaArn: !GetAtt MediaConvertTriggerFunction.Arn
+        VerifyS3FileLambdaArn: !GetAtt VerifyS3FileFunction.Arn
         OutputBucketName: !Ref S3BucketName
       Events:
         S3UploadTrigger:
@@ -132,7 +193,13 @@ Resources:
       Policies:
         - LambdaInvokePolicy:
             FunctionName: !Ref ProcessTranscriptLambda
+        - LambdaInvokePolicy:
+            FunctionName: !Ref VerifyS3FileFunction
         - Statement:
+            - Effect: Allow
+              Action:
+                - "lambda:InvokeFunction"
+              Resource: !GetAtt MediaConvertTriggerFunction.Arn
             - Effect: Allow
               Action:
                 - "transcribe:StartTranscriptionJob"
@@ -140,12 +207,20 @@ Resources:
               Resource: "*"
             - Effect: Allow
               Action:
+                - "mediaconvert:GetJob"
+              Resource: "*"
+            - Effect: Allow
+              Action:
                 - "s3:GetObject"
-              Resource: !Sub "arn:aws:s3:::${S3BucketName}/uploads/*"
+              Resource:
+                - !Sub "arn:aws:s3:::${S3BucketName}/uploads/*"
+                - !Sub "arn:aws:s3:::${S3BucketName}/audio/*"
             - Effect: Allow
               Action:
                 - "s3:PutObject"
-              Resource: !Sub "arn:aws:s3:::${S3BucketName}/transcripts/*"
+              Resource:
+                - !Sub "arn:aws:s3:::${S3BucketName}/transcripts/*"
+                - !Sub "arn:aws:s3:::${S3BucketName}/converted/*"
 
 Outputs:
   S3Bucket:
@@ -154,3 +229,9 @@ Outputs:
   StateMachineArn:
     Description: "ARN of the Step Functions State Machine"
     Value: !Ref TranscriptionStateMachine
+  MediaConvertLambdaArn:
+    Description: "ARN of the MediaConvert trigger Lambda function managed by this stack"
+    Value: !GetAtt MediaConvertTriggerFunction.Arn
+  VerifyS3FileLambdaArn:
+    Description: "ARN of the S3 file verification Lambda function"
+    Value: !GetAtt VerifyS3FileFunction.Arn
