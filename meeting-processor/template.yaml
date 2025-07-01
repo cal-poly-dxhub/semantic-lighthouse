@@ -70,19 +70,19 @@ Resources:
       CodeUri: src/process_transcript/
       Handler: handler.handler
       Runtime: python3.9
-      Timeout: 900 # Increased for Bedrock calls
-      MemorySize: 1024 # Increased for processing larger transcripts
+      Timeout: 900 # Maximum Lambda timeout for chunked processing and Bedrock calls (15 minutes)
+      MemorySize: 2048 # Increased for processing multiple transcripts and merging
       Policies:
         - Statement:
             - Effect: Allow
               Action:
                 - s3:GetObject
                 - s3:PutObject
-              Resource: !Sub "arn:aws:s3:::${S3BucketName}/*"
+              Resource: !Sub "arn:aws:s3:::${MeetingFilesBucket}/*"
             - Effect: Allow
               Action:
                 - s3:ListBucket
-              Resource: !Sub "arn:aws:s3:::${S3BucketName}"
+              Resource: !GetAtt MeetingFilesBucket.Arn
             # Access to external bucket for prompt and agenda
             - Effect: Allow
               Action:
@@ -123,12 +123,17 @@ Resources:
       CodeUri: src/verify_s3_file/
       Handler: handler.lambda_handler
       Runtime: python3.12
-      Timeout: 30
-      MemorySize: 128
+      Timeout: 120
+      MemorySize: 256
       Policies:
         - AWSLambdaBasicExecutionRole
         - S3ReadPolicy:
             BucketName: !Ref MeetingFilesBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - mediaconvert:GetJob
+              Resource: "*"
 
   # Lambda Function to trigger MediaConvert jobs (uses existing pymediainfo layer by ARN)
   MediaConvertTriggerFunction:

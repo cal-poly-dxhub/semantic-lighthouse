@@ -433,8 +433,8 @@ def generate_pdf_from_analysis(analysis_text, job_name, bucket_name):
 def handler(event, context):
     """
     Lambda function handler invoked by Step Functions.
-    Fetches a completed Transcribe job's result, converts it to a
-    human-readable format, and saves it back to S3.
+    Fetches completed Transcribe job(s) result(s), converts to human-readable format,
+    and saves back to S3. Supports both single and chunked (multiple) transcription processing.
     """
     logger.info("=== ProcessTranscript Lambda Started ===")
     logger.info(f"Received event: {json.dumps(event, indent=2)}")
@@ -443,176 +443,15 @@ def handler(event, context):
     logger.info(f"Using S3 bucket: {bucket_name}")
 
     try:
-        # Get transcription result from the Step Function event
-        transcription_job = event["transcriptionResult"]["TranscriptionJob"]
-        job_name = transcription_job["TranscriptionJobName"]
-        job_status = transcription_job["TranscriptionJobStatus"]
+        # Check if this is chunked processing or single file processing
+        is_chunked = event.get("isChunkedProcessing", False)
 
-        logger.info(f"Processing transcript for job: {job_name}")
-        logger.info(f"Job status: {job_status}")
-
-        if job_status != "COMPLETED":
-            raise ValueError(
-                f"Transcription job is not completed. Status: {job_status}"
-            )
-
-        uri = transcription_job["Transcript"]["TranscriptFileUri"]
-        logger.info(f"Transcript URI: {uri}")
-
-        parsed = urlparse(uri)
-        logger.info(
-            f"Parsed URI - scheme: {parsed.scheme}, netloc: {parsed.netloc}, path: {parsed.path}"
-        )
-
-        # Since we control the output bucket via OutputBucketName in the state machine,
-        # the transcript should be in our bucket. Let's use that instead of parsing.
-        # But we still need the key from the URI path.
-        input_key = parsed.path.lstrip("/")
-
-        # For HTTPS URLs like https://s3.region.amazonaws.com/bucket/key,
-        # the path includes the bucket name, so we need to strip it off
-        if parsed.scheme == "https" and input_key.startswith(f"{bucket_name}/"):
-            input_key = input_key[len(f"{bucket_name}/") :]
-            logger.info(
-                f"Stripped bucket name from HTTPS URL path. New key: {input_key}"
-            )
-
-        # Use our own bucket since we set OutputBucketName in the state machine
-        input_bucket = bucket_name
-
-        logger.info(
-            f"Will fetch transcript from bucket: {input_bucket}, key: {input_key}"
-        )
-
-        # Get the transcript JSON from S3
-        logger.info("Fetching transcript JSON from S3...")
-        response = s3_client.get_object(Bucket=input_bucket, Key=input_key)
-        transcript_data = json.loads(response["Body"].read().decode("utf-8"))
-
-        logger.info("Successfully fetched and parsed transcript JSON")
-        logger.info(
-            f"Transcript contains {len(transcript_data.get('results', {}).get('items', []))} items"
-        )
-
-        # Convert to human-readable format
-        logger.info("Converting transcript to human-readable format...")
-        human_readable_transcript = convert_to_human_readable(transcript_data)
-
-        # Save human-readable version to S3
-        human_readable_key = f"transcripts/{job_name}_human_readable.txt"
-
-        logger.info(
-            f"Saving human-readable transcript to s3://{bucket_name}/{human_readable_key}"
-        )
-        s3_client.put_object(
-            Bucket=bucket_name,
-            Key=human_readable_key,
-            Body=human_readable_transcript.encode("utf-8"),
-            ContentType="text/plain",
-        )
-
-        logger.info("Human-readable transcript saved successfully")
-
-        # === BEDROCK ANALYSIS SECTION ===
-        logger.info("=== Starting Bedrock Analysis Phase ===")
-
-        analysis_error = None
-        try:
-            # Fetch prompt template and agenda from external S3 bucket
-            external_bucket = "k12-temp-testing-static-files"
-            prompt_key = "detailed_prompt.txt"
-            agenda_key = "agenda.txt"
-
-            logger.info(
-                "Fetching prompt template and agenda from external S3 bucket..."
-            )
-            prompt_template = fetch_s3_text_content(external_bucket, prompt_key)
-            agenda_text = fetch_s3_text_content(external_bucket, agenda_key)
-
-            # Perform Bedrock analysis
-            logger.info("Performing Bedrock analysis...")
-            analysis_result = analyze_transcript_with_bedrock(
-                human_readable_transcript, prompt_template, agenda_text
-            )
-
-            # Save analysis result to S3
-            analysis_key = f"analysis/{job_name}_analysis.txt"
-            logger.info(f"Saving analysis result to s3://{bucket_name}/{analysis_key}")
-
-            s3_client.put_object(
-                Bucket=bucket_name,
-                Key=analysis_key,
-                Body=analysis_result.encode("utf-8"),
-                ContentType="text/plain",
-            )
-
-            logger.info("=== Bedrock Analysis Completed Successfully ===")
-
-            # Generate PDF from analysis result
-            logger.info("=== Starting PDF Generation ===")
-            try:
-                pdf_key = generate_pdf_from_analysis(
-                    analysis_result, job_name, bucket_name
-                )
-                logger.info(f"=== PDF Generation Completed Successfully: {pdf_key} ===")
-                pdf_success = True
-                pdf_error = None
-            except Exception as pdf_e:
-                logger.error(f"=== PDF Generation FAILED ===")
-                logger.error(f"PDF error: {pdf_e}")
-                pdf_success = False
-                pdf_key = None
-                pdf_error = pdf_e
-
-            analysis_success = True
-            analysis_error = None
-
-        except Exception as e:
-            logger.error(f"=== Bedrock Analysis FAILED ===")
-            logger.error(f"Analysis error: {e}")
-            logger.error(f"Analysis error traceback:", exc_info=True)
-
-            analysis_success = False
-            analysis_key = None
-            analysis_result = None
-            analysis_error = e
-
-            # Set PDF generation as not attempted since analysis failed
-            pdf_success = False
-            pdf_key = None
-            pdf_error = "PDF generation skipped due to analysis failure"
-
-        logger.info("=== ProcessTranscript Lambda Completed ===")
-        logger.info(
-            f"Human-readable transcript saved to: s3://{bucket_name}/{human_readable_key}"
-        )
-
-        result = {
-            "statusCode": 200,
-            "message": "Transcript processing completed successfully",
-            "humanReadableKey": human_readable_key,
-            "transcriptLength": len(human_readable_transcript),
-            "analysisCompleted": analysis_success,
-            "pdfGenerated": pdf_success,
-        }
-
-        if analysis_success:
-            result["analysisKey"] = analysis_key
-            result["analysisLength"] = len(analysis_result)
-            logger.info(f"Analysis saved to: s3://{bucket_name}/{analysis_key}")
-
-            if pdf_success:
-                result["pdfKey"] = pdf_key
-                logger.info(f"PDF saved to: s3://{bucket_name}/{pdf_key}")
-            else:
-                result["pdfError"] = str(pdf_error)
-                logger.warning("PDF generation failed but analysis succeeded")
+        if is_chunked:
+            logger.info("=== Processing CHUNKED transcription results ===")
+            return handle_chunked_transcription(event, bucket_name)
         else:
-            result["analysisError"] = str(analysis_error)
-            result["pdfError"] = str(pdf_error)
-            logger.warning("Analysis failed but transcript processing succeeded")
-
-        return result
+            logger.info("=== Processing SINGLE transcription result ===")
+            return handle_single_transcription(event, bucket_name)
 
     except Exception as e:
         logger.error("=== ProcessTranscript Lambda FAILED ===")
@@ -625,8 +464,360 @@ def handler(event, context):
             logger.error(f"Event data: {json.dumps(event, indent=2)}")
         if "bucket_name" in locals():
             logger.error(f"Bucket name: {bucket_name}")
-        if "input_bucket" in locals() and "input_key" in locals():
-            logger.error(f"Attempted to access: s3://{input_bucket}/{input_key}")
 
         # Fail the Step Function state on error
         raise e
+
+
+def handle_single_transcription(event, bucket_name):
+    """Handle single (non-chunked) transcription processing - original functionality"""
+    # Get transcription result from the Step Function event
+    transcription_job = event["transcriptionResult"]["TranscriptionJob"]
+    job_name = transcription_job["TranscriptionJobName"]
+    job_status = transcription_job["TranscriptionJobStatus"]
+
+    logger.info(f"Processing transcript for job: {job_name}")
+    logger.info(f"Job status: {job_status}")
+
+    if job_status != "COMPLETED":
+        raise ValueError(f"Transcription job is not completed. Status: {job_status}")
+
+    uri = transcription_job["Transcript"]["TranscriptFileUri"]
+    logger.info(f"Transcript URI: {uri}")
+
+    parsed = urlparse(uri)
+    logger.info(
+        f"Parsed URI - scheme: {parsed.scheme}, netloc: {parsed.netloc}, path: {parsed.path}"
+    )
+
+    # Get the key from the URI
+    input_key = parsed.path.lstrip("/")
+    if parsed.scheme == "https" and input_key.startswith(f"{bucket_name}/"):
+        input_key = input_key[len(f"{bucket_name}/") :]
+        logger.info(f"Stripped bucket name from HTTPS URL path. New key: {input_key}")
+
+    input_bucket = bucket_name
+
+    logger.info(f"Will fetch transcript from bucket: {input_bucket}, key: {input_key}")
+
+    # Get the transcript JSON from S3
+    logger.info("Fetching transcript JSON from S3...")
+    response = s3_client.get_object(Bucket=input_bucket, Key=input_key)
+    transcript_data = json.loads(response["Body"].read().decode("utf-8"))
+
+    logger.info("Successfully fetched and parsed transcript JSON")
+    logger.info(
+        f"Transcript contains {len(transcript_data.get('results', {}).get('items', []))} items"
+    )
+
+    # Convert to human-readable format
+    logger.info("Converting transcript to human-readable format...")
+    human_readable_transcript = convert_to_human_readable(transcript_data)
+
+    # Continue with analysis and PDF generation
+    return process_transcript_analysis(human_readable_transcript, job_name, bucket_name)
+
+
+def handle_chunked_transcription(event, bucket_name):
+    """Handle multiple (chunked) transcription processing with merging"""
+    transcription_results = event["transcriptionResults"]
+    media_convert_result = event["mediaConvertResult"]
+
+    logger.info(f"Processing {len(transcription_results)} transcription chunks")
+
+    # Extract chunk information and sort by chunk order
+    chunks_data = []
+
+    for i, result in enumerate(transcription_results):
+        transcription_job = result["TranscriptionJob"]
+        job_name = transcription_job["TranscriptionJobName"]
+        job_status = transcription_job["TranscriptionJobStatus"]
+
+        logger.info(f"Processing chunk {i+1}: {job_name} (status: {job_status})")
+
+        if job_status != "COMPLETED":
+            raise ValueError(
+                f"Transcription job {job_name} is not completed. Status: {job_status}"
+            )
+
+        # Extract chunk number from job name (format: transcribe-{execution}-{index})
+        chunk_index = i  # Fallback to array index
+        if "-" in job_name:
+            try:
+                chunk_index = int(job_name.split("-")[-1])
+            except ValueError:
+                logger.warning(
+                    f"Could not extract chunk index from job name {job_name}, using array index {i}"
+                )
+
+        # Get chunk timing information from MediaConvert metadata
+        chunk_start_time = 0
+        chunk_duration = 0
+
+        # Try to get chunk info from MediaConvert job metadata
+        job_ids = media_convert_result["Payload"]["job_ids"]
+        if i < len(job_ids):
+            try:
+                # This would require getting the MediaConvert job details
+                # For now, calculate based on chunk index and standard duration
+                chunk_start_time = (
+                    chunk_index * 4 * 3600
+                )  # 4 hours per chunk in seconds
+                chunk_duration = 4 * 3600  # 4 hours in seconds
+                logger.info(
+                    f"Calculated chunk {chunk_index} start time: {chunk_start_time}s"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Could not determine chunk timing from MediaConvert metadata: {e}"
+                )
+
+        uri = transcription_job["Transcript"]["TranscriptFileUri"]
+        parsed = urlparse(uri)
+        input_key = parsed.path.lstrip("/")
+
+        if parsed.scheme == "https" and input_key.startswith(f"{bucket_name}/"):
+            input_key = input_key[len(f"{bucket_name}/") :]
+
+        chunks_data.append(
+            {
+                "chunk_index": chunk_index,
+                "job_name": job_name,
+                "transcript_key": input_key,
+                "chunk_start_time": chunk_start_time,
+                "chunk_duration": chunk_duration,
+            }
+        )
+
+    # Sort chunks by index to ensure proper order
+    chunks_data.sort(key=lambda x: x["chunk_index"])
+
+    logger.info("Fetching and merging all transcript chunks...")
+
+    # Fetch all transcript files
+    chunk_transcripts = []
+    for chunk in chunks_data:
+        logger.info(
+            f"Fetching transcript for chunk {chunk['chunk_index']}: {chunk['transcript_key']}"
+        )
+        response = s3_client.get_object(Bucket=bucket_name, Key=chunk["transcript_key"])
+        transcript_data = json.loads(response["Body"].read().decode("utf-8"))
+
+        chunk_transcripts.append(
+            {
+                "data": transcript_data,
+                "chunk_index": chunk["chunk_index"],
+                "chunk_start_time": chunk["chunk_start_time"],
+                "job_name": chunk["job_name"],
+            }
+        )
+
+    # Merge transcripts with timestamp adjustment
+    logger.info("Merging transcripts with timestamp adjustment...")
+    merged_transcript = merge_chunked_transcripts(chunk_transcripts)
+
+    # Use the first job name as base for output files
+    base_job_name = (
+        chunks_data[0]["job_name"].replace("-0", "").replace("-1", "") + "-merged"
+    )
+
+    # Continue with analysis and PDF generation
+    return process_transcript_analysis(merged_transcript, base_job_name, bucket_name)
+
+
+def merge_chunked_transcripts(chunk_transcripts):
+    """
+    Merge multiple transcript chunks into a single human-readable transcript
+    with proper timestamp adjustment and speaker label consistency
+    """
+    logger.info(f"Merging {len(chunk_transcripts)} transcript chunks")
+
+    all_segments = []
+    global_segment_counter = 0
+    speaker_mapping = {}  # Map chunk-specific speaker labels to global labels
+    global_speaker_counter = 0
+
+    for chunk in chunk_transcripts:
+        chunk_index = chunk["chunk_index"]
+        chunk_start_time = chunk["chunk_start_time"]
+        transcript_data = chunk["data"]
+
+        logger.info(
+            f"Processing chunk {chunk_index} with start time offset {chunk_start_time}s"
+        )
+
+        # Convert this chunk to human-readable format first
+        chunk_readable = convert_to_human_readable(transcript_data)
+
+        # Parse the human-readable format to extract segments
+        # Format: [seg_X][speaker_label][HH:MM:SS] spoken text
+        segment_pattern = r"\[([^\]]+)\]\[([^\]]+)\]\[([^\]]+)\] (.+)"
+
+        for line in chunk_readable.split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+
+            match = re.match(segment_pattern, line)
+            if match:
+                seg_id, speaker, timestamp, text = match.groups()
+
+                # Parse timestamp
+                time_parts = timestamp.split(":")
+                if len(time_parts) == 3:
+                    hours, minutes, seconds = map(int, time_parts)
+                    segment_time_seconds = hours * 3600 + minutes * 60 + seconds
+
+                    # Adjust timestamp for chunk offset
+                    adjusted_time_seconds = segment_time_seconds + chunk_start_time
+
+                    # Convert back to timestamp format
+                    adj_hours = int(adjusted_time_seconds // 3600)
+                    adj_minutes = int((adjusted_time_seconds % 3600) // 60)
+                    adj_seconds = int(adjusted_time_seconds % 60)
+                    adjusted_timestamp = (
+                        f"{adj_hours:02d}:{adj_minutes:02d}:{adj_seconds:02d}"
+                    )
+
+                    # Handle speaker label consistency across chunks
+                    chunk_speaker_key = f"chunk_{chunk_index}_{speaker}"
+                    if chunk_speaker_key not in speaker_mapping:
+                        speaker_mapping[chunk_speaker_key] = (
+                            f"spk_{global_speaker_counter}"
+                        )
+                        global_speaker_counter += 1
+
+                    global_speaker = speaker_mapping[chunk_speaker_key]
+
+                    # Create the adjusted segment
+                    adjusted_segment = f"[seg_{global_segment_counter}][{global_speaker}][{adjusted_timestamp}] {text}"
+                    all_segments.append(adjusted_segment)
+                    global_segment_counter += 1
+                else:
+                    logger.warning(f"Could not parse timestamp: {timestamp}")
+
+    merged_transcript = "\n".join(all_segments)
+
+    logger.info(
+        f"Successfully merged {len(all_segments)} segments from {len(chunk_transcripts)} chunks"
+    )
+    logger.info(f"Total speakers identified: {global_speaker_counter}")
+
+    return merged_transcript
+
+
+def process_transcript_analysis(human_readable_transcript, job_name, bucket_name):
+    """
+    Common function to handle transcript analysis and PDF generation
+    """
+    # Save human-readable version to S3
+    human_readable_key = f"transcripts/{job_name}_human_readable.txt"
+
+    logger.info(
+        f"Saving human-readable transcript to s3://{bucket_name}/{human_readable_key}"
+    )
+    s3_client.put_object(
+        Bucket=bucket_name,
+        Key=human_readable_key,
+        Body=human_readable_transcript.encode("utf-8"),
+        ContentType="text/plain",
+    )
+
+    logger.info("Human-readable transcript saved successfully")
+
+    # === BEDROCK ANALYSIS SECTION ===
+    logger.info("=== Starting Bedrock Analysis Phase ===")
+
+    analysis_error = None
+    try:
+        # Fetch prompt template and agenda from external S3 bucket
+        external_bucket = "k12-temp-testing-static-files"
+        prompt_key = "detailed_prompt.txt"
+        agenda_key = "agenda.txt"
+
+        logger.info("Fetching prompt template and agenda from external S3 bucket...")
+        prompt_template = fetch_s3_text_content(external_bucket, prompt_key)
+        agenda_text = fetch_s3_text_content(external_bucket, agenda_key)
+
+        # Perform Bedrock analysis
+        logger.info("Performing Bedrock analysis...")
+        analysis_result = analyze_transcript_with_bedrock(
+            human_readable_transcript, prompt_template, agenda_text
+        )
+
+        # Save analysis result to S3
+        analysis_key = f"analysis/{job_name}_analysis.txt"
+        logger.info(f"Saving analysis result to s3://{bucket_name}/{analysis_key}")
+
+        s3_client.put_object(
+            Bucket=bucket_name,
+            Key=analysis_key,
+            Body=analysis_result.encode("utf-8"),
+            ContentType="text/plain",
+        )
+
+        logger.info("=== Bedrock Analysis Completed Successfully ===")
+
+        # Generate PDF from analysis result
+        logger.info("=== Starting PDF Generation ===")
+        try:
+            pdf_key = generate_pdf_from_analysis(analysis_result, job_name, bucket_name)
+            logger.info(f"=== PDF Generation Completed Successfully: {pdf_key} ===")
+            pdf_success = True
+            pdf_error = None
+        except Exception as pdf_e:
+            logger.error(f"=== PDF Generation FAILED ===")
+            logger.error(f"PDF error: {pdf_e}")
+            pdf_success = False
+            pdf_key = None
+            pdf_error = pdf_e
+
+        analysis_success = True
+        analysis_error = None
+
+    except Exception as e:
+        logger.error(f"=== Bedrock Analysis FAILED ===")
+        logger.error(f"Analysis error: {e}")
+        logger.error(f"Analysis error traceback:", exc_info=True)
+
+        analysis_success = False
+        analysis_key = None
+        analysis_result = None
+        analysis_error = e
+
+        # Set PDF generation as not attempted since analysis failed
+        pdf_success = False
+        pdf_key = None
+        pdf_error = "PDF generation skipped due to analysis failure"
+
+    logger.info("=== ProcessTranscript Lambda Completed ===")
+    logger.info(
+        f"Human-readable transcript saved to: s3://{bucket_name}/{human_readable_key}"
+    )
+
+    result = {
+        "statusCode": 200,
+        "message": "Transcript processing completed successfully",
+        "humanReadableKey": human_readable_key,
+        "transcriptLength": len(human_readable_transcript),
+        "analysisCompleted": analysis_success,
+        "pdfGenerated": pdf_success,
+    }
+
+    if analysis_success:
+        result["analysisKey"] = analysis_key
+        result["analysisLength"] = len(analysis_result)
+        logger.info(f"Analysis saved to: s3://{bucket_name}/{analysis_key}")
+
+        if pdf_success:
+            result["pdfKey"] = pdf_key
+            logger.info(f"PDF saved to: s3://{bucket_name}/{pdf_key}")
+        else:
+            result["pdfError"] = str(pdf_error)
+            logger.warning("PDF generation failed but analysis succeeded")
+    else:
+        result["analysisError"] = str(analysis_error)
+        result["pdfError"] = str(pdf_error)
+        logger.warning("Analysis failed but transcript processing succeeded")
+
+    return result

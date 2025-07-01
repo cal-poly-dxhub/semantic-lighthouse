@@ -1,5 +1,5 @@
 {
-  "Comment": "A state machine that converts videos using MediaConvert, transcribes the audio, and processes the result.",
+  "Comment": "A state machine that converts videos using MediaConvert (with chunking support), transcribes all audio chunks, and processes the merged result.",
   "StartAt": "ProcessWithMediaConvert",
   "States": {
     "ProcessWithMediaConvert": {
@@ -15,13 +15,13 @@
         }
       },
       "ResultPath": "$.mediaConvertResult",
-      "Next": "WaitForMediaConvert",
+      "Next": "CheckJobCount",
       "Retry": [
         {
           "ErrorEquals": ["States.TaskFailed"],
           "IntervalSeconds": 30,
           "MaxAttempts": 3,
-          "BackoffRate": 2.0
+          "BackoffRate": 2
         }
       ],
       "Catch": [
@@ -31,79 +31,141 @@
         }
       ]
     },
-    "WaitForMediaConvert": {
-      "Type": "Wait",
-      "Seconds": 60,
-      "Next": "CheckMediaConvertJobStatus"
-    },
-    "CheckMediaConvertJobStatus": {
-      "Type": "Task",
-      "Resource": "arn:aws:states:::aws-sdk:mediaconvert:getJob",
-      "Parameters": {
-        "Id.$": "$.mediaConvertResult.Payload.job_ids[0]"
-      },
-      "ResultPath": "$.mediaConvertJobStatus",
-      "Next": "IsMediaConvertFinished",
-      "Retry": [
-        {
-          "ErrorEquals": ["States.TaskFailed"],
-          "IntervalSeconds": 30,
-          "MaxAttempts": 3,
-          "BackoffRate": 2.0
-        }
-      ],
-      "Catch": [
-        {
-          "ErrorEquals": ["States.ALL"],
-          "Next": "MediaConvertFailed"
-        }
-      ]
-    },
-    "IsMediaConvertFinished": {
+    "CheckJobCount": {
       "Type": "Choice",
       "Choices": [
         {
-          "Variable": "$.mediaConvertJobStatus.Job.Status",
-          "StringEquals": "COMPLETE",
-          "Next": "VerifyAudioFileExists"
-        },
-        {
-          "Variable": "$.mediaConvertJobStatus.Job.Status",
-          "StringEquals": "ERROR",
-          "Next": "MediaConvertFailed"
-        },
-        {
-          "Variable": "$.mediaConvertJobStatus.Job.Status",
-          "StringEquals": "CANCELED",
-          "Next": "MediaConvertFailed"
+          "Variable": "$.mediaConvertResult.Payload.job_ids",
+          "IsPresent": true,
+          "Next": "HasJobs"
         }
       ],
-      "Default": "WaitForMediaConvert"
+      "Default": "MediaConvertFailed"
     },
-    "MediaConvertFailed": {
-      "Type": "Fail",
-      "Cause": "MediaConvert Job Failed",
-      "Error": "The MediaConvert job failed to complete successfully."
+    "HasJobs": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "And": [
+            {
+              "Variable": "$.mediaConvertResult.Payload.job_ids",
+              "IsPresent": true
+            },
+            {
+              "Variable": "$.mediaConvertResult.Payload.job_ids[0]",
+              "IsPresent": true
+            }
+          ],
+          "Next": "WaitForMediaConvert"
+        }
+      ],
+      "Default": "MediaConvertFailed"
     },
-    "VerifyAudioFileExists": {
+    "WaitForMediaConvert": {
+      "Type": "Wait",
+      "Seconds": 120,
+      "Next": "CheckAllMediaConvertJobsWithLambda"
+    },
+    "CheckAllMediaConvertJobsWithLambda": {
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
       "Parameters": {
         "FunctionName": "${VerifyS3FileLambdaArn}",
         "Payload": {
-          "s3_uri.$": "$.mediaConvertResult.Payload.audioOutputUri"
+          "job_ids.$": "$.mediaConvertResult.Payload.job_ids"
         }
       },
-      "ResultPath": "$.audioFileVerification",
-      "Next": "CheckAudioFileExists",
+      "ResultPath": "$.mediaConvertJobsCheck",
+      "Next": "EvaluateMediaConvertResults",
       "Retry": [
         {
           "ErrorEquals": ["States.TaskFailed"],
-          "IntervalSeconds": 10,
-          "MaxAttempts": 6,
-          "BackoffRate": 2.0
+          "IntervalSeconds": 30,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
         }
       ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "MediaConvertFailed"
+        }
+      ]
+    },
+    "EvaluateMediaConvertResults": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.mediaConvertJobsCheck.Payload.anyFailed",
+          "BooleanEquals": true,
+          "Next": "MediaConvertFailed"
+        },
+        {
+          "Variable": "$.mediaConvertJobsCheck.Payload.allComplete",
+          "BooleanEquals": true,
+          "Next": "VerifyAllAudioFiles"
+        }
+      ],
+      "Default": "WaitLongerForMediaConvert"
+    },
+    "WaitLongerForMediaConvert": {
+      "Type": "Wait",
+      "Seconds": 180,
+      "Next": "CheckAllMediaConvertJobsWithLambda"
+    },
+    "VerifyAllAudioFiles": {
+      "Type": "Map",
+      "ItemsPath": "$.mediaConvertResult.Payload.audioOutputUris",
+      "MaxConcurrency": 5,
+      "Iterator": {
+        "StartAt": "VerifySingleAudioFile",
+        "States": {
+          "VerifySingleAudioFile": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+              "FunctionName": "${VerifyS3FileLambdaArn}",
+              "Payload": {
+                "s3_uri.$": "$"
+              }
+            },
+            "Next": "CheckAudioExists",
+            "Retry": [
+              {
+                "ErrorEquals": ["States.TaskFailed"],
+                "IntervalSeconds": 15,
+                "MaxAttempts": 8,
+                "BackoffRate": 2
+              }
+            ]
+          },
+          "CheckAudioExists": {
+            "Type": "Choice",
+            "Choices": [
+              {
+                "Variable": "$.Payload.exists",
+                "BooleanEquals": true,
+                "Next": "AudioExists"
+              }
+            ],
+            "Default": "AudioMissing"
+          },
+          "AudioExists": {
+            "Type": "Pass",
+            "Result": {
+              "status": "EXISTS"
+            },
+            "End": true
+          },
+          "AudioMissing": {
+            "Type": "Fail",
+            "Cause": "Audio File Not Found",
+            "Error": "One or more audio files generated by MediaConvert could not be found in S3."
+          }
+        }
+      },
+      "ResultPath": "$.audioVerificationResults",
+      "Next": "StartAllTranscriptionJobs",
       "Catch": [
         {
           "ErrorEquals": ["States.ALL"],
@@ -111,102 +173,120 @@
         }
       ]
     },
-    "CheckAudioFileExists": {
-      "Type": "Choice",
-      "Choices": [
-        {
-          "Variable": "$.audioFileVerification.Payload.exists",
-          "BooleanEquals": true,
-          "Next": "StartTranscriptionJob"
-        }
-      ],
-      "Default": "AudioFileNotFound"
-    },
-    "AudioFileNotFound": {
-      "Type": "Fail",
-      "Cause": "Audio File Not Found",
-      "Error": "The audio file generated by MediaConvert could not be found in S3."
-    },
-    "StartTranscriptionJob": {
-      "Type": "Task",
-      "Resource": "arn:aws:states:::aws-sdk:transcribe:startTranscriptionJob",
-      "Parameters": {
-        "LanguageCode": "en-US",
-        "Media": {
-          "MediaFileUri.$": "$.mediaConvertResult.Payload.audioOutputUri"
-        },
-        "TranscriptionJobName.$": "States.Format('transcribe-{}', $$.Execution.Name)",
-        "OutputBucketName": "${OutputBucketName}",
-        "OutputKey": "transcripts/",
-        "Settings": {
-          "ShowSpeakerLabels": true,
-          "MaxSpeakerLabels": 10
+    "StartAllTranscriptionJobs": {
+      "Type": "Map",
+      "ItemsPath": "$.mediaConvertResult.Payload.audioOutputUris",
+      "MaxConcurrency": 5,
+      "Iterator": {
+        "StartAt": "StartSingleTranscriptionJob",
+        "States": {
+          "StartSingleTranscriptionJob": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::aws-sdk:transcribe:startTranscriptionJob",
+            "Parameters": {
+              "LanguageCode": "en-US",
+              "Media": {
+                "MediaFileUri.$": "$"
+              },
+              "TranscriptionJobName.$": "States.Format('transcribe-{}-{}', $$.Execution.Name, $$.Map.Item.Index)",
+              "OutputBucketName": "${OutputBucketName}",
+              "OutputKey": "transcripts/",
+              "Settings": {
+                "ShowSpeakerLabels": true,
+                "MaxSpeakerLabels": 10
+              }
+            },
+            "Next": "WaitForSingleTranscription",
+            "Retry": [
+              {
+                "ErrorEquals": ["States.TaskFailed"],
+                "IntervalSeconds": 30,
+                "MaxAttempts": 3,
+                "BackoffRate": 2
+              }
+            ]
+          },
+          "WaitForSingleTranscription": {
+            "Type": "Wait",
+            "Seconds": 60,
+            "Next": "GetSingleTranscriptionStatus"
+          },
+          "GetSingleTranscriptionStatus": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::aws-sdk:transcribe:getTranscriptionJob",
+            "Parameters": {
+              "TranscriptionJobName.$": "$.TranscriptionJob.TranscriptionJobName"
+            },
+            "Next": "CheckTranscriptionStatus"
+          },
+          "CheckTranscriptionStatus": {
+            "Type": "Choice",
+            "Choices": [
+              {
+                "Variable": "$.TranscriptionJob.TranscriptionJobStatus",
+                "StringEquals": "COMPLETED",
+                "Next": "TranscriptionComplete"
+              },
+              {
+                "Variable": "$.TranscriptionJob.TranscriptionJobStatus",
+                "StringEquals": "FAILED",
+                "Next": "TranscriptionJobFailed"
+              }
+            ],
+            "Default": "WaitForSingleTranscription"
+          },
+          "TranscriptionComplete": {
+            "Type": "Pass",
+            "End": true
+          },
+          "TranscriptionJobFailed": {
+            "Type": "Fail",
+            "Cause": "Transcription Job Failed",
+            "Error": "One or more AWS Transcribe jobs failed to complete."
+          }
         }
       },
-      "ResultPath": "$.startTranscriptionResult",
-      "Next": "WaitForTranscription",
-      "Retry": [
+      "ResultPath": "$.transcriptionResults",
+      "Next": "ProcessAllTranscripts",
+      "Catch": [
         {
-          "ErrorEquals": ["States.TaskFailed"],
-          "IntervalSeconds": 30,
-          "MaxAttempts": 3,
-          "BackoffRate": 2.0
+          "ErrorEquals": ["States.ALL"],
+          "Next": "TranscriptionFailed"
         }
       ]
     },
-    "WaitForTranscription": {
-      "Type": "Wait",
-      "Seconds": 30,
-      "Next": "GetTranscriptionJobStatus"
-    },
-    "GetTranscriptionJobStatus": {
-      "Type": "Task",
-      "Resource": "arn:aws:states:::aws-sdk:transcribe:getTranscriptionJob",
-      "Parameters": {
-        "TranscriptionJobName.$": "$.startTranscriptionResult.TranscriptionJob.TranscriptionJobName"
-      },
-      "ResultPath": "$.getTranscriptionJobResult",
-      "Next": "IsTranscriptionFinished"
-    },
-    "IsTranscriptionFinished": {
-      "Type": "Choice",
-      "Choices": [
-        {
-          "Variable": "$.getTranscriptionJobResult.TranscriptionJob.TranscriptionJobStatus",
-          "StringEquals": "COMPLETED",
-          "Next": "ProcessTranscript"
-        },
-        {
-          "Variable": "$.getTranscriptionJobResult.TranscriptionJob.TranscriptionJobStatus",
-          "StringEquals": "FAILED",
-          "Next": "TranscriptionFailed"
-        }
-      ],
-      "Default": "WaitForTranscription"
-    },
-    "TranscriptionFailed": {
-      "Type": "Fail",
-      "Cause": "Transcription Job Failed",
-      "Error": "The AWS Transcribe job failed to complete."
-    },
-    "ProcessTranscript": {
+    "ProcessAllTranscripts": {
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
       "Parameters": {
         "FunctionName": "${ProcessTranscriptLambdaArn}",
         "Payload": {
-          "transcriptionResult": {
-            "TranscriptionJob.$": "$.getTranscriptionJobResult.TranscriptionJob"
-          },
+          "transcriptionResults.$": "$.transcriptionResults",
           "mediaConvertResult.$": "$.mediaConvertResult",
           "originalVideoInfo": {
             "bucket.$": "$.detail.bucket.name",
             "key.$": "$.detail.object.key"
-          }
+          },
+          "isChunkedProcessing": true
         }
       },
       "ResultPath": "$.processResult",
       "End": true
+    },
+    "MediaConvertFailed": {
+      "Type": "Fail",
+      "Cause": "MediaConvert Job Failed",
+      "Error": "The MediaConvert job failed to complete successfully."
+    },
+    "AudioFileNotFound": {
+      "Type": "Fail",
+      "Cause": "Audio File Not Found",
+      "Error": "One or more audio files generated by MediaConvert could not be found in S3."
+    },
+    "TranscriptionFailed": {
+      "Type": "Fail",
+      "Cause": "Transcription Job Failed",
+      "Error": "One or more AWS Transcribe jobs failed to complete."
     }
   }
 }
