@@ -1,2 +1,0 @@
-# No external Python dependencies needed for this Lambda
-# FFmpeg will be available via Lambda layer or container 
