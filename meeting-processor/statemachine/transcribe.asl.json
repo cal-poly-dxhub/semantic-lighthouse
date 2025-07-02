@@ -188,7 +188,7 @@
               "Media": {
                 "MediaFileUri.$": "$"
               },
-              "TranscriptionJobName.$": "States.Format('transcribe-{}-{}', $$.Execution.Name, $$.Map.Item.Index)",
+              "TranscriptionJobName.$": "States.Format('transcribe-{}-{}', $$.Execution.Name, States.UUID())",
               "OutputBucketName": "${OutputBucketName}",
               "OutputKey": "transcripts/",
               "Settings": {
