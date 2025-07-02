@@ -1,0 +1,1 @@
+# All dependencies (pymediainfo, native libs) are provided by the attached Lambda layer 

@@ -1,0 +1,1 @@
+# No additional dependencies needed - using only built-in boto3 and urllib 

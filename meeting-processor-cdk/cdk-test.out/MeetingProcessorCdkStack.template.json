@@ -1,0 +1,1553 @@
+{
+ "Resources": {
+  "MeetingFilesBucket52E20194": {
+   "Type": "AWS::S3::Bucket",
+   "Properties": {
+    "BucketEncryption": {
+     "ServerSideEncryptionConfiguration": [
+      {
+       "ServerSideEncryptionByDefault": {
+        "SSEAlgorithm": "AES256"
+       }
+      }
+     ]
+    },
+    "BucketName": "meeting-minutes-processor-files-us-west-2-v2",
+    "LifecycleConfiguration": {
+     "Rules": [
+      {
+       "ExpirationInDays": 90,
+       "Id": "DeleteOldFiles",
+       "Prefix": "uploads/",
+       "Status": "Enabled"
+      },
+      {
+       "ExpirationInDays": 365,
+       "Id": "DeleteOldTranscriptions",
+       "Prefix": "transcriptions/",
+       "Status": "Enabled"
+      }
+     ]
+    },
+    "PublicAccessBlockConfiguration": {
+     "BlockPublicAcls": true,
+     "BlockPublicPolicy": true,
+     "IgnorePublicAcls": true,
+     "RestrictPublicBuckets": true
+    }
+   },
+   "UpdateReplacePolicy": "Retain",
+   "DeletionPolicy": "Retain",
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/MeetingFilesBucket/Resource"
+   }
+  },
+  "MeetingFilesBucketNotifications1012BBCB": {
+   "Type": "Custom::S3BucketNotifications",
+   "Properties": {
+    "ServiceToken": {
+     "Fn::GetAtt": [
+      "BucketNotificationsHandler050a0587b7544547bf325f094a3db8347ECC3691",
+      "Arn"
+     ]
+    },
+    "BucketName": {
+     "Ref": "MeetingFilesBucket52E20194"
+    },
+    "NotificationConfiguration": {
+     "EventBridgeConfiguration": {},
+     "LambdaFunctionConfigurations": [
+      {
+       "Events": [
+        "s3:ObjectCreated:*"
+       ],
+       "Filter": {
+        "Key": {
+         "FilterRules": [
+          {
+           "Name": "prefix",
+           "Value": "uploads/"
+          }
+         ]
+        }
+       },
+       "LambdaFunctionArn": {
+        "Fn::GetAtt": [
+         "MediaConvertTriggerFunction6D072A3F",
+         "Arn"
+        ]
+       }
+      }
+     ]
+    },
+    "Managed": true,
+    "SkipDestinationValidation": false
+   },
+   "DependsOn": [
+    "MeetingFilesBucketAllowBucketNotificationsToMeetingProcessorCdkStackMediaConvertTriggerFunctionE645C1B512FBAF08"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/MeetingFilesBucket/Notifications/Resource"
+   }
+  },
+  "MeetingFilesBucketAllowBucketNotificationsToMeetingProcessorCdkStackMediaConvertTriggerFunctionE645C1B512FBAF08": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "MediaConvertTriggerFunction6D072A3F",
+      "Arn"
+     ]
+    },
+    "Principal": "s3.amazonaws.com",
+    "SourceAccount": {
+     "Ref": "AWS::AccountId"
+    },
+    "SourceArn": {
+     "Fn::GetAtt": [
+      "MeetingFilesBucket52E20194",
+      "Arn"
+     ]
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/MeetingFilesBucket/AllowBucketNotificationsToMeetingProcessorCdkStackMediaConvertTriggerFunctionE645C1B5"
+   }
+  },
+  "BucketNotificationsHandler050a0587b7544547bf325f094a3db834RoleB6FB88EC": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/BucketNotificationsHandler050a0587b7544547bf325f094a3db834/Role/Resource"
+   }
+  },
+  "BucketNotificationsHandler050a0587b7544547bf325f094a3db834RoleDefaultPolicy2CF63D36": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": "s3:PutBucketNotification",
+       "Effect": "Allow",
+       "Resource": "*"
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "BucketNotificationsHandler050a0587b7544547bf325f094a3db834RoleDefaultPolicy2CF63D36",
+    "Roles": [
+     {
+      "Ref": "BucketNotificationsHandler050a0587b7544547bf325f094a3db834RoleB6FB88EC"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/BucketNotificationsHandler050a0587b7544547bf325f094a3db834/Role/DefaultPolicy/Resource"
+   }
+  },
+  "BucketNotificationsHandler050a0587b7544547bf325f094a3db8347ECC3691": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Description": "AWS CloudFormation handler for \"Custom::S3BucketNotifications\" resources (@aws-cdk/aws-s3)",
+    "Code": {
+     "ZipFile": "import boto3  # type: ignore\nimport json\nimport logging\nimport urllib.request\n\ns3 = boto3.client(\"s3\")\n\nEVENTBRIDGE_CONFIGURATION = 'EventBridgeConfiguration'\nCONFIGURATION_TYPES = [\"TopicConfigurations\", \"QueueConfigurations\", \"LambdaFunctionConfigurations\"]\n\ndef handler(event: dict, context):\n  response_status = \"SUCCESS\"\n  error_message = \"\"\n  try:\n    props = event[\"ResourceProperties\"]\n    notification_configuration = props[\"NotificationConfiguration\"]\n    managed = props.get('Managed', 'true').lower() == 'true'\n    skipDestinationValidation = props.get('SkipDestinationValidation', 'false').lower() == 'true'\n    stack_id = event['StackId']\n    old = event.get(\"OldResourceProperties\", {}).get(\"NotificationConfiguration\", {})\n    if managed:\n      config = handle_managed(event[\"RequestType\"], notification_configuration)\n    else:\n      config = handle_unmanaged(props[\"BucketName\"], stack_id, event[\"RequestType\"], notification_configuration, old)\n    s3.put_bucket_notification_configuration(Bucket=props[\"BucketName\"], NotificationConfiguration=config, SkipDestinationValidation=skipDestinationValidation)\n  except Exception as e:\n    logging.exception(\"Failed to put bucket notification configuration\")\n    response_status = \"FAILED\"\n    error_message = f\"Error: {str(e)}. \"\n  finally:\n    submit_response(event, context, response_status, error_message)\n\ndef handle_managed(request_type, notification_configuration):\n  if request_type == 'Delete':\n    return {}\n  return notification_configuration\n\ndef handle_unmanaged(bucket, stack_id, request_type, notification_configuration, old):\n  def get_id(n):\n    n['Id'] = ''\n    sorted_notifications = sort_filter_rules(n)\n    strToHash=json.dumps(sorted_notifications, sort_keys=True).replace('\"Name\": \"prefix\"', '\"Name\": \"Prefix\"').replace('\"Name\": \"suffix\"', '\"Name\": \"Suffix\"')\n    return f\"{stack_id}-{hash(strToHash)}\"\n  def with_id(n):\n    n['Id'] = get_id(n)\n    return n\n\n  external_notifications = {}\n  existing_notifications = s3.get_bucket_notification_configuration(Bucket=bucket)\n  for t in CONFIGURATION_TYPES:\n    if request_type == 'Update':\n        old_incoming_ids = [get_id(n) for n in old.get(t, [])]\n        external_notifications[t] = [n for n in existing_notifications.get(t, []) if not get_id(n) in old_incoming_ids]      \n    elif request_type == 'Delete':\n        external_notifications[t] = [n for n in existing_notifications.get(t, []) if not n['Id'].startswith(f\"{stack_id}-\")]\n    elif request_type == 'Create':\n        external_notifications[t] = [n for n in existing_notifications.get(t, [])]\n  if EVENTBRIDGE_CONFIGURATION in existing_notifications:\n    external_notifications[EVENTBRIDGE_CONFIGURATION] = existing_notifications[EVENTBRIDGE_CONFIGURATION]\n\n  if request_type == 'Delete':\n    return external_notifications\n\n  notifications = {}\n  for t in CONFIGURATION_TYPES:\n    external = external_notifications.get(t, [])\n    incoming = [with_id(n) for n in notification_configuration.get(t, [])]\n    notifications[t] = external + incoming\n\n  if EVENTBRIDGE_CONFIGURATION in notification_configuration:\n    notifications[EVENTBRIDGE_CONFIGURATION] = notification_configuration[EVENTBRIDGE_CONFIGURATION]\n  elif EVENTBRIDGE_CONFIGURATION in external_notifications:\n    notifications[EVENTBRIDGE_CONFIGURATION] = external_notifications[EVENTBRIDGE_CONFIGURATION]\n\n  return notifications\n\ndef submit_response(event: dict, context, response_status: str, error_message: str):\n  response_body = json.dumps(\n    {\n      \"Status\": response_status,\n      \"Reason\": f\"{error_message}See the details in CloudWatch Log Stream: {context.log_stream_name}\",\n      \"PhysicalResourceId\": event.get(\"PhysicalResourceId\") or event[\"LogicalResourceId\"],\n      \"StackId\": event[\"StackId\"],\n      \"RequestId\": event[\"RequestId\"],\n      \"LogicalResourceId\": event[\"LogicalResourceId\"],\n      \"NoEcho\": False,\n    }\n  ).encode(\"utf-8\")\n  headers = {\"content-type\": \"\", \"content-length\": str(len(response_body))}\n  try:\n    req = urllib.request.Request(url=event[\"ResponseURL\"], headers=headers, data=response_body, method=\"PUT\")\n    with urllib.request.urlopen(req) as response:\n      print(response.read().decode(\"utf-8\"))\n    print(\"Status code: \" + response.reason)\n  except Exception as e:\n      print(\"send(..) failed executing request.urlopen(..): \" + str(e))\n\ndef sort_filter_rules(json_obj):\n  if not isinstance(json_obj, dict):\n      return json_obj\n  for key, value in json_obj.items():\n      if isinstance(value, dict):\n          json_obj[key] = sort_filter_rules(value)\n      elif isinstance(value, list):\n          json_obj[key] = [sort_filter_rules(item) for item in value]\n  if \"Filter\" in json_obj and \"Key\" in json_obj[\"Filter\"] and \"FilterRules\" in json_obj[\"Filter\"][\"Key\"]:\n      filter_rules = json_obj[\"Filter\"][\"Key\"][\"FilterRules\"]\n      sorted_filter_rules = sorted(filter_rules, key=lambda x: x[\"Name\"])\n      json_obj[\"Filter\"][\"Key\"][\"FilterRules\"] = sorted_filter_rules\n  return json_obj"
+    },
+    "Handler": "index.handler",
+    "Role": {
+     "Fn::GetAtt": [
+      "BucketNotificationsHandler050a0587b7544547bf325f094a3db834RoleB6FB88EC",
+      "Arn"
+     ]
+    },
+    "Runtime": "python3.11",
+    "Timeout": 300
+   },
+   "DependsOn": [
+    "BucketNotificationsHandler050a0587b7544547bf325f094a3db834RoleDefaultPolicy2CF63D36",
+    "BucketNotificationsHandler050a0587b7544547bf325f094a3db834RoleB6FB88EC"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/BucketNotificationsHandler050a0587b7544547bf325f094a3db834/Resource"
+   }
+  },
+  "EmailNotificationTopic0672A286": {
+   "Type": "AWS::SNS::Topic",
+   "Properties": {
+    "DisplayName": "Meeting Processor Notifications",
+    "TopicName": "meeting-processor-notifications"
+   },
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/EmailNotificationTopic/Resource"
+   }
+  },
+  "WeasyPrintLayer0E48A0A6": {
+   "Type": "AWS::Lambda::LayerVersion",
+   "Properties": {
+    "CompatibleRuntimes": [
+     "python3.12"
+    ],
+    "Content": {
+     "S3Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
+     },
+     "S3Key": "f612a9edabb69c8a471a984b8f909316afaf313887b2e07cf7ad120cac49a984.zip"
+    },
+    "Description": "WeasyPrint library for HTML to PDF conversion",
+    "LayerName": "weasyprint-layer-v2"
+   },
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/WeasyPrintLayer/Resource",
+    "aws:asset:path": "asset.f612a9edabb69c8a471a984b8f909316afaf313887b2e07cf7ad120cac49a984",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Content"
+   }
+  },
+  "MediaInfoLayer9106365B": {
+   "Type": "AWS::Lambda::LayerVersion",
+   "Properties": {
+    "CompatibleRuntimes": [
+     "python3.12"
+    ],
+    "Content": {
+     "S3Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
+     },
+     "S3Key": "39001cfccaf8f3380fc450857774bac2d82ab12c3e748f4ed815738ffa2752d7.zip"
+    },
+    "Description": "PyMediaInfo library for video file analysis",
+    "LayerName": "pymediainfo-layer-v2"
+   },
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/MediaInfoLayer/Resource",
+    "aws:asset:path": "asset.39001cfccaf8f3380fc450857774bac2d82ab12c3e748f4ed815738ffa2752d7",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Content"
+   }
+  },
+  "MediaConvertTriggerFunctionServiceRole5908777A": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/MediaConvertTriggerFunction/ServiceRole/Resource"
+   }
+  },
+  "MediaConvertTriggerFunctionServiceRoleDefaultPolicyEC4E438D": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "s3:Abort*",
+        "s3:DeleteObject*",
+        "s3:GetBucket*",
+        "s3:GetObject*",
+        "s3:List*",
+        "s3:PutObject",
+        "s3:PutObjectLegalHold",
+        "s3:PutObjectRetention",
+        "s3:PutObjectTagging",
+        "s3:PutObjectVersionTagging"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "MeetingFilesBucket52E20194",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "MeetingFilesBucket52E20194",
+             "Arn"
+            ]
+           },
+           "/*"
+          ]
+         ]
+        }
+       ]
+      },
+      {
+       "Action": [
+        "mediaconvert:CreateJob",
+        "mediaconvert:DescribeEndpoints",
+        "mediaconvert:GetJob",
+        "mediaconvert:ListJobs",
+        "transcribe:GetTranscriptionJob",
+        "transcribe:ListTranscriptionJobs",
+        "transcribe:StartTranscriptionJob"
+       ],
+       "Effect": "Allow",
+       "Resource": "*"
+      },
+      {
+       "Action": "iam:PassRole",
+       "Condition": {
+        "StringEquals": {
+         "iam:PassedToService": "mediaconvert.amazonaws.com"
+        }
+       },
+       "Effect": "Allow",
+       "Resource": "*"
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "MediaConvertTriggerFunctionServiceRoleDefaultPolicyEC4E438D",
+    "Roles": [
+     {
+      "Ref": "MediaConvertTriggerFunctionServiceRole5908777A"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/MediaConvertTriggerFunction/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "MediaConvertTriggerFunction6D072A3F": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
+     },
+     "S3Key": "2c3e4cb7a15bf137b430052bfb476249fae45590092a57fe2015de7a8c5f66b8.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "BUCKET_NAME": {
+       "Ref": "MeetingFilesBucket52E20194"
+      },
+      "OUTPUT_BUCKET": {
+       "Ref": "MeetingFilesBucket52E20194"
+      },
+      "ALLOWED_BUCKET_PATTERNS": "[\"^k12-temp-testing-\\\\d+$\",\"^meeting-minutes-processor-files-.*$\"]"
+     }
+    },
+    "FunctionName": "meeting-processor-mediaconvert-trigger-v2",
+    "Handler": "handler.lambda_handler",
+    "Layers": [
+     {
+      "Ref": "MediaInfoLayer9106365B"
+     }
+    ],
+    "MemorySize": 2048,
+    "Role": {
+     "Fn::GetAtt": [
+      "MediaConvertTriggerFunctionServiceRole5908777A",
+      "Arn"
+     ]
+    },
+    "Runtime": "python3.12",
+    "Timeout": 900
+   },
+   "DependsOn": [
+    "MediaConvertTriggerFunctionServiceRoleDefaultPolicyEC4E438D",
+    "MediaConvertTriggerFunctionServiceRole5908777A"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/MediaConvertTriggerFunction/Resource",
+    "aws:asset:path": "asset.2c3e4cb7a15bf137b430052bfb476249fae45590092a57fe2015de7a8c5f66b8",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Code"
+   }
+  },
+  "MediaConvertTriggerFunctionLogGroup18EDC1E4": {
+   "Type": "AWS::Logs::LogGroup",
+   "Properties": {
+    "LogGroupName": {
+     "Fn::Join": [
+      "",
+      [
+       "/aws/lambda/",
+       {
+        "Ref": "MediaConvertTriggerFunction6D072A3F"
+       }
+      ]
+     ]
+    },
+    "RetentionInDays": 731
+   },
+   "UpdateReplacePolicy": "Retain",
+   "DeletionPolicy": "Retain",
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/MediaConvertTriggerFunction/LogGroup/Resource"
+   }
+  },
+  "VerifyS3FileFunctionServiceRole1E0D72C3": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/VerifyS3FileFunction/ServiceRole/Resource"
+   }
+  },
+  "VerifyS3FileFunctionServiceRoleDefaultPolicy27714F80": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "s3:Abort*",
+        "s3:DeleteObject*",
+        "s3:GetBucket*",
+        "s3:GetObject*",
+        "s3:List*",
+        "s3:PutObject",
+        "s3:PutObjectLegalHold",
+        "s3:PutObjectRetention",
+        "s3:PutObjectTagging",
+        "s3:PutObjectVersionTagging"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "MeetingFilesBucket52E20194",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "MeetingFilesBucket52E20194",
+             "Arn"
+            ]
+           },
+           "/*"
+          ]
+         ]
+        }
+       ]
+      },
+      {
+       "Action": [
+        "transcribe:GetTranscriptionJob",
+        "transcribe:ListTranscriptionJobs",
+        "transcribe:StartTranscriptionJob"
+       ],
+       "Effect": "Allow",
+       "Resource": "*"
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "VerifyS3FileFunctionServiceRoleDefaultPolicy27714F80",
+    "Roles": [
+     {
+      "Ref": "VerifyS3FileFunctionServiceRole1E0D72C3"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/VerifyS3FileFunction/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "VerifyS3FileFunction624E09D2": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
+     },
+     "S3Key": "391fdcf4676880354a4afa838929c064738f8a8fb29d89b3f19545ef233cecf6.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "BUCKET_NAME": {
+       "Ref": "MeetingFilesBucket52E20194"
+      }
+     }
+    },
+    "FunctionName": "meeting-processor-verify-s3-file-v2",
+    "Handler": "handler.lambda_handler",
+    "MemorySize": 512,
+    "Role": {
+     "Fn::GetAtt": [
+      "VerifyS3FileFunctionServiceRole1E0D72C3",
+      "Arn"
+     ]
+    },
+    "Runtime": "python3.12",
+    "Timeout": 300
+   },
+   "DependsOn": [
+    "VerifyS3FileFunctionServiceRoleDefaultPolicy27714F80",
+    "VerifyS3FileFunctionServiceRole1E0D72C3"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/VerifyS3FileFunction/Resource",
+    "aws:asset:path": "asset.391fdcf4676880354a4afa838929c064738f8a8fb29d89b3f19545ef233cecf6",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Code"
+   }
+  },
+  "VerifyS3FileFunctionLogGroup6AFBE695": {
+   "Type": "AWS::Logs::LogGroup",
+   "Properties": {
+    "LogGroupName": {
+     "Fn::Join": [
+      "",
+      [
+       "/aws/lambda/",
+       {
+        "Ref": "VerifyS3FileFunction624E09D2"
+       }
+      ]
+     ]
+    },
+    "RetentionInDays": 731
+   },
+   "UpdateReplacePolicy": "Retain",
+   "DeletionPolicy": "Retain",
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/VerifyS3FileFunction/LogGroup/Resource"
+   }
+  },
+  "ProcessTranscriptFunctionServiceRole87B2F006": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/ProcessTranscriptFunction/ServiceRole/Resource"
+   }
+  },
+  "ProcessTranscriptFunctionServiceRoleDefaultPolicyD0EF2B64": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "s3:Abort*",
+        "s3:DeleteObject*",
+        "s3:GetBucket*",
+        "s3:GetObject*",
+        "s3:List*",
+        "s3:PutObject",
+        "s3:PutObjectLegalHold",
+        "s3:PutObjectRetention",
+        "s3:PutObjectTagging",
+        "s3:PutObjectVersionTagging"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "MeetingFilesBucket52E20194",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "MeetingFilesBucket52E20194",
+             "Arn"
+            ]
+           },
+           "/*"
+          ]
+         ]
+        }
+       ]
+      },
+      {
+       "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0",
+        "arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0",
+        "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0",
+        {
+         "Fn::Join": [
+          "",
+          [
+           "arn:aws:bedrock:us-west-2:",
+           {
+            "Ref": "AWS::AccountId"
+           },
+           ":inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+          ]
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "ProcessTranscriptFunctionServiceRoleDefaultPolicyD0EF2B64",
+    "Roles": [
+     {
+      "Ref": "ProcessTranscriptFunctionServiceRole87B2F006"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/ProcessTranscriptFunction/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "ProcessTranscriptFunctionAB81C055": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
+     },
+     "S3Key": "5bfc66136e39aba935f044aa76df73124e0daae646e5cfcd64ffe488735831de.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "BUCKET_NAME": {
+       "Ref": "MeetingFilesBucket52E20194"
+      }
+     }
+    },
+    "FunctionName": "meeting-processor-process-transcript-v2",
+    "Handler": "handler.lambda_handler",
+    "MemorySize": 4096,
+    "Role": {
+     "Fn::GetAtt": [
+      "ProcessTranscriptFunctionServiceRole87B2F006",
+      "Arn"
+     ]
+    },
+    "Runtime": "python3.12",
+    "Timeout": 900
+   },
+   "DependsOn": [
+    "ProcessTranscriptFunctionServiceRoleDefaultPolicyD0EF2B64",
+    "ProcessTranscriptFunctionServiceRole87B2F006"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/ProcessTranscriptFunction/Resource",
+    "aws:asset:path": "asset.5bfc66136e39aba935f044aa76df73124e0daae646e5cfcd64ffe488735831de",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Code"
+   }
+  },
+  "ProcessTranscriptFunctionLogGroup3727B109": {
+   "Type": "AWS::Logs::LogGroup",
+   "Properties": {
+    "LogGroupName": {
+     "Fn::Join": [
+      "",
+      [
+       "/aws/lambda/",
+       {
+        "Ref": "ProcessTranscriptFunctionAB81C055"
+       }
+      ]
+     ]
+    },
+    "RetentionInDays": 731
+   },
+   "UpdateReplacePolicy": "Retain",
+   "DeletionPolicy": "Retain",
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/ProcessTranscriptFunction/LogGroup/Resource"
+   }
+  },
+  "HtmlToPdfFunctionServiceRoleDEF13793": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/HtmlToPdfFunction/ServiceRole/Resource"
+   }
+  },
+  "HtmlToPdfFunctionServiceRoleDefaultPolicy2FB71228": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "s3:Abort*",
+        "s3:DeleteObject*",
+        "s3:GetBucket*",
+        "s3:GetObject*",
+        "s3:List*",
+        "s3:PutObject",
+        "s3:PutObjectLegalHold",
+        "s3:PutObjectRetention",
+        "s3:PutObjectTagging",
+        "s3:PutObjectVersionTagging"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "MeetingFilesBucket52E20194",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "MeetingFilesBucket52E20194",
+             "Arn"
+            ]
+           },
+           "/*"
+          ]
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "HtmlToPdfFunctionServiceRoleDefaultPolicy2FB71228",
+    "Roles": [
+     {
+      "Ref": "HtmlToPdfFunctionServiceRoleDEF13793"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/HtmlToPdfFunction/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "HtmlToPdfFunction75159ADD": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
+     },
+     "S3Key": "c697f09ffc15f814528e21adf39295eba29108df07b801197698539324627210.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "BUCKET_NAME": {
+       "Ref": "MeetingFilesBucket52E20194"
+      }
+     }
+    },
+    "FunctionName": "meeting-processor-html-to-pdf-v2",
+    "Handler": "handler.lambda_handler",
+    "Layers": [
+     {
+      "Ref": "WeasyPrintLayer0E48A0A6"
+     }
+    ],
+    "MemorySize": 1024,
+    "Role": {
+     "Fn::GetAtt": [
+      "HtmlToPdfFunctionServiceRoleDEF13793",
+      "Arn"
+     ]
+    },
+    "Runtime": "python3.12",
+    "Timeout": 300
+   },
+   "DependsOn": [
+    "HtmlToPdfFunctionServiceRoleDefaultPolicy2FB71228",
+    "HtmlToPdfFunctionServiceRoleDEF13793"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/HtmlToPdfFunction/Resource",
+    "aws:asset:path": "asset.c697f09ffc15f814528e21adf39295eba29108df07b801197698539324627210",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Code"
+   }
+  },
+  "HtmlToPdfFunctionLogGroup680182F4": {
+   "Type": "AWS::Logs::LogGroup",
+   "Properties": {
+    "LogGroupName": {
+     "Fn::Join": [
+      "",
+      [
+       "/aws/lambda/",
+       {
+        "Ref": "HtmlToPdfFunction75159ADD"
+       }
+      ]
+     ]
+    },
+    "RetentionInDays": 731
+   },
+   "UpdateReplacePolicy": "Retain",
+   "DeletionPolicy": "Retain",
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/HtmlToPdfFunction/LogGroup/Resource"
+   }
+  },
+  "EmailSenderFunctionServiceRole6F3E90BC": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/EmailSenderFunction/ServiceRole/Resource"
+   }
+  },
+  "EmailSenderFunctionServiceRoleDefaultPolicyFA638344": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sns:Publish",
+       "Effect": "Allow",
+       "Resource": {
+        "Ref": "EmailNotificationTopic0672A286"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "EmailSenderFunctionServiceRoleDefaultPolicyFA638344",
+    "Roles": [
+     {
+      "Ref": "EmailSenderFunctionServiceRole6F3E90BC"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/EmailSenderFunction/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "EmailSenderFunction3E807D6C": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
+     },
+     "S3Key": "202aeee3e715099aa508125a708d2066c441460d7c4c00f06d38d843d5fde37c.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "SNS_TOPIC_ARN": {
+       "Ref": "EmailNotificationTopic0672A286"
+      }
+     }
+    },
+    "FunctionName": "meeting-processor-email-sender-v2",
+    "Handler": "handler.lambda_handler",
+    "MemorySize": 256,
+    "Role": {
+     "Fn::GetAtt": [
+      "EmailSenderFunctionServiceRole6F3E90BC",
+      "Arn"
+     ]
+    },
+    "Runtime": "python3.12",
+    "Timeout": 60
+   },
+   "DependsOn": [
+    "EmailSenderFunctionServiceRoleDefaultPolicyFA638344",
+    "EmailSenderFunctionServiceRole6F3E90BC"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/EmailSenderFunction/Resource",
+    "aws:asset:path": "asset.202aeee3e715099aa508125a708d2066c441460d7c4c00f06d38d843d5fde37c",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Code"
+   }
+  },
+  "EmailSenderFunctionLogGroup58539CB9": {
+   "Type": "AWS::Logs::LogGroup",
+   "Properties": {
+    "LogGroupName": {
+     "Fn::Join": [
+      "",
+      [
+       "/aws/lambda/",
+       {
+        "Ref": "EmailSenderFunction3E807D6C"
+       }
+      ]
+     ]
+    },
+    "RetentionInDays": 731
+   },
+   "UpdateReplacePolicy": "Retain",
+   "DeletionPolicy": "Retain",
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/EmailSenderFunction/LogGroup/Resource"
+   }
+  },
+  "TranscriptionStateMachineRole85C37D21": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "states.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/TranscriptionStateMachine/Role/Resource"
+   }
+  },
+  "TranscriptionStateMachineRoleDefaultPolicyC5AB5EF9": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": "lambda:InvokeFunction",
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "EmailSenderFunction3E807D6C",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::GetAtt": [
+          "HtmlToPdfFunction75159ADD",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::GetAtt": [
+          "MediaConvertTriggerFunction6D072A3F",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::GetAtt": [
+          "ProcessTranscriptFunctionAB81C055",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::GetAtt": [
+          "VerifyS3FileFunction624E09D2",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "EmailSenderFunction3E807D6C",
+             "Arn"
+            ]
+           },
+           ":*"
+          ]
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "HtmlToPdfFunction75159ADD",
+             "Arn"
+            ]
+           },
+           ":*"
+          ]
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "MediaConvertTriggerFunction6D072A3F",
+             "Arn"
+            ]
+           },
+           ":*"
+          ]
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "ProcessTranscriptFunctionAB81C055",
+             "Arn"
+            ]
+           },
+           ":*"
+          ]
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "VerifyS3FileFunction624E09D2",
+             "Arn"
+            ]
+           },
+           ":*"
+          ]
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "TranscriptionStateMachineRoleDefaultPolicyC5AB5EF9",
+    "Roles": [
+     {
+      "Ref": "TranscriptionStateMachineRole85C37D21"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/TranscriptionStateMachine/Role/DefaultPolicy/Resource"
+   }
+  },
+  "TranscriptionStateMachineDB9F5878": {
+   "Type": "AWS::StepFunctions::StateMachine",
+   "Properties": {
+    "DefinitionS3Location": {
+     "Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
+     },
+     "Key": "05057efe7579d0f5bbf6325d276c0d59ce581054c46c53a5bc492385321357e2.json"
+    },
+    "RoleArn": {
+     "Fn::GetAtt": [
+      "TranscriptionStateMachineRole85C37D21",
+      "Arn"
+     ]
+    },
+    "StateMachineName": "meeting-processor-transcription-v2"
+   },
+   "DependsOn": [
+    "TranscriptionStateMachineRoleDefaultPolicyC5AB5EF9",
+    "TranscriptionStateMachineRole85C37D21"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/TranscriptionStateMachine/Resource"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/+1YX0/bMBD/LMsjMhnQN97awdCkwiqo9lJVyLGvwdSxI9vp1kX97js7cRsGQ4y1Gow9VLHvz+/ufPb53KP06OAwPXhHv9p9xuf7UmRpfeUomxMkXde2l9aDis3BTeokC4MLWkBynOwlJFmAsUIr4MnxjEoLJMmkZvNRlUnB+oyBta0kKGaWpUNhJFz1rs/7F/2z0xPkSDEDtmQSLisJKI52BF9r0Ux6dGcqBC8NzMS3wFuRp4lNkbsA5QZG8BxO7woaKPSCypFGb5cob8BRoQI25XzYdezpfgWBvWS6JZQp+TBTTQZI8xlQCxOEl7TIOE1r5I/AFML6VJAhXYL50uQFjcnOtJM4pvlmWJTUicx7qJwoIKaMg2VGxJw1S75NuBBZ113ysVLMNX7P2mHHiGnw7pu8oYpLMO3My+jKtbMCU2yWV+J7FA4R+G3mV9fnYCGMVgVukXWQmLXTLnnyU0qfzxx2jXvazsL87bjegCdbSP1LTWA4S/H4rIigRVpfagl4kqi1VQF8gAWuxhojFBMllVicdaWi9UbGK/TZ5oC2Js+pojnwWCURsuhS+iae51Z+rEfRykan5Tq8WW4+KSkUrHnr5X2U+ewoyB13RXvF/I0QHsf9E+4/vzj/A3z5Ab7lEF5p3fg1N1woPkrSkMNVEx0da8+55/99Muf4lHDgbysbzW4NaCvkXXvzavBfHtAOyWF3Nxt7RayyaT3WpWBYdZz/dpo5LmyJfeOa0qgGadTsXWM5AGfTvv8QqXOEGur8zOiq9K+vdrhRJzsgNg+ploxeOShjW2rDY97BOa461hZ0yXam3Tjx7amEVxlovnygRW2sdMGw6PkaAVZXhgGJg9iUPvSbkrBQiJILlXv1z5UrK7ciCtvk9Na+Xxz10kP/h8StFWK/baXT9in5Awfz38etEAAA"
+   },
+   "Metadata": {
+    "aws:cdk:path": "MeetingProcessorCdkStack/CDKMetadata/Default"
+   },
+   "Condition": "CDKMetadataAvailable"
+  }
+ },
+ "Outputs": {
+  "S3BucketName": {
+   "Description": "S3 bucket for meeting files",
+   "Value": {
+    "Ref": "MeetingFilesBucket52E20194"
+   }
+  },
+  "StateMachineArn": {
+   "Description": "Step Functions state machine ARN",
+   "Value": {
+    "Ref": "TranscriptionStateMachineDB9F5878"
+   }
+  },
+  "EmailNotificationTopicArn": {
+   "Description": "SNS topic for email notifications",
+   "Value": {
+    "Ref": "EmailNotificationTopic0672A286"
+   }
+  }
+ },
+ "Conditions": {
+  "CDKMetadataAvailable": {
+   "Fn::Or": [
+    {
+     "Fn::Or": [
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "af-south-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-east-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-northeast-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-northeast-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-northeast-3"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-south-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-south-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-southeast-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-southeast-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-southeast-3"
+       ]
+      }
+     ]
+    },
+    {
+     "Fn::Or": [
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-southeast-4"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ca-central-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ca-west-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "cn-north-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "cn-northwest-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-central-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-central-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-north-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-south-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-south-2"
+       ]
+      }
+     ]
+    },
+    {
+     "Fn::Or": [
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-west-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-west-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-west-3"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "il-central-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "me-central-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "me-south-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "sa-east-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "us-east-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "us-east-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "us-west-1"
+       ]
+      }
+     ]
+    },
+    {
+     "Fn::Equals": [
+      {
+       "Ref": "AWS::Region"
+      },
+      "us-west-2"
+     ]
+    }
+   ]
+  }
+ },
+ "Parameters": {
+  "BootstrapVersion": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/cdk-bootstrap/hnb659fds/version",
+   "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+  }
+ },
+ "Rules": {
+  "CheckBootstrapVersion": {
+   "Assertions": [
+    {
+     "Assert": {
+      "Fn::Not": [
+       {
+        "Fn::Contains": [
+         [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+         ],
+         {
+          "Ref": "BootstrapVersion"
+         }
+        ]
+       }
+      ]
+     },
+     "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+    }
+   ]
+  }
+ }
+}

@@ -1,0 +1,2 @@
+# Dependencies for transcript processing (PDF generation moved to separate HtmlToPdfFunction)
+markdown==3.5.1 
