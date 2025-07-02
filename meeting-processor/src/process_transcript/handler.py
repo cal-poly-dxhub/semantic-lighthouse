@@ -1180,6 +1180,11 @@ def process_transcript_analysis(
         # Generate HTML only (PDF will be produced by HtmlToPdfFunction)
         logger.info("=== Starting HTML Generation ===")
 
+        # PDF generation is deferred to separate Lambda in all cases
+        pdf_success = False
+        pdf_key = None
+        pdf_error = "PDF generation handled by HtmlToPdfFunction"
+
         try:
             html_key = generate_html_from_analysis(
                 analysis_result, job_name, bucket_name
@@ -1193,11 +1198,6 @@ def process_transcript_analysis(
             html_success = False
             html_key = None
             html_error = html_e
-
-            # PDF generation deferred to separate Lambda
-            pdf_success = False
-            pdf_key = None
-        pdf_error = "PDF generation handled by HtmlToPdfFunction"
 
         analysis_success = True
         analysis_error = None
