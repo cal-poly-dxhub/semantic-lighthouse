@@ -63,6 +63,40 @@ Resources:
               - "s3:PutObject"
             Resource: !Sub "arn:aws:s3:::${MeetingFilesBucket}/*"
 
+  # SNS Topic for email notifications
+  EmailNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "meeting-processor-notifications-${AWS::StackName}"
+      DisplayName: "Meeting Processor Email Notifications"
+
+  # Lambda Function to send email notifications
+  EmailSenderLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/email_sender/
+      Handler: handler.lambda_handler
+      Runtime: python3.12
+      Timeout: 60
+      MemorySize: 256
+      Architectures: [x86_64]
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - S3ReadPolicy:
+            BucketName: "k12-temp-testing-static-files"
+        - S3ReadPolicy:
+            BucketName: !Ref MeetingFilesBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - "sns:Publish"
+                - "sns:Subscribe"
+                - "sns:ListSubscriptionsByTopic"
+              Resource: !Ref EmailNotificationTopic
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref EmailNotificationTopic
+
   # Lambda Function to process the final transcript
   ProcessTranscriptLambda:
     Type: AWS::Serverless::Function
@@ -178,6 +212,7 @@ Resources:
         ProcessTranscriptLambdaArn: !GetAtt ProcessTranscriptLambda.Arn
         MediaConvertLambdaArn: !GetAtt MediaConvertTriggerFunction.Arn
         VerifyS3FileLambdaArn: !GetAtt VerifyS3FileFunction.Arn
+        EmailSenderLambdaArn: !GetAtt EmailSenderLambda.Arn
         OutputBucketName: !Ref S3BucketName
       Events:
         S3UploadTrigger:
@@ -200,6 +235,8 @@ Resources:
             FunctionName: !Ref ProcessTranscriptLambda
         - LambdaInvokePolicy:
             FunctionName: !Ref VerifyS3FileFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref EmailSenderLambda
         - Statement:
             - Effect: Allow
               Action:
@@ -240,3 +277,9 @@ Outputs:
   VerifyS3FileLambdaArn:
     Description: "ARN of the S3 file verification Lambda function"
     Value: !GetAtt VerifyS3FileFunction.Arn
+  EmailNotificationTopicArn:
+    Description: "SNS Topic ARN for email notifications"
+    Value: !Ref EmailNotificationTopic
+  EmailSenderLambdaArn:
+    Description: "Email Sender Lambda function ARN"
+    Value: !GetAtt EmailSenderLambda.Arn

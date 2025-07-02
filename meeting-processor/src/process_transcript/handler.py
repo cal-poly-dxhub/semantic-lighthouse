@@ -811,6 +811,7 @@ def process_transcript_analysis(human_readable_transcript, job_name, bucket_name
 
         if pdf_success:
             result["pdfKey"] = pdf_key
+            result["pdfS3Uri"] = f"s3://{bucket_name}/{pdf_key}"
             logger.info(f"PDF saved to: s3://{bucket_name}/{pdf_key}")
         else:
             result["pdfError"] = str(pdf_error)

@@ -271,7 +271,40 @@
         }
       },
       "ResultPath": "$.processResult",
-      "End": true
+      "Next": "SendEmailNotification",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "TranscriptionProcessingFailed"
+        }
+      ]
+    },
+    "SendEmailNotification": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${EmailSenderLambdaArn}",
+        "Payload": {
+          "pdfS3Uri.$": "$.processResult.Payload.pdfS3Uri",
+          "originalFileName.$": "$.detail.object.key"
+        }
+      },
+      "ResultPath": "$.emailResult",
+      "End": true,
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "EmailNotificationFailed"
+        }
+      ]
     },
     "MediaConvertFailed": {
       "Type": "Fail",
@@ -287,6 +320,16 @@
       "Type": "Fail",
       "Cause": "Transcription Job Failed",
       "Error": "One or more AWS Transcribe jobs failed to complete."
+    },
+    "TranscriptionProcessingFailed": {
+      "Type": "Fail",
+      "Cause": "Transcript Processing Failed",
+      "Error": "The transcript processing and analysis failed to complete."
+    },
+    "EmailNotificationFailed": {
+      "Type": "Fail",
+      "Cause": "Email Notification Failed",
+      "Error": "Failed to send email notification to user."
     }
   }
 }
