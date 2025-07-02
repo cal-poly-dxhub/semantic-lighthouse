@@ -103,7 +103,9 @@ def subscribe_email_to_topic(email, topic_arn):
         raise
 
 
-def send_notification(email, topic_arn, pdf_download_url, original_filename):
+def send_notification(
+    email, topic_arn, html_download_url, pdf_download_url, original_filename
+):
     """Send email notification via SNS."""
     try:
         # Ensure email is subscribed
@@ -117,12 +119,41 @@ def send_notification(email, topic_arn, pdf_download_url, original_filename):
         # Prepare message content
         subject = "Your meeting transcript is ready"
 
+        # Build download options based on available files
+        download_options = []
+
+        if html_download_url:
+            download_options.append(
+                f"""📄 HTML Version (Recommended): {html_download_url}
+   - Interactive web page with clickable segment links
+   - Best for viewing on computers and mobile devices
+   - Links open directly in your browser"""
+            )
+
+        if pdf_download_url:
+            download_options.append(
+                f"""📋 PDF Version: {pdf_download_url}
+   - Printable document format
+   - Compatible with all PDF readers
+   - Good for offline viewing and sharing"""
+            )
+
+        download_section = "\n\n".join(download_options)
+        format_intro = (
+            "Choose your preferred format:"
+            if len(download_options) > 1
+            else "Download your transcript:"
+        )
+
         message = f"""Hey User!
 
 Your meeting transcript is ready: {original_filename}
 
-Download your PDF here: {pdf_download_url}
-(Link expires in 24 hours)
+{format_intro}
+
+{download_section}
+
+(All download links expire in 24 hours)
 
 If this is your first notification, you may have received a subscription confirmation email from AWS SNS. Please confirm your subscription to receive future notifications automatically.
 
@@ -160,6 +191,7 @@ def lambda_handler(event, context):
 
     Expected input from Step Functions:
     {
+        "htmlS3Uri": "s3://bucket/path/to/transcript.html",
         "pdfS3Uri": "s3://bucket/path/to/transcript.pdf",
         "originalFileName": "meeting-video.mp4"
     }
@@ -174,24 +206,38 @@ def lambda_handler(event, context):
             raise ValueError("SNS_TOPIC_ARN environment variable is required")
 
         # Extract inputs from event
+        html_s3_uri = event.get("htmlS3Uri")
         pdf_s3_uri = event.get("pdfS3Uri")
         original_filename = event.get("originalFileName", "meeting-video")
 
-        if not pdf_s3_uri:
-            raise ValueError("pdfS3Uri is required in the input event")
+        # Check if at least one file is available
+        if not html_s3_uri and not pdf_s3_uri:
+            raise ValueError(
+                "At least one of htmlS3Uri or pdfS3Uri is required in the input event"
+            )
 
+        logger.info(f"Processing HTML: {html_s3_uri}")
         logger.info(f"Processing PDF: {pdf_s3_uri}")
         logger.info(f"Original filename: {original_filename}")
 
         # Get email address from S3
         email = get_email_from_s3()
 
-        # Generate presigned URL for PDF download
-        pdf_download_url = generate_presigned_url(pdf_s3_uri)
+        # Generate presigned URLs for available files
+        html_download_url = None
+        pdf_download_url = None
+
+        if html_s3_uri:
+            html_download_url = generate_presigned_url(html_s3_uri)
+            logger.info("HTML presigned URL generated successfully")
+
+        if pdf_s3_uri:
+            pdf_download_url = generate_presigned_url(pdf_s3_uri)
+            logger.info("PDF presigned URL generated successfully")
 
         # Send notification
         result = send_notification(
-            email, topic_arn, pdf_download_url, original_filename
+            email, topic_arn, html_download_url, pdf_download_url, original_filename
         )
 
         logger.info("=== EmailSender Lambda Completed Successfully ===")
@@ -200,6 +246,7 @@ def lambda_handler(event, context):
             "statusCode": 200,
             "success": True,
             "notification": result,
+            "htmlDownloadUrl": html_download_url,
             "pdfDownloadUrl": pdf_download_url,
             "recipient": email,
         }

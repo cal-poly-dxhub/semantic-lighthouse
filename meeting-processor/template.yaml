@@ -9,6 +9,11 @@ Parameters:
     Description: "The name of the S3 bucket for storing all meeting files."
     Default: "meeting-minutes-processor-files-us-west-2"
 
+  WeasyPrintLayerArn:
+    Type: String
+    Default: ""
+    Description: "(Optional) Supply your own WeasyPrint Lambda layer ARN. Leave blank to use public default for this AWS region."
+
 Resources:
   # S3 Bucket for all application files
   MeetingFilesBucket:
@@ -202,6 +207,33 @@ Resources:
         Variables:
           LD_LIBRARY_PATH: "/opt/python/"
 
+  # Lambda Function to convert HTML to PDF using WeasyPrint layer
+  HtmlToPdfFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/html_to_pdf/
+      Handler: handler.lambda_handler
+      Runtime: python3.12
+      Timeout: 180
+      MemorySize: 1536
+      Layers:
+        - !If
+          - HasCustomWeasyLayer
+          - !Ref WeasyPrintLayerArn
+          - !Ref WeasyPrintLayer
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource: !Sub "arn:aws:s3:::${MeetingFilesBucket}/*"
+      Environment:
+        Variables:
+          LD_LIBRARY_PATH: "/opt/lib"
+          FONTCONFIG_PATH: "/opt/fonts"
+
   # Step Functions State Machine to orchestrate the workflow
   TranscriptionStateMachine:
     Type: AWS::Serverless::StateMachine
@@ -213,6 +245,7 @@ Resources:
         MediaConvertLambdaArn: !GetAtt MediaConvertTriggerFunction.Arn
         VerifyS3FileLambdaArn: !GetAtt VerifyS3FileFunction.Arn
         EmailSenderLambdaArn: !GetAtt EmailSenderLambda.Arn
+        HtmlToPdfFunctionArn: !GetAtt HtmlToPdfFunction.Arn
         OutputBucketName: !Ref S3BucketName
       Events:
         S3UploadTrigger:
@@ -237,6 +270,8 @@ Resources:
             FunctionName: !Ref VerifyS3FileFunction
         - LambdaInvokePolicy:
             FunctionName: !Ref EmailSenderLambda
+        - LambdaInvokePolicy:
+            FunctionName: !Ref HtmlToPdfFunction
         - Statement:
             - Effect: Allow
               Action:
@@ -264,6 +299,17 @@ Resources:
                 - !Sub "arn:aws:s3:::${S3BucketName}/transcripts/*"
                 - !Sub "arn:aws:s3:::${S3BucketName}/converted/*"
 
+  # Pre-built WeasyPrint layer pulled from Kotify GitHub release at build time
+  WeasyPrintLayer:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: makefile # SAM will call `make build` inside layers/weasyprint
+    Properties:
+      LayerName: weasyprint-python3-12
+      Description: WeasyPrint + native libs for AL2023 (auto-built)
+      ContentUri: layers/weasyprint/
+      CompatibleRuntimes: [python3.12]
+
 Outputs:
   S3Bucket:
     Description: "Name of the S3 bucket for meeting files"
@@ -283,3 +329,9 @@ Outputs:
   EmailSenderLambdaArn:
     Description: "Email Sender Lambda function ARN"
     Value: !GetAtt EmailSenderLambda.Arn
+  HtmlToPdfFunctionArn:
+    Description: "HTML to PDF conversion Lambda function ARN"
+    Value: !GetAtt HtmlToPdfFunction.Arn
+
+Conditions:
+  HasCustomWeasyLayer: !Not [!Equals [!Ref WeasyPrintLayerArn, ""]]

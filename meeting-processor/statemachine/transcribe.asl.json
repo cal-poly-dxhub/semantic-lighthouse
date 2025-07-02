@@ -271,7 +271,34 @@
         }
       },
       "ResultPath": "$.processResult",
+      "Next": "ConvertHtmlToPdf",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "TranscriptionProcessingFailed"
+        }
+      ]
+    },
+    "ConvertHtmlToPdf": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${HtmlToPdfFunctionArn}",
+        "Payload": {
+          "htmlS3Uri.$": "$.processResult.Payload.htmlS3Uri",
+          "outputFileName.$": "$.detail.object.key"
+        }
+      },
+      "ResultPath": "$.convertPdfResult",
       "Next": "SendEmailNotification",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
       "Catch": [
         {
           "ErrorEquals": ["States.ALL"],
@@ -285,7 +312,8 @@
       "Parameters": {
         "FunctionName": "${EmailSenderLambdaArn}",
         "Payload": {
-          "pdfS3Uri.$": "$.processResult.Payload.pdfS3Uri",
+          "htmlS3Uri.$": "$.processResult.Payload.htmlS3Uri",
+          "pdfS3Uri.$": "$.convertPdfResult.Payload.pdfS3Uri",
           "originalFileName.$": "$.detail.object.key"
         }
       },
