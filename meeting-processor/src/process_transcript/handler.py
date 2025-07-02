@@ -1194,9 +1194,9 @@ def process_transcript_analysis(
             html_key = None
             html_error = html_e
 
-        # PDF generation deferred to separate Lambda
-        pdf_success = False
-        pdf_key = None
+            # PDF generation deferred to separate Lambda
+            pdf_success = False
+            pdf_key = None
         pdf_error = "PDF generation handled by HtmlToPdfFunction"
 
         analysis_success = True

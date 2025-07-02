@@ -14,6 +14,11 @@ Parameters:
     Default: ""
     Description: "(Optional) Supply your own WeasyPrint Lambda layer ARN. Leave blank to use public default for this AWS region."
 
+  MediaInfoLayerArn:
+    Type: String
+    Default: ""
+    Description: "(Optional) Supply your own MediaInfo Lambda layer ARN. Leave blank to build/open-source layer automatically."
+
 Resources:
   # S3 Bucket for all application files
   MeetingFilesBucket:
@@ -185,7 +190,10 @@ Resources:
       MemorySize: 2048
       Architectures: [x86_64]
       Layers:
-        - arn:aws:lambda:us-west-2:412072465402:layer:pymediainfo:3
+        - !If
+          - HasCustomMediaInfoLayer
+          - !Ref MediaInfoLayerArn
+          - !Ref MediaInfoLayer
       Policies:
         - AWSLambdaBasicExecutionRole
         - S3ReadPolicy:
@@ -310,6 +318,17 @@ Resources:
       ContentUri: layers/weasyprint/
       CompatibleRuntimes: [python3.12]
 
+  # MediaInfo (pymediainfo) layer auto-built via makefile (downloads wheel with bundled libmediainfo)
+  MediaInfoLayer:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: makefile # SAM will call `make build` inside layers/pymediainfo_layer
+    Properties:
+      LayerName: mediainfo-python3-12
+      Description: pymediainfo+libmediainfo for AL2023 (auto-built)
+      ContentUri: layers/pymediainfo_layer/
+      CompatibleRuntimes: [python3.12]
+
 Outputs:
   S3Bucket:
     Description: "Name of the S3 bucket for meeting files"
@@ -335,3 +354,4 @@ Outputs:
 
 Conditions:
   HasCustomWeasyLayer: !Not [!Equals [!Ref WeasyPrintLayerArn, ""]]
+  HasCustomMediaInfoLayer: !Not [!Equals [!Ref MediaInfoLayerArn, ""]]
