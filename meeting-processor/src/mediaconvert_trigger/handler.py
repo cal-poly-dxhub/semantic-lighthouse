@@ -19,6 +19,7 @@ mediaconvert_client = boto3.client("mediaconvert")
 # Configuration
 ALLOWED_BUCKET_PATTERNS = [
     r"^k12-temp-testing-\d+$",  # Matches k12-temp-testing-1, k12-temp-testing-25, etc.
+    r"^meeting-minutes-processor-files-.*$",  # Matches meeting-minutes-processor-files-* buckets
 ]
 
 # Chunking configuration
