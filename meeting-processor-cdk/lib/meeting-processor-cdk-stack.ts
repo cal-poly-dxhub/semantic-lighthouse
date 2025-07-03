@@ -77,20 +77,24 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
     // LAMBDA LAYERS - WeasyPrint and MediaInfo
     // =================================================================
 
-    // WeasyPrint layer for PDF generation
-    const weasyPrintLayer = new lambda.LayerVersion(this, "WeasyPrintLayer", {
-      layerVersionName: "weasyprint-layer-v2",
-      code: lambda.Code.fromAsset("lambda/layers/weasyprint"),
-      compatibleRuntimes: [lambda.Runtime.PYTHON_3_12],
-      description: "WeasyPrint library for HTML to PDF conversion",
-    });
-
     // MediaInfo layer for video analysis
     const mediaInfoLayer = new lambda.LayerVersion(this, "MediaInfoLayer", {
       layerVersionName: "pymediainfo-layer-v2",
-      code: lambda.Code.fromAsset("lambda/layers/pymediainfo_layer"),
+      code: lambda.Code.fromAsset(
+        path.join(__dirname, "../lambda/layers/pymediainfo_layer")
+      ),
       compatibleRuntimes: [lambda.Runtime.PYTHON_3_12],
       description: "PyMediaInfo library for video file analysis",
+    });
+
+    // WeasyPrint layer for PDF generation (precompiled with deps)
+    const weasyPrintLayer = new lambda.LayerVersion(this, "WeasyPrintLayer", {
+      layerVersionName: "weasyprint-layer-v2",
+      code: lambda.Code.fromAsset(
+        path.join(__dirname, "../lambda/layers/weasyprint")
+      ),
+      compatibleRuntimes: [lambda.Runtime.PYTHON_3_12],
+      description: "WeasyPrint with native dependencies for HTML→PDF",
     });
 
     // =================================================================
@@ -170,10 +174,12 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
       code: lambda.Code.fromAsset("lambda/src/html_to_pdf"),
       handler: "handler.lambda_handler",
       timeout: cdk.Duration.minutes(5),
-      memorySize: 1024,
+      memorySize: 1536,
       layers: [weasyPrintLayer],
       environment: {
         BUCKET_NAME: this.s3Bucket.bucketName,
+        LD_LIBRARY_PATH: "/opt/lib",
+        FONTCONFIG_PATH: "/opt/fonts",
       },
     });
 
@@ -203,9 +209,28 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
     this.s3Bucket.grantReadWrite(verifyS3FileFunction);
     this.s3Bucket.grantReadWrite(processTranscriptFunction);
     this.s3Bucket.grantReadWrite(htmlToPdfFunction);
+    this.s3Bucket.grantRead(emailSenderFunction);
 
     // SNS permissions for email sender
     this.emailNotificationTopic.grantPublish(emailSenderFunction);
+
+    // Allow EmailSenderFunction to read email.txt from external config bucket
+    emailSenderFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["s3:GetObject"],
+        resources: ["arn:aws:s3:::k12-temp-testing-static-files/*"],
+      })
+    );
+
+    // Grant SNS subscribe and list permissions for confirmation flow
+    emailSenderFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["sns:Subscribe", "sns:ListSubscriptionsByTopic"],
+        resources: [this.emailNotificationTopic.topicArn],
+      })
+    );
 
     // MediaConvert permissions
     mediaConvertTriggerFunction.addToRolePolicy(

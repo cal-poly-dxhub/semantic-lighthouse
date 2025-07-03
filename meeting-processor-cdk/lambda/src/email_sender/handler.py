@@ -210,11 +210,16 @@ def lambda_handler(event, context):
         pdf_s3_uri = event.get("pdfS3Uri")
         original_filename = event.get("originalFileName", "meeting-video")
 
-        # Check if at least one file is available
+        # Gracefully ignore unexpected triggers (e.g., raw S3 events without payload)
         if not html_s3_uri and not pdf_s3_uri:
-            raise ValueError(
-                "At least one of htmlS3Uri or pdfS3Uri is required in the input event"
+            logger.warning(
+                "Event missing htmlS3Uri/pdfS3Uri – likely non-workflow trigger. Ignoring."
             )
+            return {
+                "statusCode": 200,
+                "success": False,
+                "message": "Ignored event without html/pdf URI",
+            }
 
         logger.info(f"Processing HTML: {html_s3_uri}")
         logger.info(f"Processing PDF: {pdf_s3_uri}")
