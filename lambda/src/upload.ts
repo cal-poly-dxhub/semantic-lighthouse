@@ -1,10 +1,11 @@
+import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { randomUUID } from "crypto";
 
 interface ResponseBody {
-  videoId: string;
+  meetingId: string;
   videoPresignedUrl: string;
   agendaPresignedUrl: string;
 }
@@ -28,28 +29,41 @@ export const handler = async (
 ): Promise<APIGatewayProxyResult> => {
   console.log("INFO: Received event:", JSON.stringify(event, null, 2));
 
-  // cors
-  if (event.httpMethod === "OPTIONS") {
+  const meetingId = randomUUID();
+
+  const body = JSON.parse(event.body ?? "{}");
+
+  if (
+    !body ||
+    !body.meetingTitle ||
+    !body.meetingDate ||
+    !body.videoVisibility ||
+    body.meetingDescription.length > 500
+  ) {
+    console.error("ERROR: Invalid request body:", body);
+
     return {
-      statusCode: 200,
+      statusCode: 400,
       headers: corsHeaders,
-      body: "",
+      body: JSON.stringify({
+        error: "Invalid request body",
+        details:
+          "Please provide meetingTitle, meetingDate, visibility and a description (max 500 characters).",
+      }),
     };
   }
 
-  const videoId = randomUUID();
-
   try {
-    const videoKey = `${videoId}/video.mp4`;
+    const videoKey = `${meetingId}/video.mp4`;
     const command = new PutObjectCommand({
-      Bucket: process.env.MEETING_BUCKET_NAME,
+      Bucket: process.env.MEETINGS_BUCKET_NAME,
       Key: videoKey,
       ContentType: "video/mp4",
     });
 
-    const agendaKey = `${videoId}/agenda.pdf`;
+    const agendaKey = `${meetingId}/agenda.pdf`;
     const agendaCommand = new PutObjectCommand({
-      Bucket: process.env.MEETING_BUCKET_NAME,
+      Bucket: process.env.MEETINGS_BUCKET_NAME,
       Key: agendaKey,
       ContentType: "application/pdf",
     });
@@ -62,6 +76,24 @@ export const handler = async (
       expiresIn: 3600, // 60 min
     });
 
+    // store metadata in dynamodb
+    const dynamoClient = new DynamoDBClient({});
+    const putCommand = new PutItemCommand({
+      TableName: process.env.MEETINGS_TABLE_NAME,
+      Item: {
+        PK: { S: meetingId },
+        meetingId: { S: meetingId },
+        createdAt: { S: new Date().toISOString() },
+        meetingTitle: { S: body.meetingTitle },
+        meetingDate: { S: body.meetingDate },
+        meetingDescription: { S: body.meetingDescription },
+        videoVisibility: { S: body.videoVisibility },
+        status: { S: "uploading" },
+      },
+    });
+
+    await dynamoClient.send(putCommand);
+
     // TODO: maybe log user as well
     console.log(
       "INFO: Generated presigned URLs for uploading:",
@@ -70,7 +102,7 @@ export const handler = async (
     );
 
     const responseBody: ResponseBody = {
-      videoId,
+      meetingId,
       videoPresignedUrl,
       agendaPresignedUrl,
     };

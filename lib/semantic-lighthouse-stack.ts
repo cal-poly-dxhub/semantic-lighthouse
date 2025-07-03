@@ -119,41 +119,6 @@ export class SemanticLighthouseStack extends cdk.Stack {
       ],
     });
 
-    // lambda to extract audio from video
-    const textractPdfLambda = new cdk.aws_lambda.Function(
-      this,
-      "TextractPdfLambda",
-      {
-        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
-        handler: "textract-pdf.handler",
-        code: cdk.aws_lambda.Code.fromAsset("lambda/dist"),
-      }
-    );
-
-    // textract lambda permissions
-    textractPdfLambda.addToRolePolicy(
-      new cdk.aws_iam.PolicyStatement({
-        effect: cdk.aws_iam.Effect.ALLOW,
-        actions: [
-          "textract:StartDocumentAnalysis",
-          "textract:GetDocumentAnalysis",
-        ],
-        resources: ["*"],
-      })
-    );
-
-    meetingsBucket.grantReadWrite(textractPdfLambda);
-
-    // s3 trigger
-    meetingsBucket.addEventNotification(
-      cdk.aws_s3.EventType.OBJECT_CREATED,
-      new cdk.aws_s3_notifications.LambdaDestination(textractPdfLambda),
-      {
-        prefix: "", // process all uploads
-        suffix: ".pdf", // only process PDF files
-      }
-    );
-
     // cloudfront distribution for video bucket
     const videoDistribution = new cdk.aws_cloudfront.Distribution(
       this,
@@ -186,7 +151,18 @@ export class SemanticLighthouseStack extends cdk.Stack {
       }
     );
 
-    // TODO: add dynamo table
+    // dynamo table for meetings metadata
+    const meetingsTable = new cdk.aws_dynamodb.Table(this, "MeetingsTable", {
+      partitionKey: {
+        name: "meetingId",
+        type: cdk.aws_dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: "createdAt",
+        type: cdk.aws_dynamodb.AttributeType.STRING,
+      },
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
 
     // separate api for fetching video presigned urls
     const meetingAuthApi = new cdk.aws_apigateway.RestApi(
@@ -222,12 +198,15 @@ export class SemanticLighthouseStack extends cdk.Stack {
       handler: "upload.handler",
       code: cdk.aws_lambda.Code.fromAsset("lambda/dist"),
       environment: {
-        MEETING_BUCKET_NAME: meetingsBucket.bucketName,
+        MEETINGS_BUCKET_NAME: meetingsBucket.bucketName,
         CLOUDFRONT_DOMAIN_NAME: videoDistribution.distributionDomainName,
+        MEETINGS_TABLE_NAME: meetingsTable.tableName,
       },
     });
 
+    meetingsTable.grantWriteData(uploadLambda);
     meetingsBucket.grantReadWrite(uploadLambda);
+
     uploadResource.addMethod(
       "POST",
       new cdk.aws_apigateway.LambdaIntegration(uploadLambda),
@@ -238,33 +217,99 @@ export class SemanticLighthouseStack extends cdk.Stack {
     );
 
     // lambda route for generating presigned urls for private videos
-    const videoAuthResource =
+    const privateVideoAuthResource =
       meetingAuthApi.root.addResource("private-presigned");
-    const videoAuthLambdaPrivateVideo = new cdk.aws_lambda.Function(
+    const privateVideoAuthLambda = new cdk.aws_lambda.Function(
       this,
-      "VideoAuthLambdaPrivateVideo",
+      "PrivateVideoAuthLambda",
       {
         runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
         handler: "private-presigned.handler",
         code: cdk.aws_lambda.Code.fromAsset("lambda/dist/video"),
         environment: {
-          MEETING_BUCKET_NAME: meetingsBucket.bucketName,
+          MEETINGS_BUCKET_NAME: meetingsBucket.bucketName,
           CLOUDFRONT_DOMAIN_NAME: videoDistribution.distributionDomainName,
         },
       }
     );
 
-    meetingsBucket.grantRead(videoAuthLambdaPrivateVideo);
-    videoAuthResource.addMethod(
+    meetingsTable.grantWriteData(privateVideoAuthLambda);
+    meetingsBucket.grantRead(privateVideoAuthLambda);
+    privateVideoAuthResource.addMethod(
       "GET",
-      new cdk.aws_apigateway.LambdaIntegration(videoAuthLambdaPrivateVideo),
+      new cdk.aws_apigateway.LambdaIntegration(privateVideoAuthLambda),
       {
         authorizationType: cdk.aws_apigateway.AuthorizationType.COGNITO,
         authorizer,
       }
     );
 
-    // TODO: add public video route
+    // lambda route for generating presigned urls for public videos
+    const publicVideoAuthResource =
+      meetingAuthApi.root.addResource("public-presigned");
+    const publicVideoAuthLambda = new cdk.aws_lambda.Function(
+      this,
+      "PublicVideoAuthLambda",
+      {
+        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
+        handler: "public-presigned.handler",
+        code: cdk.aws_lambda.Code.fromAsset("lambda/dist/video"),
+        environment: {
+          MEETINGS_BUCKET_NAME: meetingsBucket.bucketName,
+          MEETINGS_TABLE_NAME: meetingsTable.tableName,
+          CLOUDFRONT_DOMAIN_NAME: videoDistribution.distributionDomainName,
+        },
+      }
+    );
+
+    meetingsTable.grantReadData(publicVideoAuthLambda);
+    meetingsBucket.grantRead(publicVideoAuthLambda);
+    publicVideoAuthResource.addMethod(
+      "GET",
+      new cdk.aws_apigateway.LambdaIntegration(publicVideoAuthLambda)
+    );
+
+    // lambda for ocr and header extraction
+    const processPdfLambda = new cdk.aws_lambda.Function(
+      this,
+      "ProcessPdfLambda",
+      {
+        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
+        handler: "process-pdf.handler",
+        code: cdk.aws_lambda.Code.fromAsset("lambda/dist"),
+        environment: {
+          MEETINGS_BUCKET_NAME: meetingsBucket.bucketName,
+          MEETINGS_TABLE_NAME: meetingsTable.tableName,
+        },
+      }
+    );
+
+    // textract lambda permissions
+    processPdfLambda.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        effect: cdk.aws_iam.Effect.ALLOW,
+        actions: [
+          "textract:StartDocumentAnalysis",
+          "textract:GetDocumentAnalysis",
+        ],
+        resources: ["*"],
+      })
+    );
+
+    meetingsTable.grantWriteData(uploadLambda);
+    meetingsBucket.grantReadWrite(processPdfLambda);
+
+    // s3 trigger
+    meetingsBucket.addEventNotification(
+      cdk.aws_s3.EventType.OBJECT_CREATED,
+      new cdk.aws_s3_notifications.LambdaDestination(processPdfLambda),
+      {
+        prefix: "", // process all uploads
+        suffix: ".pdf", // only process PDF files
+      }
+    );
+
+    // TODO: textract trigger for processing extracted text
 
     // ------------ FRONTEND HOSTING ------------
 
@@ -294,6 +339,7 @@ export class SemanticLighthouseStack extends cdk.Stack {
       }
     );
 
+    // cloudfront distribution for the frontend bucket
     const frontendDistribution = new cdk.aws_cloudfront.Distribution(
       this,
       "FrontendDistribution",
@@ -314,6 +360,7 @@ export class SemanticLighthouseStack extends cdk.Stack {
           ],
           viewerProtocolPolicy:
             cdk.aws_cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          cachePolicy: cdk.aws_cloudfront.CachePolicy.CACHING_DISABLED, // TODO: remove in prod
         },
         defaultRootObject: "index.html",
       }
@@ -336,8 +383,74 @@ export class SemanticLighthouseStack extends cdk.Stack {
       })
     );
 
-    // TODO: deploy time build and upload frontend assets to S3 bucket
-    // do as much in lambda custom resource as possible so minimal requirements for deployer
+    // TODO: try this
+
+    // bucket for frontend source zip
+    // const frontendSource = new cdk.aws_s3.Bucket(this, "FrontendSourceBucket");
+
+    // upload frontend source zip to S3 bucket
+    // new cdk.aws_s3_deployment.BucketDeployment(
+    //   this,
+    //   "FrontendSourceDeployment",
+    //   {
+    //     sources: [cdk.aws_s3_deployment.Source.asset("./frontend.zip")],
+    //     destinationBucket: frontendSource,
+    //   }
+    // );
+
+    // const frontendBuild = new cdk.aws_codebuild.Project(this, "FrontendBuild", {
+    //   // TODO: maybe change to github source so source bucket not needed
+    //   source: cdk.aws_codebuild.Source.s3({
+    //     bucket: frontendBucket,
+    //     path: "frontend.zip",
+    //   }),
+    //   environment: {
+    //     buildImage: cdk.aws_codebuild.LinuxBuildImage.STANDARD_7_0, // latest standard image
+    //     privileged: true, // required for docker builds
+    //   },
+    //   buildSpec: cdk.aws_codebuild.BuildSpec.fromObject({
+    //     version: "0.2",
+    //     phases: {
+    //       install: {
+    //         commands: ["echo Installing dependencies...", "yarn install"],
+    //       },
+    //       build: {
+    //         commands: ["echo Building frontend...", "yarn build"],
+    //       },
+    //     },
+    //     artifacts: cdk.aws_codebuild.Artifacts.s3({
+    //       bucket: frontendBucket,
+    //       includeBuildId: false, // do not include build id in the path
+    //       packageZip: false, // do not package as zip
+    //       name: "/",
+    //     }),
+    //     environmentVariables: {
+    //       NEXT_PUBLIC_AWS_REGION: {
+    //         value: cdk.Aws.REGION,
+    //       },
+    //       NEXT_PUBLIC_AWS_USER_POOL_ID: {
+    //         value: userPool.userPoolId,
+    //       },
+    //       NEXT_PUBLIC_AWS_USER_POOL_WEB_CLIENT_ID: {
+    //         value: userPoolClient.userPoolClientId,
+    //       },
+    //       NEXT_PUBLIC_DISTRIBUTION_BASE_URL: {
+    //         value: `https://${frontendDistribution.distributionDomainName}`,
+    //       },
+    //       NEXT_PUBLIC_VIDEO_AUTH_API_URL: {
+    //         value: videoDistribution.distributionDomainName,
+    //       },
+    //     },
+    //   }),
+    // });
+
+    // deploy built frontend assets to S3 bucket
+    new cdk.aws_s3_deployment.BucketDeployment(this, "FrontendDeployment", {
+      sources: [cdk.aws_s3_deployment.Source.asset("./frontend/out")],
+      destinationBucket: frontendBucket,
+      distribution: frontendDistribution,
+      distributionPaths: ["/*"], // invalidate all files
+    });
 
     // ------------ OUTPUTS ------------
 

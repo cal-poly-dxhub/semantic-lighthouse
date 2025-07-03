@@ -5,8 +5,15 @@ import {
   CognitoUser,
   CognitoUserAttribute,
   CognitoUserPool,
+  CognitoUserSession,
 } from "amazon-cognito-identity-js";
-import { createContext, ReactNode, useContext, useState } from "react";
+import {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import awsConfig from "./aws-config";
 
 export interface User {
@@ -19,6 +26,7 @@ export interface User {
 interface AuthContextType {
   user: User | null;
   token: string | null;
+  isLoading: boolean;
   handleLogin: (
     emailOrUsername: string,
     password: string,
@@ -46,6 +54,7 @@ interface AuthContextType {
     onSuccess: () => void,
     onFailure: (err: unknown) => void
   ) => void;
+  handleRefreshToken: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -56,34 +65,35 @@ const userPool = new CognitoUserPool({
 });
 
 const AuthProvider = ({ children }: { children: ReactNode }) => {
-  // TODO: in prod use lazy initialization because will be deployed statically
-  const [user, setUser] = useState<User | null>(() => {
-    if (typeof window === "undefined") return null;
-    const storedUser = localStorage.getItem("user");
-    return storedUser ? JSON.parse(storedUser) : null;
-  });
-  const [token, setToken] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    return localStorage.getItem("token");
-  });
-  // end prod section
+  const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // TODO: for development use this whole block (flickery buttons)
-  // const [user, setUser] = useState<User | null>(null);
-  // const [token, setToken] = useState<string | null>(null);
-  // useEffect(() => {
-  //   // check localStorage for user and token on initial load
-  //   const storedUser = localStorage.getItem("user");
-  //   const storedToken = localStorage.getItem("token");
+  // Handle hydration properly - only run on client side after mount
+  useEffect(() => {
+    const initializeAuth = () => {
+      try {
+        const storedUser = localStorage.getItem("user");
+        const storedToken = localStorage.getItem("token");
 
-  //   if (storedUser) {
-  //     setUser(JSON.parse(storedUser));
-  //   }
-  //   if (storedToken) {
-  //     setToken(storedToken);
-  //   }
-  // }, []);
-  // end development section
+        if (storedUser) {
+          setUser(JSON.parse(storedUser));
+        }
+        if (storedToken) {
+          setToken(storedToken);
+        }
+      } catch (error) {
+        console.error("Error reading from localStorage:", error);
+        // Clear potentially corrupted data
+        localStorage.removeItem("user");
+        localStorage.removeItem("token");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeAuth();
+  }, []);
 
   const handleLogin = async (
     emailOrUsername: string,
@@ -217,6 +227,7 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     setToken(null);
     localStorage.clear();
+    window.location.href = "/login";
   };
 
   // TODO: check
@@ -248,16 +259,74 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
+  const handleRefreshToken = (): Promise<string | null> => {
+    return new Promise((resolve, reject) => {
+      if (!user) {
+        console.warn("WARN: No user available for token refresh");
+        resolve(null);
+        return;
+      }
+
+      const userData = {
+        Username: user.username,
+        Pool: userPool,
+      };
+      const cognitoUser = new CognitoUser(userData);
+
+      // fetch session
+      cognitoUser.getSession(
+        (err: Error | null, session: CognitoUserSession) => {
+          if (err) {
+            console.error("ERROR: Failed to get session for refresh:", err);
+            reject(err);
+            return;
+          }
+
+          if (session && session.isValid()) {
+            // if session is still valid return current token
+            const currentToken = session.getIdToken().getJwtToken();
+            setToken(currentToken);
+            localStorage.setItem("token", currentToken);
+            resolve(currentToken);
+          } else {
+            // if session expired, try to refresh
+            const refreshToken = session.getRefreshToken();
+            cognitoUser.refreshSession(
+              refreshToken,
+              (refreshErr, refreshedSession) => {
+                if (refreshErr) {
+                  console.error("ERROR: Token refresh failed:", refreshErr);
+                  // if refresh fails, log out the user
+                  handleLogout();
+                  reject(refreshErr);
+                  return;
+                }
+
+                // update token
+                const newToken = refreshedSession.getIdToken().getJwtToken();
+                setToken(newToken);
+                localStorage.setItem("token", newToken);
+                resolve(newToken);
+              }
+            );
+          }
+        }
+      );
+    });
+  };
+
   return (
     <AuthContext.Provider
       value={{
         user,
         token,
+        isLoading,
         handleLogin,
         handleSignup,
         handleConfirmSignup,
         handleLogout,
         handleChangePassword,
+        handleRefreshToken,
       }}
     >
       {children}

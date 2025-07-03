@@ -1,9 +1,10 @@
 "use client";
 
+import { useApiRequest } from "@/constants/apiRequest";
 import { useAuth } from "@/constants/AuthContext";
 import { Alert, Paper, Title, useMantineTheme } from "@mantine/core";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 interface VideoRequestResponse {
   videoId: string;
@@ -26,61 +27,66 @@ const VideoPage = () => {
   const theme = useMantineTheme();
 
   const { token } = useAuth();
+  const { apiRequest } = useApiRequest();
 
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * fetch presigned url from video id
+   * @param route - "public-presigned" | "private-presigned"
+   * @returns Promise<VideoRequestResponse>
+   * @throws Error if no video ID is provided or if the fetch fails
+   */
+  const fetchVideoUrl: (
+    route: "public-presigned" | "private-presigned"
+  ) => Promise<VideoRequestResponse> = useCallback(
+    async (route: "public-presigned" | "private-presigned") => {
+      if (!id) {
+        throw new Error("No video ID provided.");
+      }
+
+      try {
+        const apiUrl = `${process.env.NEXT_PUBLIC_VIDEO_AUTH_API_URL}${route}?videoId=${id}`;
+        const { data, error, status } = await apiRequest<VideoRequestResponse>(
+          "GET",
+          apiUrl
+        );
+
+        if (error !== null) {
+          throw new Error(`Failed to fetch video URL. Status: ${status}`);
+        }
+
+        return data;
+      } catch (err) {
+        throw new Error(
+          `Error fetching video URL: ${
+            err instanceof Error ? err.message : "Unknown error"
+          }`
+        );
+      }
+    },
+    [apiRequest, id]
+  );
+
   // fetch presigned url and setup video player
   useEffect(() => {
-    const videoElement = videoRef.current;
-    if (!videoElement) {
-      setError("Video element not found.");
-      return;
-    }
-
-    const fetchVideoUrl = async () => {
-      if (!id) {
-        setError("No video ID provided in the URL.");
+    (async () => {
+      const videoElement = videoRef.current;
+      if (!videoElement) {
+        setError("Video element not found.");
         return;
       }
 
       try {
-        if (!token) {
-          // NOTE: this will display in dev, in prod will have lazy initialization (see AuthContext)
-          setError("You are not authorized to view this video.");
-          return;
-        }
-
-        const apiUrl = `${process.env.NEXT_PUBLIC_VIDEO_AUTH_API_URL}/private-presigned?videoId=${id}`;
-
-        console.log(`Fetching video URL from: ${apiUrl}`);
-
-        const response = await fetch(apiUrl, {
-          headers: {
-            Authorization: token,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error(
-            `Failed to fetch video URL. Status: ${response.status}`
-          );
-        }
-
-        const data: VideoRequestResponse = await response.json();
-        setVideoUrl(data.presignedUrl);
-      } catch (err) {
-        console.error(err);
-        setError(
-          (err as { message?: string }).message ||
-            "An error occurred while loading the video."
-        );
+        const apiRoute = token ? "private-presigned" : "public-presigned";
+        const response = await fetchVideoUrl(apiRoute);
+        setVideoUrl(response.presignedUrl || null);
+      } catch (error) {
+        setError(error instanceof Error ? error.message : "Unknown error");
       }
-    };
-
-    // run above functions
-    fetchVideoUrl();
-  }, [id, token]);
+    })();
+  }, [fetchVideoUrl, id, token]);
 
   useEffect(() => {
     if (videoUrl && videoRef.current) {
@@ -145,6 +151,8 @@ const VideoPage = () => {
             display: "block",
           }}
           autoPlay
+          // TODO: remove muted
+          muted
           key={videoUrl}
         >
           Your browser does not support the video tag.

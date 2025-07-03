@@ -32,11 +32,11 @@ export default function RootLayout({
         <ColorSchemeScript />
       </head>
       <body>
-        <AuthProvider>
-          <MantineProvider theme={theme} defaultColorScheme="light">
+        <MantineProvider theme={theme} defaultColorScheme="light">
+          <AuthProvider>
             <RootWrapper>{children}</RootWrapper>
-          </MantineProvider>
-        </AuthProvider>
+          </AuthProvider>
+        </MantineProvider>
       </body>
     </html>
   );

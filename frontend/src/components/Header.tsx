@@ -14,7 +14,40 @@ import classes from "./HeaderMegaMenu.module.css";
 
 const Header = memo(function DefaultHeader() {
   const theme = useMantineTheme();
-  const { user, handleLogout } = useAuth();
+  const { user, handleLogout, isLoading } = useAuth();
+
+  // Don't render auth buttons until loading is complete to prevent flickering
+  const renderAuthButtons = () => {
+    if (isLoading) {
+      // Return empty space with same height to prevent layout shift
+      return (
+        <Group visibleFrom="sm" style={{ minHeight: "36px" }}>
+          {/* Placeholder to maintain layout */}
+        </Group>
+      );
+    }
+
+    if (user) {
+      return (
+        <Group visibleFrom="sm">
+          <Button variant="default" onClick={handleLogout}>
+            Log out
+          </Button>
+        </Group>
+      );
+    }
+
+    return (
+      <Group visibleFrom="sm">
+        <Button variant="default" component="a" href="/login">
+          Log in
+        </Button>
+        <Button bg={theme.primaryColor} component="a" href="/signup">
+          Sign up
+        </Button>
+      </Group>
+    );
+  };
 
   return (
     <Box pb={120}>
@@ -39,22 +72,7 @@ const Header = memo(function DefaultHeader() {
               Upload
             </Anchor>
           </Group>
-          {user ? (
-            <Group visibleFrom="sm">
-              <Button variant="default" onClick={handleLogout}>
-                Log out
-              </Button>
-            </Group>
-          ) : (
-            <Group visibleFrom="sm">
-              <Button variant="default" component="a" href="/login">
-                Log in
-              </Button>
-              <Button bg={theme.primaryColor} component="a" href="/signup">
-                Sign up
-              </Button>
-            </Group>
-          )}
+          {renderAuthButtons()}
         </Group>
       </header>
     </Box>

@@ -1,7 +1,7 @@
 "use client";
 
+import { useApiRequest } from "@/constants/apiRequest";
 import { useAuth } from "@/constants/AuthContext";
-import awsConfig from "@/constants/aws-config";
 import {
   Alert,
   Button,
@@ -22,7 +22,8 @@ import { useState } from "react";
 export default function UploadPage() {
   const theme = useMantineTheme();
 
-  const { user, token } = useAuth();
+  const { user } = useAuth();
+  const { apiRequest } = useApiRequest();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,12 +37,16 @@ export default function UploadPage() {
       meetingTitle: "",
       meetingDate: "",
       description: "",
+      visibility: "",
     },
     validate: {
       meetingTitle: (value: string) =>
         value.length < 3 ? "Meeting title must be at least 3 characters" : null,
       meetingDate: (value: string) =>
         !value ? "Meeting date is required" : null,
+      description: (value: string) =>
+        value.length > 500 ? "Description cannot exceed 500 characters" : null,
+      visibility: (value: string) => (!value ? "Visibility is required" : null),
     },
   });
 
@@ -77,6 +82,7 @@ export default function UploadPage() {
     meetingTitle: string;
     meetingDate: string;
     description: string;
+    visibility: string;
   }) => {
     if (!user) {
       setError("You must be logged in to upload files");
@@ -100,29 +106,30 @@ export default function UploadPage() {
 
     try {
       // fetch presigned URLs from lambda
-      const response = await fetch(`${awsConfig.videoAuthApiUrl}/upload`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token || ""}`,
+      const { data, error } = await apiRequest<{
+        meetingId: string;
+        videoPresignedUrl: string;
+        agendaPresignedUrl: string;
+      }>("POST", `${process.env.NEXT_PUBLIC_VIDEO_AUTH_API_URL}upload`, {
+        body: {
+          meetingTitle: values.meetingTitle,
+          meetingDate: values.meetingDate,
+          meetingDescription: values.description,
+          videoVisibility: values.visibility,
         },
       });
 
-      if (!response.ok) {
-        throw new Error(`Failed to get presigned URLs: ${response.statusText}`);
+      if (error !== null) {
+        setLoading(false);
+        setError(`Failed to get presigned URLs: ${error}`);
+        return;
       }
 
-      const responseData = (await response.json()) as {
-        videoId: string;
-        videoPresignedUrl: string;
-        agendaPresignedUrl: string;
-      };
+      const { meetingId, videoPresignedUrl, agendaPresignedUrl } = data;
 
-      const { videoId, videoPresignedUrl, agendaPresignedUrl } = responseData;
+      console.log("Got presigned URLs for meetingId:", meetingId);
 
-      console.log("Got presigned URLs for videoId:", videoId);
-
-      // Step 2: Upload video file to S3
+      // upload to s3
       setUploadProgress(10);
       const uploadFileWithProgress = async (
         url: string,
@@ -172,7 +179,7 @@ export default function UploadPage() {
         `Meeting "${values.meetingTitle}" uploaded successfully! Processing will begin shortly.`
       );
 
-      // Reset form
+      // reset
       form.reset();
       setVideoFile(null);
       setAgendaFile(null);
