@@ -158,7 +158,7 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
             ],
           },
         }),
-        handler: "handler.handler",
+        handler: "handler.lambda_handler",
         timeout: cdk.Duration.minutes(15),
         memorySize: 4096,
         environment: {

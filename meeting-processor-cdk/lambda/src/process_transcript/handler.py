@@ -420,7 +420,7 @@ def extract_agenda_data(event):
         return None
 
 
-def handler(event, context):
+def lambda_handler(event, context):
     """
     Lambda function handler invoked by Step Functions.
     Fetches completed Transcribe job(s) result(s), converts to human-readable format,
