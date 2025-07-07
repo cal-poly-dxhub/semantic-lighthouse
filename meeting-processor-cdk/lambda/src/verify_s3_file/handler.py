@@ -1,6 +1,7 @@
 import json
 import boto3
 import logging
+import os
 from urllib.parse import urlparse
 
 logger = logging.getLogger()
@@ -62,20 +63,97 @@ def check_mediaconvert_jobs_status(job_ids):
     }
 
 
+def extract_correlation_key_from_video(video_s3_key):
+    """
+    Extract correlation key from video S3 key
+    uploads/meeting_recordings/board_meeting_2024_01_15.mp4 -> board_meeting_2024_01_15
+    """
+    filename = video_s3_key.split("/")[-1]  # Get filename
+    base_name = os.path.splitext(filename)[0]  # Remove extension
+    return base_name
+
+
+def check_agenda_exists(bucket, correlation_key):
+    """
+    Check if agenda analysis exists for the given correlation key
+    Returns both the existence status and the analysis data if available
+    """
+    analysis_key = f"processed/agenda/analysis/{correlation_key}.json"
+    raw_text_key = f"processed/agenda/raw_text/{correlation_key}.txt"
+
+    try:
+        # Check if analysis file exists
+        s3_client.head_object(Bucket=bucket, Key=analysis_key)
+
+        # If it exists, try to load the analysis data
+        try:
+            response = s3_client.get_object(Bucket=bucket, Key=analysis_key)
+            analysis_data = json.loads(response["Body"].read().decode("utf-8"))
+
+            return {
+                "agenda_exists": True,
+                "analysis_s3_uri": f"s3://{bucket}/{analysis_key}",
+                "raw_text_s3_uri": f"s3://{bucket}/{raw_text_key}",
+                "analysis_data": analysis_data,
+                "correlation_key": correlation_key,
+            }
+        except Exception as e:
+            logger.warning(f"Agenda analysis file exists but couldn't be loaded: {e}")
+            return {
+                "agenda_exists": True,
+                "analysis_s3_uri": f"s3://{bucket}/{analysis_key}",
+                "raw_text_s3_uri": f"s3://{bucket}/{raw_text_key}",
+                "analysis_data": None,
+                "correlation_key": correlation_key,
+                "error": f"Failed to load analysis: {e}",
+            }
+
+    except s3_client.exceptions.NoSuchKey:
+        logger.info(f"No agenda analysis found for correlation key: {correlation_key}")
+        return {"agenda_exists": False, "correlation_key": correlation_key}
+    except Exception as e:
+        logger.error(f"Error checking agenda existence: {e}")
+        return {
+            "agenda_exists": False,
+            "correlation_key": correlation_key,
+            "error": str(e),
+        }
+
+
 def lambda_handler(event, context):
     """
     Verify that an S3 file exists by parsing the S3 URI and checking the object.
-    Also supports checking MediaConvert job statuses in batch.
+    Also supports checking MediaConvert job statuses in batch and agenda checking.
 
     Input:
         - {"s3_uri": "s3://bucket/key"} for S3 file verification
         - {"job_ids": ["job1", "job2", ...]} for MediaConvert job status checking
+        - {"check_agenda": true, "video_s3_key": "uploads/meeting_recordings/file.mp4"} for agenda checking
 
     Output:
         - {"exists": true/false, "bucket": "bucket", "key": "key"} for S3
         - {"allComplete": true/false, "anyFailed": true/false, "jobStatuses": [...]} for MediaConvert
+        - {"agenda_exists": true/false, "analysis_data": {...}, ...} for agenda checking
     """
     logger.info(f"Received event: {json.dumps(event)}")
+
+    # Check if this is an agenda checking request
+    if event.get("check_agenda"):
+        video_s3_key = event.get("video_s3_key")
+        if not video_s3_key:
+            raise ValueError("video_s3_key is required when check_agenda is true")
+
+        # Extract correlation key from video path
+        correlation_key = extract_correlation_key_from_video(video_s3_key)
+
+        # Get bucket from environment or event
+        bucket = os.environ.get("BUCKET_NAME")
+        if not bucket:
+            raise ValueError("BUCKET_NAME environment variable is required")
+
+        result = check_agenda_exists(bucket, correlation_key)
+        logger.info(f"Agenda check result: {json.dumps(result)}")
+        return result
 
     # Check if this is a MediaConvert job status request
     if "job_ids" in event:
@@ -88,7 +166,9 @@ def lambda_handler(event, context):
     # Otherwise, handle S3 file verification (original functionality)
     s3_uri = event.get("s3_uri")
     if not s3_uri:
-        raise ValueError("Either s3_uri or job_ids is required in the input event")
+        raise ValueError(
+            "Either s3_uri, job_ids, or check_agenda is required in the input event"
+        )
 
     # Parse the S3 URI
     parsed = urlparse(s3_uri)

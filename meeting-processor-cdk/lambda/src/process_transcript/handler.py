@@ -399,11 +399,33 @@ def generate_html_from_analysis(analysis_text, job_name, bucket_name):
         raise e
 
 
+def extract_agenda_data(event):
+    """
+    Extract agenda data from the event if available
+    Returns the agenda analysis data or None if not available
+    """
+    # Check for agenda data from either the initial check or retry
+    agenda_data = event.get("agendaData")
+    agenda_data_retry = event.get("agendaDataRetry")
+
+    # Use retry data if it exists and has agenda, otherwise use initial data
+    if agenda_data_retry and agenda_data_retry.get("agenda_exists"):
+        logger.info("Using agenda data from retry check")
+        return agenda_data_retry
+    elif agenda_data and agenda_data.get("agenda_exists"):
+        logger.info("Using agenda data from initial check")
+        return agenda_data
+    else:
+        logger.info("No agenda data available - proceeding with video-only processing")
+        return None
+
+
 def handler(event, context):
     """
     Lambda function handler invoked by Step Functions.
     Fetches completed Transcribe job(s) result(s), converts to human-readable format,
     and saves back to S3. Supports both single and chunked (multiple) transcription processing.
+    Now also supports agenda integration when available.
     """
     logger.info("=== ProcessTranscript Lambda Started ===")
     logger.info(f"Received event: {json.dumps(event, indent=2)}")
@@ -412,15 +434,22 @@ def handler(event, context):
     logger.info(f"Using S3 bucket: {bucket_name}")
 
     try:
+        # Extract agenda data if available
+        agenda_data = extract_agenda_data(event)
+        if agenda_data:
+            logger.info(
+                f"Agenda data found for correlation key: {agenda_data.get('correlation_key')}"
+            )
+
         # Check if this is chunked processing or single file processing
         is_chunked = event.get("isChunkedProcessing", False)
 
         if is_chunked:
             logger.info("=== Processing CHUNKED transcription results ===")
-            return handle_chunked_transcription(event, bucket_name)
+            return handle_chunked_transcription(event, bucket_name, agenda_data)
         else:
             logger.info("=== Processing SINGLE transcription result ===")
-            return handle_single_transcription(event, bucket_name)
+            return handle_single_transcription(event, bucket_name, agenda_data)
 
     except Exception as e:
         logger.error("=== ProcessTranscript Lambda FAILED ===")
@@ -438,7 +467,7 @@ def handler(event, context):
         raise e
 
 
-def handle_single_transcription(event, bucket_name):
+def handle_single_transcription(event, bucket_name, agenda_data=None):
     """Handle single (non-chunked) transcription processing - original functionality"""
     # Get transcription result from the Step Function event
     transcription_job = event["transcriptionResult"]["TranscriptionJob"]
@@ -488,11 +517,11 @@ def handle_single_transcription(event, bucket_name):
 
     # Continue with analysis and PDF generation
     return process_transcript_analysis(
-        human_readable_transcript, job_name, bucket_name, video_info
+        human_readable_transcript, job_name, bucket_name, video_info, agenda_data
     )
 
 
-def handle_chunked_transcription(event, bucket_name):
+def handle_chunked_transcription(event, bucket_name, agenda_data=None):
     """Handle multiple (chunked) transcription processing with merging"""
     transcription_results = event["transcriptionResults"]
     media_convert_result = event["mediaConvertResult"]
@@ -600,7 +629,7 @@ def handle_chunked_transcription(event, bucket_name):
 
     # Continue with analysis and PDF generation
     return process_transcript_analysis(
-        merged_transcript, base_job_name, bucket_name, video_info
+        merged_transcript, base_job_name, bucket_name, video_info, agenda_data
     )
 
 
@@ -878,7 +907,7 @@ def replace_segment_citations_with_links(analysis_text, segment_mapping, bucket,
 
 
 def process_transcript_analysis(
-    human_readable_transcript, job_name, bucket_name, video_info=None
+    human_readable_transcript, job_name, bucket_name, video_info=None, agenda_data=None
 ):
     """
     Common function to handle transcript analysis and PDF generation
@@ -907,17 +936,65 @@ def process_transcript_analysis(
 
     analysis_error = None
     try:
-        # Fetch prompt template and agenda from external S3 bucket
+        # Fetch prompt template - always from external bucket for now
         external_bucket = "k12-temp-testing-static-files"
         prompt_key = "detailed_prompt.txt"
-        agenda_key = "agenda.txt"
 
-        logger.info("Fetching prompt template and agenda from external S3 bucket...")
+        logger.info("Fetching prompt template from external S3 bucket...")
         prompt_template = fetch_s3_text_content(external_bucket, prompt_key)
-        agenda_text = fetch_s3_text_content(external_bucket, agenda_key)
 
-        # Perform Bedrock analysis
-        logger.info("Performing Bedrock analysis...")
+        # Determine agenda source - use agenda data if available, otherwise fallback to static
+        if (
+            agenda_data
+            and agenda_data.get("agenda_exists")
+            and agenda_data.get("analysis_data")
+        ):
+            logger.info("Using agenda data from uploaded PDF document")
+            agenda_analysis = agenda_data["analysis_data"]
+
+            # Convert agenda analysis to text format for the prompt
+            agenda_text = f"""AGENDA ANALYSIS FROM UPLOADED DOCUMENT:
+
+Meeting Information:
+- Title: {agenda_analysis.get('meeting_metadata', {}).get('meeting_title', 'Not specified')}
+- Date: {agenda_analysis.get('meeting_metadata', {}).get('meeting_date', 'Not specified')}
+- Time: {agenda_analysis.get('meeting_metadata', {}).get('meeting_time', 'Not specified')}
+- Location: {agenda_analysis.get('meeting_metadata', {}).get('meeting_location', 'Not specified')}
+- Type: {agenda_analysis.get('meeting_metadata', {}).get('meeting_type', 'Not specified')}
+
+Participants:"""
+
+            for participant in agenda_analysis.get("participants", []):
+                agenda_text += f"\n- {participant.get('name', 'Unknown')} ({participant.get('role', 'No role specified')}) - {participant.get('attendance_status', 'Unknown status')}"
+
+            agenda_text += "\n\nAgenda Items:"
+            for item in agenda_analysis.get("agenda_items", []):
+                agenda_text += f"\n- {item.get('item_number', '')}: {item.get('title', 'Untitled')} - {item.get('description', 'No description')}"
+                if item.get("presenter"):
+                    agenda_text += f" (Presenter: {item['presenter']})"
+
+            if agenda_analysis.get("background_context"):
+                agenda_text += (
+                    f"\n\nBackground Context:\n{agenda_analysis['background_context']}"
+                )
+
+            if agenda_analysis.get("action_items_expected"):
+                agenda_text += "\n\nExpected Action Items:"
+                for action in agenda_analysis["action_items_expected"]:
+                    agenda_text += f"\n- {action}"
+
+            logger.info(
+                f"Using enhanced agenda data with {len(agenda_analysis.get('agenda_items', []))} agenda items"
+            )
+        else:
+            logger.info(
+                "No agenda data available - fetching static agenda from external S3 bucket..."
+            )
+            agenda_key = "agenda.txt"
+            agenda_text = fetch_s3_text_content(external_bucket, agenda_key)
+
+        # Perform Bedrock analysis with enhanced prompt for agenda integration
+        logger.info("Performing Bedrock analysis with agenda context...")
         analysis_result = analyze_transcript_with_bedrock(
             human_readable_transcript, prompt_template, agenda_text
         )

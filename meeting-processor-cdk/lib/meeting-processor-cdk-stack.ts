@@ -384,33 +384,147 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
     });
 
     // =================================================================
-    // S3 EVENT TRIGGER - Start workflow when files are uploaded
+    // AGENDA PROCESSOR FUNCTION - Created after state machine for ARN reference
     // =================================================================
 
-    // Create EventBridge rule to trigger Step Functions from S3 events
-    const s3ToStepFunctionsRule = new events.Rule(
+    // Create a dedicated IAM role with full Bedrock access for the agenda processor
+    const agendaProcessorRole = new iam.Role(this, "AgendaProcessorRole", {
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+      description:
+        "Role for AgendaProcessor Lambda with full Amazon Bedrock access",
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName(
+          "service-role/AWSLambdaBasicExecutionRole"
+        ),
+        iam.ManagedPolicy.fromAwsManagedPolicyName("AmazonBedrockFullAccess"),
+      ],
+    });
+
+    // 6. Agenda Processor Function
+    const agendaProcessorFunction = new lambda.Function(
       this,
-      "S3ToStepFunctionsRule",
+      "AgendaProcessorFunction",
       {
-        eventPattern: {
-          source: ["aws.s3"],
-          detailType: ["Object Created"],
-          detail: {
-            bucket: {
-              name: [this.s3Bucket.bucketName],
-            },
-            object: {
-              key: [{ prefix: "uploads/" }],
-            },
-          },
+        functionName: "meeting-processor-agenda-processor-v2",
+        runtime: lambda.Runtime.PYTHON_3_12,
+        code: lambda.Code.fromAsset("lambda/src/agenda_processor"),
+        handler: "handler.lambda_handler",
+        timeout: cdk.Duration.minutes(15), // Maximum Lambda timeout
+        memorySize: 1024,
+        role: agendaProcessorRole,
+        environment: {
+          BUCKET_NAME: this.s3Bucket.bucketName,
+          STATE_MACHINE_ARN: this.stateMachine.stateMachineArn,
+          TEST_NOVA_ONLY: "false",
         },
       }
     );
 
-    // Add Step Functions as target for the EventBridge rule
-    s3ToStepFunctionsRule.addTarget(
+    // Additional IAM permissions for AgendaProcessorFunction
+    this.s3Bucket.grantReadWrite(agendaProcessorFunction);
+
+    // Textract permissions for AgendaProcessorFunction
+    agendaProcessorFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "textract:StartDocumentTextDetection",
+          "textract:GetDocumentTextDetection",
+        ],
+        resources: ["*"],
+      })
+    );
+
+    // Bedrock permissions for AgendaProcessorFunction (Nova Premier)
+    agendaProcessorFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["bedrock:InvokeModel"],
+        resources: [
+          "arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-premier-v1:0",
+          "arn:aws:bedrock:us-west-2::foundation-model/amazon.nova-premier-v1:0",
+        ],
+      })
+    );
+
+    // Marketplace subscribe permissions for third-party models
+    agendaProcessorFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "aws-marketplace:Subscribe",
+          "aws-marketplace:Unsubscribe",
+          "aws-marketplace:ViewSubscriptions",
+        ],
+        resources: ["*"],
+      })
+    );
+
+    // Step Functions permissions for AgendaProcessorFunction (to trigger combined processing)
+    agendaProcessorFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["states:StartExecution"],
+        resources: [this.stateMachine.stateMachineArn],
+      })
+    );
+
+    // STS permissions for AgendaProcessorFunction (to get account ID)
+    agendaProcessorFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["sts:GetCallerIdentity"],
+        resources: ["*"],
+      })
+    );
+
+    // =================================================================
+    // S3 EVENT TRIGGERS - Start workflows when files are uploaded
+    // =================================================================
+
+    // EventBridge rule for video uploads
+    const s3VideoUploadRule = new events.Rule(this, "S3VideoUploadRule", {
+      eventPattern: {
+        source: ["aws.s3"],
+        detailType: ["Object Created"],
+        detail: {
+          bucket: {
+            name: [this.s3Bucket.bucketName],
+          },
+          object: {
+            key: [{ prefix: "uploads/meeting_recordings/" }],
+          },
+        },
+      },
+    });
+
+    // Add Step Functions as target for video uploads
+    s3VideoUploadRule.addTarget(
       new targets.SfnStateMachine(this.stateMachine, {
         input: events.RuleTargetInput.fromEventPath("$"),
+      })
+    );
+
+    // EventBridge rule for agenda uploads
+    const s3AgendaUploadRule = new events.Rule(this, "S3AgendaUploadRule", {
+      eventPattern: {
+        source: ["aws.s3"],
+        detailType: ["Object Created"],
+        detail: {
+          bucket: {
+            name: [this.s3Bucket.bucketName],
+          },
+          object: {
+            key: [{ prefix: "uploads/agenda_documents/" }],
+          },
+        },
+      },
+    });
+
+    // Add Agenda Processor as target for agenda uploads
+    s3AgendaUploadRule.addTarget(
+      new targets.LambdaFunction(agendaProcessorFunction, {
+        event: events.RuleTargetInput.fromEventPath("$"),
       })
     );
 
@@ -431,6 +545,11 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
     new cdk.CfnOutput(this, "EmailNotificationTopicArn", {
       value: this.emailNotificationTopic.topicArn,
       description: "SNS topic for email notifications",
+    });
+
+    new cdk.CfnOutput(this, "AgendaProcessorFunctionArn", {
+      value: agendaProcessorFunction.functionArn,
+      description: "Agenda processor Lambda function ARN",
     });
   }
 }

@@ -247,11 +247,258 @@
         }
       },
       "ResultPath": "$.transcriptionResults",
-      "Next": "ProcessAllTranscripts",
+      "Next": "CheckForAgenda",
       "Catch": [
         {
           "ErrorEquals": ["States.ALL"],
           "Next": "TranscriptionFailed"
+        }
+      ]
+    },
+    "CheckForAgenda": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${VerifyS3FileLambdaArn}",
+        "Payload": {
+          "check_agenda": true,
+          "video_s3_key.$": "$.detail.object.key"
+        }
+      },
+      "ResultPath": "$.agendaCheck",
+      "Next": "HasAgenda",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 10,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ProcessAllTranscripts"
+        }
+      ]
+    },
+    "HasAgenda": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.agendaCheck.Payload.agenda_exists",
+          "BooleanEquals": true,
+          "Next": "ProcessAllTranscripts"
+        },
+        {
+          "Variable": "$.agendaCheck.Payload.agenda_exists",
+          "BooleanEquals": false,
+          "Next": "WaitForAgenda"
+        }
+      ],
+      "Default": "ProcessAllTranscripts"
+    },
+    "WaitForAgenda": {
+      "Type": "Wait",
+      "Seconds": 60,
+      "Next": "CheckForAgendaRetry1"
+    },
+    "CheckForAgendaRetry1": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${VerifyS3FileLambdaArn}",
+        "Payload": {
+          "check_agenda": true,
+          "video_s3_key.$": "$.detail.object.key"
+        }
+      },
+      "ResultPath": "$.agendaCheckRetry",
+      "Next": "AgendaFoundAfterWait1",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 10,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ProcessAllTranscripts"
+        }
+      ]
+    },
+    "AgendaFoundAfterWait1": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.agendaCheckRetry.Payload.agenda_exists",
+          "BooleanEquals": true,
+          "Next": "ProcessAllTranscripts"
+        }
+      ],
+      "Default": "WaitForAgenda2"
+    },
+    "WaitForAgenda2": {
+      "Type": "Wait",
+      "Seconds": 60,
+      "Next": "CheckForAgendaRetry2"
+    },
+    "CheckForAgendaRetry2": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${VerifyS3FileLambdaArn}",
+        "Payload": {
+          "check_agenda": true,
+          "video_s3_key.$": "$.detail.object.key"
+        }
+      },
+      "ResultPath": "$.agendaCheckRetry",
+      "Next": "AgendaFoundAfterWait2",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 10,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ProcessAllTranscripts"
+        }
+      ]
+    },
+    "AgendaFoundAfterWait2": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.agendaCheckRetry.Payload.agenda_exists",
+          "BooleanEquals": true,
+          "Next": "ProcessAllTranscripts"
+        }
+      ],
+      "Default": "WaitForAgenda3"
+    },
+    "WaitForAgenda3": {
+      "Type": "Wait",
+      "Seconds": 60,
+      "Next": "CheckForAgendaRetry3"
+    },
+    "CheckForAgendaRetry3": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${VerifyS3FileLambdaArn}",
+        "Payload": {
+          "check_agenda": true,
+          "video_s3_key.$": "$.detail.object.key"
+        }
+      },
+      "ResultPath": "$.agendaCheckRetry",
+      "Next": "AgendaFoundAfterWait3",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 10,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ProcessAllTranscripts"
+        }
+      ]
+    },
+    "AgendaFoundAfterWait3": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.agendaCheckRetry.Payload.agenda_exists",
+          "BooleanEquals": true,
+          "Next": "ProcessAllTranscripts"
+        }
+      ],
+      "Default": "WaitForAgenda4"
+    },
+    "WaitForAgenda4": {
+      "Type": "Wait",
+      "Seconds": 60,
+      "Next": "CheckForAgendaRetry4"
+    },
+    "CheckForAgendaRetry4": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${VerifyS3FileLambdaArn}",
+        "Payload": {
+          "check_agenda": true,
+          "video_s3_key.$": "$.detail.object.key"
+        }
+      },
+      "ResultPath": "$.agendaCheckRetry",
+      "Next": "AgendaFoundAfterWait4",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 10,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ProcessAllTranscripts"
+        }
+      ]
+    },
+    "AgendaFoundAfterWait4": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.agendaCheckRetry.Payload.agenda_exists",
+          "BooleanEquals": true,
+          "Next": "ProcessAllTranscripts"
+        }
+      ],
+      "Default": "WaitForAgenda5"
+    },
+    "WaitForAgenda5": {
+      "Type": "Wait",
+      "Seconds": 60,
+      "Next": "CheckForAgendaFinal"
+    },
+    "CheckForAgendaFinal": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${VerifyS3FileLambdaArn}",
+        "Payload": {
+          "check_agenda": true,
+          "video_s3_key.$": "$.detail.object.key"
+        }
+      },
+      "ResultPath": "$.agendaCheckRetry",
+      "Next": "ProcessAllTranscripts",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 10,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ProcessAllTranscripts"
         }
       ]
     },
@@ -267,7 +514,8 @@
             "bucket.$": "$.detail.bucket.name",
             "key.$": "$.detail.object.key"
           },
-          "isChunkedProcessing": true
+          "isChunkedProcessing": true,
+          "agendaData.$": "$.agendaCheck.Payload"
         }
       },
       "ResultPath": "$.processResult",
