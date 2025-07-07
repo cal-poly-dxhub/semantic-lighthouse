@@ -17,13 +17,14 @@ textract_client = boto3.client("textract")
 bedrock_runtime = boto3.client(
     "bedrock-runtime",
     region_name="us-west-2",
+    # High timeout to handle increased response times for large payloads
     config=Config(connect_timeout=30, read_timeout=300, retries={"max_attempts": 3}),
 )
 
 
 # Configuration
-NOVA_PREMIER_MODEL_ID = "us.anthropic.claude-sonnet-4-20250514-v1:0"
-MAX_TEXTRACT_WAIT_TIME = 900  # 15 minutes max wait
+SONNET_MODEL_ID = "us.anthropic.claude-sonnet-4-20250514-v1:0"
+MAX_TEXTRACT_WAIT_TIME = 15 * 60  # 15 minutes
 TEXTRACT_POLL_INTERVAL = 30  # Poll every 30 seconds
 
 
@@ -50,7 +51,12 @@ def check_s3_object_exists(bucket, key):
 
 
 def check_for_corresponding_video(bucket, correlation_key):
-    """Check if corresponding video file exists"""
+    """
+    Check if corresponding video file exists
+    Example of pair:
+    agenda_key: uploads/agenda_documents/board_meeting_2024_01_15.pdf
+    video_key: uploads/meeting_recordings/board_meeting_2024_01_15.mp4
+    """
     video_key = f"uploads/meeting_recordings/{correlation_key}.mp4"
     video_exists = check_s3_object_exists(bucket, video_key)
 
@@ -62,7 +68,7 @@ def check_for_corresponding_video(bucket, correlation_key):
 
 
 def start_textract_job(bucket, pdf_key):
-    """Start Textract document text detection job"""
+    """Start Textract document text detection job (simple OCR)"""
     try:
         logger.info(f"Starting Textract job for s3://{bucket}/{pdf_key}")
 
@@ -145,59 +151,38 @@ def extract_text_from_textract_response(response, job_id):
     return full_text
 
 
-def analyze_agenda_with_nova_premier(agenda_text):
-    """Analyze agenda text using Nova Premier"""
-    logger.info("Starting Nova Premier analysis of agenda")
-
-    prompt = f"""You are an expert at analyzing meeting agenda documents. Extract key information that would be useful for generating meeting minutes.
-
+def load_prompt_template():
+    """Load the agenda analysis prompt from file"""
+    try:
+        # Get the directory where this script is located
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        prompt_file_path = os.path.join(script_dir, "agenda_analysis_prompt.txt")
+        logger.info(f"Loading prompt template from {prompt_file_path}")
+        with open(prompt_file_path, "r", encoding="utf-8") as f:
+            prompt_template = f.read()
+            logger.info(f"Prompt template: {prompt_template}")
+            return prompt_template
+    except Exception as e:
+        logger.error(f"Error loading prompt template: {e}")
+        # Fallback to a basic prompt if file can't be loaded
+        return """You are an expert at analyzing meeting agenda documents. 
+        
 AGENDA DOCUMENT:
 {agenda_text}
 
-I want you to generate some detailed information that might help an employee who is making the meeting minutes document for that meeting. be comprehensive, thorough and accurate
-Please analyze this agenda and provide a structured summary in the following JSON format:
+Please analyze this agenda and provide a structured JSON summary with meeting metadata, participants, agenda items, key documents, action items expected, and background context."""
 
-{{
-  "meeting_metadata": {{
-    "meeting_title": "extracted title or null if not found",
-    "meeting_date": "extracted date or null if not found", 
-    "meeting_time": "extracted time or null if not found",
-    "meeting_location": "extracted location or null if not found",
-    "meeting_type": "board meeting/committee meeting/etc or null if not clear"
-  }},
-  "participants": [
-    {{
-      "name": "Full Name",
-      "role": "Title/Position",
-      "attendance_status": "present/absent/excused/unknown"
-    }}
-  ],
-  "agenda_items": [
-    {{
-      "item_number": "1.1 or similar",
-      "title": "Agenda Item Title", 
-      "description": "Brief description of what this item covers",
-      "type": "discussion/action/information/other",
-      "presenter": "who is presenting or null if not mentioned",
-      "time_allocation": "estimated time if mentioned or null"
-    }}
-  ],
-  "key_documents": [
-    "List of important documents referenced in the agenda"
-  ],
-  "action_items_expected": [
-    "List of items that likely require decisions/votes"
-  ],
-  "background_context": "Overall summary of what this meeting is about and its main objectives"
-}}
 
-Focus on extracting information that would help identify speakers by name (not just speaker labels), understand the meeting's purpose, and provide context for agenda items that will be discussed. If any information is not available in the document, use null values. Ensure the response is valid JSON."""
+def analyze_agenda(agenda_text):
+    """Analyze agenda text and extract structured information"""
+    logger.info(f"Starting agenda analysis using model {SONNET_MODEL_ID}")
+
+    # Load the prompt template and substitute the agenda text
+    prompt_template = load_prompt_template()
+    prompt = prompt_template.format(agenda_text=agenda_text)
 
     try:
-        # Log the full prompt for debugging/inspection
-        # logger.info("Full prompt sent to Nova Premier:\n%s", prompt)
-
-        # Create conversation for Nova Premier
+        # Create conversation for the model
         conversation = [
             {
                 "role": "user",
@@ -205,10 +190,10 @@ Focus on extracting information that would help identify speakers by name (not j
             }
         ]
 
-        logger.info(f"Sending {len(agenda_text)} characters to Nova Premier")
+        logger.info(f"Sending {len(agenda_text)} characters to model {SONNET_MODEL_ID}")
 
         response = bedrock_runtime.converse(
-            modelId=NOVA_PREMIER_MODEL_ID,
+            modelId=SONNET_MODEL_ID,
             messages=conversation,
             inferenceConfig={"maxTokens": 65535, "temperature": 0.1, "topP": 0.9},
         )
@@ -216,7 +201,7 @@ Focus on extracting information that would help identify speakers by name (not j
         # Extract the response text
         analysis_text = response["output"]["message"]["content"][0]["text"]
 
-        logger.info("Nova Premier analysis completed")
+        logger.info(f"Agenda analysis completed using model {SONNET_MODEL_ID}")
         logger.info(f"Analysis response length: {len(analysis_text)} characters")
 
         # Try to parse as JSON
@@ -225,7 +210,7 @@ Focus on extracting information that would help identify speakers by name (not j
             logger.info(f"Parsed JSON: {analysis_json}")
             return analysis_json
         except Exception as e:
-            logger.warning(f"Nova Premier response could not be parsed: {e}")
+            logger.warning(f"Model {SONNET_MODEL_ID} response could not be parsed: {e}")
             # Return a fallback structure with the raw text to keep pipeline alive
             return {
                 "error": "Invalid JSON response",
@@ -239,7 +224,7 @@ Focus on extracting information that would help identify speakers by name (not j
             }
 
     except Exception as e:
-        logger.error(f"Error in Nova Premier analysis: {e}")
+        logger.error(f"Error in agenda analysis using model {SONNET_MODEL_ID}: {e}")
         raise
 
 
@@ -355,17 +340,17 @@ def lambda_handler(event, context):
         logger.info(f"Correlation key: {correlation_key}")
 
         # ------------------------------------------------------------------
-        # TEST MODE: skip Textract and directly call Nova Premier
+        # TEST MODE: skip Textract and call analysis directly
         # ------------------------------------------------------------------
-        if os.environ.get("TEST_NOVA_ONLY", "false").lower() == "true":
+        if os.environ.get("TEST_AI_ONLY", "false").lower() == "true":
             logger.info(
-                "TEST_NOVA_ONLY enabled – skipping Textract and sending test prompt to Nova Premier"
+                "TEST_AI_ONLY enabled – skipping Textract and testing analysis function"
             )
 
             test_prompt = "What country has Baghdad as its capital?"
 
-            # Call Nova Premier with the simple question
-            agenda_analysis = analyze_agenda_with_nova_premier(test_prompt)
+            # Call analysis function with test prompt
+            agenda_analysis = analyze_agenda(test_prompt)
 
             # Return immediately with the analysis response
             result = {
@@ -389,8 +374,8 @@ def lambda_handler(event, context):
         # Poll for completion and extract text
         extracted_text = poll_textract_job(textract_job_id)
 
-        # Analyze with Nova Premier
-        agenda_analysis = analyze_agenda_with_nova_premier(extracted_text)
+        # Analyze extracted text
+        agenda_analysis = analyze_agenda(extracted_text)
 
         # Save results to S3
         s3_uris = save_results_to_s3(
