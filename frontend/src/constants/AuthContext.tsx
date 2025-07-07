@@ -12,6 +12,7 @@ import {
   ReactNode,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 import awsConfig from "./aws-config";
@@ -59,15 +60,17 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const userPool = new CognitoUserPool({
-  UserPoolId: awsConfig.userPoolId,
-  ClientId: awsConfig.userPoolWebClientId,
-});
-
 const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  const userPool = useMemo(() => {
+    return new CognitoUserPool({
+      UserPoolId: awsConfig.userPoolId,
+      ClientId: awsConfig.userPoolWebClientId,
+    });
+  }, []);
 
   // Handle hydration properly - only run on client side after mount
   useEffect(() => {

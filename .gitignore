@@ -12,3 +12,5 @@ creds.csv
 .vscode
 assets
 !frontend-rewrite.js
+*.zip
+cdk.context.json

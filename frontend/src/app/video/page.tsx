@@ -7,7 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 interface VideoRequestResponse {
-  videoId: string;
+  meetingId: string;
   presignedUrl: string;
 }
 
@@ -47,7 +47,7 @@ const VideoPage = () => {
       }
 
       try {
-        const apiUrl = `${process.env.NEXT_PUBLIC_VIDEO_AUTH_API_URL}${route}?videoId=${id}`;
+        const apiUrl = `${process.env.NEXT_PUBLIC_VIDEO_AUTH_API_URL}${id}/${route}`;
         const { data, error, status } = await apiRequest<VideoRequestResponse>(
           "GET",
           apiUrl

@@ -4,7 +4,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 
 interface ResponseBody {
-  videoId: string;
+  meetingId: string;
   presignedUrl: string;
 }
 
@@ -27,25 +27,25 @@ export const handler = async (
 ): Promise<APIGatewayProxyResult> => {
   console.log("INFO: Received event:", JSON.stringify(event, null, 2));
 
-  const videoId = event.queryStringParameters?.videoId;
-  if (!videoId) {
+  const meetingId = event.pathParameters?.meetingId;
+  if (!meetingId) {
     return {
       statusCode: 400,
       headers: corsHeaders,
       body: JSON.stringify({
-        error: "Missing videoId parameter.",
+        error: "Missing meetingId parameter.",
       }),
     };
   }
 
   try {
-    // TODO: make everything meetingId instead of videoId
-    // query dynamo for videoId (meetingId)
+    // TODO: make everything meetingId instead of meetingId
+    // query dynamo for meetingId (meetingId)
     const queryCommand = new QueryCommand({
       TableName: process.env.MEETINGS_TABLE_NAME,
       KeyConditionExpression: "meetingId = :meetingId",
       ExpressionAttributeValues: {
-        ":meetingId": { S: videoId },
+        ":meetingId": { S: meetingId },
       },
     });
 
@@ -66,8 +66,8 @@ export const handler = async (
       };
     }
 
-    // Get the first item (there should only be one with the same meetingId)
-    const item = result.Items[0];
+    // get first item (there should only be one with the same meetingId)
+    const [item] = result.Items;
 
     if (item.videoVisibility?.S !== "public") {
       return {
@@ -79,7 +79,7 @@ export const handler = async (
       };
     }
 
-    const key = `${videoId}/video.mp4`;
+    const key = `${meetingId}/video.mp4`;
 
     const command = new GetObjectCommand({
       Bucket: process.env.MEETINGS_BUCKET_NAME,
@@ -94,7 +94,7 @@ export const handler = async (
     console.log("INFO: Generated presigned URL:", presignedUrl);
 
     const responseBody: ResponseBody = {
-      videoId,
+      meetingId,
       presignedUrl,
     };
 

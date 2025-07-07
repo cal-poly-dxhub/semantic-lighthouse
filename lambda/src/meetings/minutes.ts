@@ -1,3 +1,4 @@
+import { DynamoDBClient, QueryCommand } from "@aws-sdk/client-dynamodb";
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
@@ -16,9 +17,11 @@ const corsHeaders = {
 };
 
 const s3Client = new S3Client({});
+const dynamoClient = new DynamoDBClient({});
 
+// TODO: change minutes.pdf to whatever name is
 /**
- * lambda to generate presigned url for video.mp4
+ * lambda to generate presigned url for minutes.pdf
  * @param event
  */
 export const handler = async (
@@ -38,7 +41,47 @@ export const handler = async (
   }
 
   try {
-    const key = `${meetingId}/video.mp4`;
+    // query dynamo for meetingId
+    const queryCommand = new QueryCommand({
+      TableName: process.env.MEETINGS_TABLE_NAME,
+      KeyConditionExpression: "meetingId = :meetingId",
+      ExpressionAttributeValues: {
+        ":meetingId": { S: meetingId },
+      },
+    });
+
+    const result = await dynamoClient.send(queryCommand);
+
+    console.log(
+      "INFO: DynamoDB Query result:",
+      JSON.stringify(result, null, 2)
+    );
+
+    if (!result.Items || result.Items.length === 0) {
+      return {
+        statusCode: 404,
+        headers: corsHeaders,
+        body: JSON.stringify({
+          error: "Video not found.",
+        }),
+      };
+    }
+
+    // get first item (there should only be one with the same meetingId)
+    const [item] = result.Items;
+
+    if (item.status?.S !== "processing-complete") {
+      return {
+        statusCode: 402,
+        headers: corsHeaders,
+        body: JSON.stringify({
+          error: "Meeting is not processed.",
+        }),
+      };
+    }
+
+    // TODO: change name
+    const key = `${meetingId}/minutes.pdf`;
 
     const command = new GetObjectCommand({
       Bucket: process.env.MEETINGS_BUCKET_NAME,
@@ -46,7 +89,7 @@ export const handler = async (
     });
 
     const presignedUrl = await getSignedUrl(s3Client, command, {
-      expiresIn: 14400,
+      expiresIn: 3600, // 1 hour
     });
 
     // TODO: maybe log user as well
