@@ -1,5 +1,5 @@
 {
-  "app": "npx ts-node --prefer-ts-exts bin/semantic-lighthouse.ts",
+  "app": "npx ts-node --prefer-ts-exts bin/meeting-processor-cdk.ts",
   "watch": {
     "include": [
       "**"
