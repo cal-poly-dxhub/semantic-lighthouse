@@ -214,6 +214,9 @@ def analyze_transcript_with_bedrock(
 
         logger.info("Invoking Claude via Bedrock...")
 
+        logger.info(f"Request body: {json.dumps(request_body, indent=2)}")
+        logger.info(f"Formatted prompt: {formatted_prompt}")
+
         # Make the streaming API call
         response = bedrock_runtime.invoke_model_with_response_stream(
             modelId=model_id,

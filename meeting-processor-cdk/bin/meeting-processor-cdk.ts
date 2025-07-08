@@ -1,9 +1,12 @@
 #!/usr/bin/env node
-import * as cdk from 'aws-cdk-lib';
-import { MeetingProcessorCdkStack } from '../lib/meeting-processor-cdk-stack';
+import * as cdk from "aws-cdk-lib";
+import { MeetingProcessorCdkStack } from "../lib/meeting-processor-cdk-stack";
 
 const app = new cdk.App();
-new MeetingProcessorCdkStack(app, 'MeetingProcessorCdkStack', {
+
+// Production stack (existing)
+new MeetingProcessorCdkStack(app, "MeetingProcessorCdkStack", {
+  resourcePrefix: "semantic-lighthouse",
   /* If you don't specify 'env', this stack will be environment-agnostic.
    * Account/Region-dependent features and context lookups will not work,
    * but a single synthesized template can be deployed anywhere. */
@@ -17,4 +20,10 @@ new MeetingProcessorCdkStack(app, 'MeetingProcessorCdkStack', {
   // env: { account: '123456789012', region: 'us-east-1' },
 
   /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
+});
+
+// Test stack (new) - for testing from scratch
+new MeetingProcessorCdkStack(app, "MeetingProcessorCdkStack-Test", {
+  resourcePrefix: "semantic-lighthouse-test",
+  // This will create completely separate resources with different names
 });
