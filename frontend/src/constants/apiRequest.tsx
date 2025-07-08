@@ -50,7 +50,7 @@ export const useApiRequest = () => {
         }
 
         const urlWithParams = new URL(
-          process.env.NEXT_PUBLIC_VIDEO_AUTH_API_URL + url
+          process.env.NEXT_PUBLIC_MEETING_API_URL + url
         );
         if (params) {
           Object.entries(params).forEach(([key, value]) => {

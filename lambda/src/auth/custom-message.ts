@@ -7,7 +7,9 @@ const messageAdminCreatedUser = (event: CustomMessageTriggerEvent) => ({
     <p>Your account has been created. Please use the following credentials to log in:</p>
     <p><strong>Username:</strong> ${event.request.usernameParameter}</p>
     <p><strong>Temporary Password:</strong> ${event.request.codeParameter}</p>
-    <p>Or <a href="${process.env.FRONTEND_URL}/login?username=${event.request.usernameParameter}&password=${event.request.codeParameter}">click here to login</a></p>
+    <p>Or <a href="${process.env.FRONTEND_URL}/login?email=${encodeURIComponent(
+    event.request.userAttributes.email
+  )}">click here</a> to login</p>
     <p>You will be required to change your password on first login.</p>
   `,
 });
@@ -18,7 +20,11 @@ const firstUserEmailVerification = (event: CustomMessageTriggerEvent) => ({
     <h2>Verify your email address</h2>
     <p>Thank you for signing up for Semantic Lighthouse!</p>
     <p>Please verify your email address by entering the following code:</p>
-    <p><strong>Verification Code:</strong> ${event.request.codeParameter} or <a href="${process.env.FRONTEND_URL}/verify?code=${event.request.codeParameter}&username=${event.userName}">click here to verify</a></p>
+    <p><strong>Verification Code:</strong> ${
+      event.request.codeParameter
+    } or <a href="${process.env.FRONTEND_URL}/verify?code=${
+    event.request.codeParameter
+  }&username=${encodeURIComponent(event.userName)}">click here to verify</a></p>
     <p>This code will expire in 24 hours.</p>
     <p>If you didn't create an account, please ignore this email.</p>
   `,

@@ -36,7 +36,7 @@ export class SemanticLighthouseStack extends cdk.Stack {
 
     // ------------ MEETING API ------------
 
-    new MeetingApiResources(this, "MeetingApi", {
+    const meetingApi = new MeetingApiResources(this, "MeetingApi", {
       uniqueId,
       userPool: authResources.userPool,
       userPoolClient: authResources.userPoolClient,
@@ -51,7 +51,7 @@ export class SemanticLighthouseStack extends cdk.Stack {
     const frontendResources = new FrontendResources(this, "Frontend", {
       userPool: authResources.userPool,
       userPoolClient: authResources.userPoolClient,
-      videoDistribution: meetingDataResources.distribution,
+      meetingApi: meetingApi.api,
     });
 
     // ------------ CUSTOM EMAIL SETUP ------------

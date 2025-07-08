@@ -16,21 +16,32 @@ import {
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 
-export default function SetupAccountPage() {
+export default function SuspenseWrap() {
+  return (
+    <Suspense>
+      <SetupAccountPage />
+    </Suspense>
+  );
+}
+
+function SetupAccountPage() {
   const theme = useMantineTheme();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const { user, handleLogin } = useAuth();
+  const { handleLogin } = useAuth();
   const { apiRequest } = useApiRequest();
   const router = useRouter();
 
+  const searchParams = useSearchParams();
+  const urlEmail = searchParams.get("email");
+
   const form = useForm({
     initialValues: {
-      email: user?.email || "",
+      email: urlEmail ? decodeURIComponent(urlEmail) : "",
       temporaryPassword: "",
       newPassword: "",
       confirmPassword: "",

@@ -4,7 +4,7 @@ import { Construct } from "constructs";
 export interface FrontendResourcesProps {
   userPool: cdk.aws_cognito.UserPool;
   userPoolClient: cdk.aws_cognito.UserPoolClient;
-  videoDistribution: cdk.aws_cloudfront.Distribution;
+  meetingApi: cdk.aws_apigateway.RestApi;
 }
 
 export class FrontendResources extends Construct {
@@ -126,8 +126,8 @@ export class FrontendResources extends Construct {
         NEXT_PUBLIC_DISTRIBUTION_BASE_URL: {
           value: `https://${this.distribution.distributionDomainName}`,
         },
-        NEXT_PUBLIC_VIDEO_AUTH_API_URL: {
-          value: props.videoDistribution.distributionDomainName,
+        NEXT_PUBLIC_MEETING_API_URL: {
+          value: props.meetingApi.url,
         },
       },
       buildSpec: cdk.aws_codebuild.BuildSpec.fromObject({
@@ -172,7 +172,7 @@ export class FrontendResources extends Construct {
     build.node.addDependency(this.distribution);
     build.node.addDependency(props.userPool);
     build.node.addDependency(props.userPoolClient);
-    build.node.addDependency(props.videoDistribution);
+    build.node.addDependency(props.meetingApi);
 
     // trigger codebuild project on stack creation and update
     const triggerBuild = new cdk.custom_resources.AwsCustomResource(

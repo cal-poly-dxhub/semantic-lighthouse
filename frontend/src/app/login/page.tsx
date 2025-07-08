@@ -15,19 +15,30 @@ import {
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { useAuth } from "../../constants/AuthContext";
 
-export default function LoginPage() {
+export default function SuspenseWrap() {
+  return (
+    <Suspense>
+      <LoginPage />
+    </Suspense>
+  );
+}
+
+function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { handleLogin } = useAuth();
   const router = useRouter();
 
+  const searchParams = useSearchParams();
+  const urlEmail = searchParams.get("email");
+
   const form = useForm({
     initialValues: {
-      emailOrUsername: "",
+      emailOrUsername: urlEmail ? decodeURIComponent(urlEmail) : "",
       password: "",
     },
   });
@@ -55,7 +66,9 @@ export default function LoginPage() {
         );
       },
       () => {
-        router.push("/setup-account");
+        router.push(
+          `/setup-account?email=${encodeURIComponent(values.emailOrUsername)}`
+        );
       }
     );
   };

@@ -34,13 +34,13 @@ const VerifyPage = () => {
   const searchParams = useSearchParams();
 
   // get username from URL params if available (passed from signup)
-  const usernameFromParams = searchParams.get("username") || "";
-  const confirmationCodeFromParams = searchParams.get("code") || "";
+  const urlUsername = searchParams.get("username") || "";
+  const urlConfirmationCode = searchParams.get("code") || "";
 
   const form = useForm({
     initialValues: {
-      username: usernameFromParams,
-      confirmationCode: confirmationCodeFromParams,
+      username: urlUsername ? decodeURIComponent(urlUsername) : "",
+      confirmationCode: urlConfirmationCode,
       password: "",
     },
     validate: {
