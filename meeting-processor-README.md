@@ -1,25 +1,3 @@
-I'll analyze your CDK stack thoroughly to create a comprehensive documentation report. Let me first examine the related files to understand the complete application architecture.
-Read file: statemachine/transcribe.asl.json
-Read file: config/prompts/transcript-analysis.txt
-Read file: config/prompts/fallback-agenda.txt
-Read file: lambda/src/mediaconvert_trigger/handler.py
-
-Read file: lambda/src/verify_s3_file/handler.py
-Read file: lambda/src/process_transcript/handler.py
-Read file: lambda/src/html_to_pdf/handler.py
-Read file: lambda/src/email_sender/handler.py
-Read file: lambda/src/agenda_processor/handler.py
-
-Read file: lambda/src/agenda_processor/agenda_analysis_prompt.txt
-Read file: statemachine/transcribe.asl.json
-Read file: lambda/src/process_transcript/requirements.txt
-
-Read file: statemachine/transcribe.asl.json
-Read file: lambda/src/shared_utils.py
-Ran tool
-
-Based on my thorough analysis of your CDK stack and associated Lambda functions, I'll create a comprehensive documentation report for your Semantic Lighthouse Meeting Processor system. This will help you understand exactly where each piece of information comes from for the production integration.
-
 # Semantic Lighthouse Meeting Processor - Comprehensive Technical Documentation
 
 ## 1. APPLICATION OVERVIEW
