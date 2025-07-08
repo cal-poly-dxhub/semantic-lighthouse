@@ -8,9 +8,7 @@ export interface AuthStackProps {
 export class AuthResources extends Construct {
   public readonly userPool: cdk.aws_cognito.UserPool;
   public readonly userPoolClient: cdk.aws_cognito.UserPoolClient;
-  public readonly adminGroup: cdk.aws_cognito.UserPoolGroup;
-  public readonly usersGroup: cdk.aws_cognito.UserPoolGroup;
-  public readonly postConfirmationLambda: cdk.aws_lambda.Function;
+  public readonly defaultUserGroupName: string;
 
   constructor(scope: Construct, id: string, props: AuthStackProps) {
     super(scope, id);
@@ -20,6 +18,7 @@ export class AuthResources extends Construct {
 
     // cannot get dynamically from group creation - circular dependency
     const adminGroupName = `SemanticLighthouseAdminsGroup-${props.uniqueId}`;
+    this.defaultUserGroupName = `SemanticLighthouseUsersGroup-${props.uniqueId}`;
 
     this.userPool = new cdk.aws_cognito.UserPool(this, "UserPool", {
       signInAliases: {
@@ -47,19 +46,20 @@ export class AuthResources extends Construct {
     );
 
     // user groups
-    this.adminGroup = this.userPool.addGroup("AdminsGroup", {
+    this.userPool.addGroup("AdminsGroup", {
       groupName: adminGroupName,
       description: "Administrators group",
       precedence: 1,
     });
 
-    this.usersGroup = this.userPool.addGroup("UsersGroup", {
+    this.userPool.addGroup("UsersGroup", {
+      groupName: this.defaultUserGroupName,
       description: "Users group",
       precedence: 2,
     });
 
     // lambda to disable self-signup and add first user to admin group
-    this.postConfirmationLambda = new cdk.aws_lambda.Function(
+    const postConfirmationLambda = new cdk.aws_lambda.Function(
       this,
       "PostConfirmationLambda",
       {
@@ -83,7 +83,7 @@ export class AuthResources extends Construct {
     );
 
     // grant lambda permission to add users to groups and list users in the user pool
-    this.postConfirmationLambda.addToRolePolicy(
+    postConfirmationLambda.addToRolePolicy(
       new cdk.aws_iam.PolicyStatement({
         actions: [
           "cognito-idp:AdminAddUserToGroup",
@@ -91,6 +91,7 @@ export class AuthResources extends Construct {
           "cognito-idp:UpdateUserPool",
         ],
         resources: [
+          // string version to avoid circular dependency
           `arn:aws:cognito-idp:${stack.region}:${stack.account}:userpool/*`,
         ],
       })
@@ -99,7 +100,7 @@ export class AuthResources extends Construct {
     // trigger to signup first user and disable self-signup
     this.userPool.addTrigger(
       cdk.aws_cognito.UserPoolOperation.POST_CONFIRMATION,
-      this.postConfirmationLambda
+      postConfirmationLambda
     );
   }
 }

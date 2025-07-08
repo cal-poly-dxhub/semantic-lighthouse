@@ -39,6 +39,7 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
+    // TODO: handle if user needs to change password (new user with temp password)
     handleLogin(
       values.emailOrUsername,
       values.password,
@@ -52,6 +53,9 @@ export default function LoginPage() {
           (err as { message: string }).message ||
             "Login failed. Please try again."
         );
+      },
+      () => {
+        router.push("/setup-account");
       }
     );
   };

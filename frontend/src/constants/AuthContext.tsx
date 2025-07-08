@@ -32,7 +32,11 @@ interface AuthContextType {
     emailOrUsername: string,
     password: string,
     onSuccess: (result: unknown) => void,
-    onFailure: (err: unknown) => void
+    onFailure: (err: unknown) => void,
+    onNewPasswordRequired?: (
+      cognitoUser: CognitoUser,
+      userAttributes: Record<string, string>
+    ) => void
   ) => void;
   handleSignup: (
     email: string,
@@ -53,6 +57,13 @@ interface AuthContextType {
     oldPassword: string,
     newPassword: string,
     onSuccess: () => void,
+    onFailure: (err: unknown) => void
+  ) => void;
+  handleCompleteNewPasswordChallenge: (
+    cognitoUser: CognitoUser,
+    newPassword: string,
+    userAttributes: Record<string, string>,
+    onSuccess: (result: unknown) => void,
     onFailure: (err: unknown) => void
   ) => void;
   handleRefreshToken: () => Promise<string | null>;
@@ -87,7 +98,8 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       } catch (error) {
         console.error("Error reading from localStorage:", error);
-        // Clear potentially corrupted data
+
+        // clear potentially corrupted data
         localStorage.removeItem("user");
         localStorage.removeItem("token");
       } finally {
@@ -102,7 +114,11 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
     emailOrUsername: string,
     password: string,
     onSuccess: (result: unknown) => void,
-    onFailure: (err: unknown) => void
+    onFailure: (err: unknown) => void,
+    onNewPasswordRequired?: (
+      cognitoUser: CognitoUser,
+      userAttributes: Record<string, string>
+    ) => void
   ) => {
     const authData = {
       Username: emailOrUsername,
@@ -122,10 +138,7 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
         const newToken = result.getIdToken().getJwtToken();
         const payload = result.getIdToken().payload;
 
-        // console.log("Authentication successful, token:", newToken);
-        // console.log("User data:", payload);
-
-        // Extract user information from the token payload
+        // extract user information from the token payload
         const newUser: User = {
           id: payload.sub,
           email: payload.email || emailOrUsername,
@@ -138,30 +151,26 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
         localStorage.setItem("token", newToken);
         localStorage.setItem("user", JSON.stringify(newUser));
 
-        // console.log("User logged in:", newUser);
-        // console.log(localStorage.getItem("user"));
-
         onSuccess(result);
       },
       onFailure: (err: unknown) => {
         console.error("Authentication failed:", err);
         onFailure(err);
       },
-      mfaRequired: function (codeDeliveryDetails) {
-        console.log("MFA required:", codeDeliveryDetails);
-        // Handle MFA if needed
-        onFailure(new Error("MFA required but not implemented yet"));
-      },
       newPasswordRequired: function (userAttributes, requiredAttributes) {
         console.log(
-          "New password required:",
+          "INFO: New password required:",
           userAttributes,
           requiredAttributes
         );
-        // Handle password change requirement
-        onFailure(
-          new Error("Password change required but not implemented yet")
-        );
+        // handle new password challenge (new user)
+        if (onNewPasswordRequired) {
+          onNewPasswordRequired(cognitoUser, userAttributes);
+        } else {
+          onFailure(
+            new Error("Password change required but not implemented yet")
+          );
+        }
       },
     });
   };
@@ -233,7 +242,7 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
     window.location.href = "/login";
   };
 
-  // TODO: check
+  // TODO: not implemented
   const handleChangePassword = (
     oldPassword: string,
     newPassword: string,
@@ -259,6 +268,43 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log("Password changed successfully:", result);
         onSuccess();
       }
+    });
+  };
+
+  const handleCompleteNewPasswordChallenge = (
+    cognitoUser: CognitoUser,
+    newPassword: string,
+    userAttributes: Record<string, string>,
+    onSuccess: (result: unknown) => void,
+    onFailure: (err: unknown) => void
+  ) => {
+    cognitoUser.completeNewPasswordChallenge(newPassword, userAttributes, {
+      onSuccess: (result) => {
+        const newToken = result.getIdToken().getJwtToken();
+        const payload = result.getIdToken().payload;
+
+        // extract user information from the token payload
+        const newUser: User = {
+          id: payload.sub,
+          email: payload.email || userAttributes.email,
+          username: payload["cognito:username"] || cognitoUser.getUsername(),
+          name:
+            payload.name ||
+            payload["cognito:username"] ||
+            cognitoUser.getUsername(),
+        };
+
+        setUser(newUser);
+        setToken(newToken);
+        localStorage.setItem("token", newToken);
+        localStorage.setItem("user", JSON.stringify(newUser));
+
+        onSuccess(result);
+      },
+      onFailure: (err: unknown) => {
+        console.error("New password challenge failed:", err);
+        onFailure(err);
+      },
     });
   };
 
@@ -329,6 +375,7 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
         handleConfirmSignup,
         handleLogout,
         handleChangePassword,
+        handleCompleteNewPasswordChallenge,
         handleRefreshToken,
       }}
     >

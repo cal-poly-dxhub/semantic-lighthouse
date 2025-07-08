@@ -47,7 +47,7 @@ const VideoPage = () => {
       }
 
       try {
-        const apiUrl = `${process.env.NEXT_PUBLIC_VIDEO_AUTH_API_URL}${id}/${route}`;
+        const apiUrl = `${id}/${route}`;
         const { data, error, status } = await apiRequest<VideoRequestResponse>(
           "GET",
           apiUrl

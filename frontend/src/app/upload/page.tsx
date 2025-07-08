@@ -110,7 +110,7 @@ export default function UploadPage() {
         meetingId: string;
         videoPresignedUrl: string;
         agendaPresignedUrl: string;
-      }>("POST", `${process.env.NEXT_PUBLIC_VIDEO_AUTH_API_URL}upload`, {
+      }>("POST", "upload", {
         body: {
           meetingTitle: values.meetingTitle,
           meetingDate: values.meetingDate,

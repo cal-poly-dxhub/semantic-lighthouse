@@ -35,11 +35,12 @@ const VerifyPage = () => {
 
   // get username from URL params if available (passed from signup)
   const usernameFromParams = searchParams.get("username") || "";
+  const confirmationCodeFromParams = searchParams.get("code") || "";
 
   const form = useForm({
     initialValues: {
       username: usernameFromParams,
-      confirmationCode: "",
+      confirmationCode: confirmationCodeFromParams,
       password: "",
     },
     validate: {
@@ -70,11 +71,11 @@ const VerifyPage = () => {
       () => {
         // verification handles login automatically
         setSuccess(
-          "Email verified successfully! Taking you to the dashboard..."
+          "Email verified successfully! Taking you to the home page..."
         );
         setTimeout(() => {
           setLoading(false);
-          router.push("/dashboard");
+          router.push("/");
         }, 1000);
       },
       (err: unknown) => {

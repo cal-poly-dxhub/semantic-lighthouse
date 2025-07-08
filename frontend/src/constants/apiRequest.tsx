@@ -49,7 +49,9 @@ export const useApiRequest = () => {
           }
         }
 
-        const urlWithParams = new URL(url);
+        const urlWithParams = new URL(
+          process.env.NEXT_PUBLIC_VIDEO_AUTH_API_URL + url
+        );
         if (params) {
           Object.entries(params).forEach(([key, value]) => {
             urlWithParams.searchParams.append(key, value);
@@ -60,6 +62,13 @@ export const useApiRequest = () => {
             urlWithParams.searchParams.append(key, value);
           });
         }
+
+        console.log("INFO: Making API request", {
+          method,
+          url: urlWithParams.toString(),
+          headers,
+          body,
+        });
 
         const response = await fetch(urlWithParams, {
           method,

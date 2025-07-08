@@ -16,14 +16,12 @@ const Header = memo(function DefaultHeader() {
   const theme = useMantineTheme();
   const { user, handleLogout, isLoading } = useAuth();
 
-  // Don't render auth buttons until loading is complete to prevent flickering
+  // try to prevent flickering
   const renderAuthButtons = () => {
     if (isLoading) {
-      // Return empty space with same height to prevent layout shift
       return (
-        <Group visibleFrom="sm" style={{ minHeight: "36px" }}>
-          {/* Placeholder to maintain layout */}
-        </Group>
+        // placeholder for layout
+        <Group visibleFrom="sm" style={{ minHeight: "36px" }} />
       );
     }
 
@@ -57,20 +55,33 @@ const Header = memo(function DefaultHeader() {
             <Title order={4} className={classes.title} mr={theme.spacing.md}>
               Semantic Lighthouse
             </Title>
-            <Anchor
-              href="/"
-              className={classes.link}
-              style={{ textDecoration: "none" }}
-            >
-              Home
-            </Anchor>
-            <Anchor
-              href="/upload"
-              className={classes.link}
-              style={{ textDecoration: "none" }}
-            >
-              Upload
-            </Anchor>
+            {user ? (
+              <>
+                <Anchor
+                  href="/"
+                  className={classes.link}
+                  style={{ textDecoration: "none" }}
+                >
+                  Home
+                </Anchor>
+                <Anchor
+                  href="/upload"
+                  className={classes.link}
+                  style={{ textDecoration: "none" }}
+                >
+                  Upload
+                </Anchor>
+                <Anchor
+                  href="/create-user"
+                  className={classes.link}
+                  style={{ textDecoration: "none" }}
+                >
+                  Create User
+                </Anchor>
+              </>
+            ) : (
+              <></>
+            )}
           </Group>
           {renderAuthButtons()}
         </Group>

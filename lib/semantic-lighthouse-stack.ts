@@ -2,6 +2,7 @@ import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 import { SemanticLighthouseStackProps } from "../bin/semantic-lighthouse";
 import { AuthResources } from "./auth";
+import { CustomEmailResources } from "./custom-email";
 import { FrontendResources } from "./frontend";
 import { MeetingApiResources } from "./meeting-api";
 import { MeetingDataResources } from "./meeting-data";
@@ -15,6 +16,10 @@ export class SemanticLighthouseStack extends cdk.Stack {
     super(scope, id, props);
 
     const { uniqueId } = props;
+
+    // TODO:
+    // check flow for new user signup and user creation (already removed current user and enabled self signup)
+    // integration
 
     // TODO: change all .DESTROY to .RETAIN in production
 
@@ -34,9 +39,11 @@ export class SemanticLighthouseStack extends cdk.Stack {
     new MeetingApiResources(this, "MeetingApi", {
       uniqueId,
       userPool: authResources.userPool,
+      userPoolClient: authResources.userPoolClient,
       meetingsBucket: meetingDataResources.bucket,
       meetingsTable: meetingDataResources.table,
       videoDistribution: meetingDataResources.distribution,
+      defaultUserGroupName: authResources.defaultUserGroupName,
     });
 
     // ------------ FRONTEND HOSTING ------------
@@ -45,6 +52,13 @@ export class SemanticLighthouseStack extends cdk.Stack {
       userPool: authResources.userPool,
       userPoolClient: authResources.userPoolClient,
       videoDistribution: meetingDataResources.distribution,
+    });
+
+    // ------------ CUSTOM EMAIL SETUP ------------
+
+    new CustomEmailResources(this, "CustomEmail", {
+      userPool: authResources.userPool,
+      frontendDistribution: frontendResources.distribution,
     });
 
     // ------------ OUTPUTS ------------

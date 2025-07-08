@@ -1,7 +1,7 @@
 import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 
-export interface MeetingDataStackProps {
+export interface MeetingDataResourcesProps {
   uniqueId: string;
   userPool: cdk.aws_cognito.UserPool;
 }
@@ -11,7 +11,7 @@ export class MeetingDataResources extends Construct {
   public readonly distribution: cdk.aws_cloudfront.Distribution;
   public readonly table: cdk.aws_dynamodb.Table;
 
-  constructor(scope: Construct, id: string, props: MeetingDataStackProps) {
+  constructor(scope: Construct, id: string, props: MeetingDataResourcesProps) {
     super(scope, id);
 
     // s3 bucket for meetings

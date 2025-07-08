@@ -1,7 +1,7 @@
 import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 
-export interface FrontendStackProps {
+export interface FrontendResourcesProps {
   userPool: cdk.aws_cognito.UserPool;
   userPoolClient: cdk.aws_cognito.UserPoolClient;
   videoDistribution: cdk.aws_cloudfront.Distribution;
@@ -10,7 +10,7 @@ export interface FrontendStackProps {
 export class FrontendResources extends Construct {
   public readonly distribution: cdk.aws_cloudfront.Distribution;
 
-  constructor(scope: Construct, id: string, props: FrontendStackProps) {
+  constructor(scope: Construct, id: string, props: FrontendResourcesProps) {
     super(scope, id);
 
     // s3 bucket for static assets
@@ -84,6 +84,14 @@ export class FrontendResources extends Construct {
         sources: [cdk.aws_s3_deployment.Source.asset("./frontend.zip")],
         destinationBucket: sourceBucket,
         extract: false, // we upload a zip file, no need to extract
+        logGroup: new cdk.aws_logs.LogGroup(
+          this,
+          "FrontendSourceDeploymentLogGroup",
+          {
+            removalPolicy: cdk.RemovalPolicy.DESTROY,
+            retention: cdk.aws_logs.RetentionDays.ONE_WEEK,
+          }
+        ),
       }
     );
 
@@ -146,6 +154,7 @@ export class FrontendResources extends Construct {
         cloudWatch: {
           logGroup: new cdk.aws_logs.LogGroup(this, "FrontendBuildLogGroup", {
             removalPolicy: cdk.RemovalPolicy.DESTROY,
+            retention: cdk.aws_logs.RetentionDays.ONE_WEEK,
           }),
         },
       },
