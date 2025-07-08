@@ -8,16 +8,38 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
 import * as path from "path";
+import * as fs from "fs";
 import { Construct } from "constructs";
 
 export interface MeetingProcessorCdkStackProps extends cdk.StackProps {
   /**
    * The name of the S3 bucket for storing all meeting files.
-   * @default 'meeting-minutes-processor-files-us-west-2-v2'
+   * If not provided, CDK will auto-generate a unique bucket name.
+   * @default undefined (auto-generated)
    */
   readonly s3BucketName?: string;
+
+  /**
+   * Prefix for resource names to ensure uniqueness in customer environments.
+   * Combined with account ID and region to create AWS-compliant unique names.
+   * @default 'semantic-lighthouse'
+   * @example 'semantic-lighthouse' becomes 'semantic-lighthouse-123456-uswest2'
+   */
+  readonly resourcePrefix?: string;
 }
 
+/**
+ * Semantic Lighthouse Meeting Processor CDK Stack
+ *
+ * This stack deploys a complete serverless meeting processing pipeline that:
+ * - Converts video recordings to audio and transcripts
+ * - Uses AI to analyze transcripts and generate meeting minutes
+ * - Processes agenda documents for enhanced context
+ * - Generates interactive HTML and PDF outputs with clickable video links
+ * - Sends email notifications when processing is complete
+ *
+ * All resources are automatically named with unique prefixes to avoid conflicts.
+ */
 export class MeetingProcessorCdkStack extends cdk.Stack {
   public readonly s3Bucket: s3.Bucket;
   public readonly stateMachine: stepfunctions.StateMachine;
@@ -30,15 +52,37 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
   ) {
     super(scope, id, props);
 
-    // Default bucket name with -v2 suffix to avoid conflicts
-    const bucketName =
-      props.s3BucketName || "meeting-minutes-processor-files-us-west-2-v2";
+    // Resource prefix for uniqueness - simplified to meet AWS naming constraints
+    const resourcePrefix = props.resourcePrefix || "semantic-lighthouse";
+    // Use stack ID for uniqueness instead of account/region tokens to avoid CDK token issues
+    const stackSuffix = cdk.Names.uniqueId(this)
+      .toLowerCase()
+      .replace(/[^a-zA-Z0-9-]/g, "")
+      .slice(0, 8);
+    const uniquePrefix = `${resourcePrefix}-${stackSuffix}`;
+
+    // =================================================================
+    // CONFIGURATION FILES - Read prompt templates at deployment time
+    // =================================================================
+
+    // Read prompt templates from config files
+    const transcriptPromptTemplate = fs.readFileSync(
+      path.join(__dirname, "../config/prompts/transcript-analysis.txt"),
+      "utf8"
+    );
+    const fallbackAgendaText = fs.readFileSync(
+      path.join(__dirname, "../config/prompts/fallback-agenda.txt"),
+      "utf8"
+    );
 
     // =================================================================
     // S3 BUCKET - Central storage for all meeting files
     // =================================================================
+
     this.s3Bucket = new s3.Bucket(this, "MeetingFilesBucket", {
-      bucketName: bucketName,
+      // Only use explicit bucket name if provided, otherwise let CDK auto-generate
+      // This ensures global uniqueness for different deployments/accounts
+      bucketName: props.s3BucketName,
       versioned: false,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       encryption: s3.BucketEncryption.S3_MANAGED,
@@ -68,68 +112,74 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
       this,
       "EmailNotificationTopic",
       {
-        topicName: "meeting-processor-notifications",
-        displayName: "Meeting Processor Notifications",
+        topicName: `${uniquePrefix}-notifications`,
+        displayName: "Semantic Lighthouse Meeting Processor Notifications",
       }
     );
 
     // =================================================================
-    // LAMBDA LAYERS - WeasyPrint and MediaInfo
+    // LAMBDA LAYERS - Video analysis and PDF generation tools
     // =================================================================
 
-    // MediaInfo layer for video analysis
-    const mediaInfoLayer = new lambda.LayerVersion(this, "MediaInfoLayer", {
-      layerVersionName: "pymediainfo-layer-v2",
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, "../lambda/layers/pymediainfo_layer")
-      ),
-      compatibleRuntimes: [lambda.Runtime.PYTHON_3_12],
-      description: "PyMediaInfo library for video file analysis",
-    });
+    // Video analysis layer for extracting metadata from video files
+    const videoAnalysisLayer = new lambda.LayerVersion(
+      this,
+      "VideoAnalysisLayer",
+      {
+        layerVersionName: `${uniquePrefix}-video-analysis-tools`,
+        code: lambda.Code.fromAsset(
+          path.join(__dirname, "../lambda/layers/pymediainfo_layer")
+        ),
+        compatibleRuntimes: [lambda.Runtime.PYTHON_3_12],
+        description:
+          "Video metadata extraction tools for analyzing uploaded meeting recordings",
+      }
+    );
 
-    // WeasyPrint layer for PDF generation (precompiled with deps)
-    const weasyPrintLayer = new lambda.LayerVersion(this, "WeasyPrintLayer", {
-      layerVersionName: "weasyprint-layer-v2",
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, "../lambda/layers/weasyprint")
-      ),
-      compatibleRuntimes: [lambda.Runtime.PYTHON_3_12],
-      description: "WeasyPrint with native dependencies for HTML→PDF",
-    });
+    // PDF generation layer with fonts and dependencies
+    const pdfGenerationLayer = new lambda.LayerVersion(
+      this,
+      "PdfGenerationLayer",
+      {
+        layerVersionName: `${uniquePrefix}-pdf-generation-tools`,
+        code: lambda.Code.fromAsset(
+          path.join(__dirname, "../lambda/layers/weasyprint")
+        ),
+        compatibleRuntimes: [lambda.Runtime.PYTHON_3_12],
+        description:
+          "PDF generation tools with fonts for converting HTML meeting minutes to PDF",
+      }
+    );
 
     // =================================================================
     // LAMBDA FUNCTIONS - Meeting processing pipeline
     // =================================================================
 
-    // 1. MediaConvert Trigger Function
-    const mediaConvertTriggerFunction = new lambda.Function(
+    // 1. Video to Audio Converter - Converts uploaded videos to audio for transcription
+    const videoToAudioConverter = new lambda.Function(
       this,
-      "MediaConvertTriggerFunction",
+      "VideoToAudioConverter",
       {
-        functionName: "meeting-processor-mediaconvert-trigger-v2",
+        functionName: `${uniquePrefix}-video-to-audio-converter`,
         runtime: lambda.Runtime.PYTHON_3_12,
         code: lambda.Code.fromAsset("lambda/src/mediaconvert_trigger"),
         handler: "handler.lambda_handler",
         timeout: cdk.Duration.minutes(15),
         memorySize: 2048,
-        layers: [mediaInfoLayer],
+        layers: [videoAnalysisLayer],
         environment: {
           BUCKET_NAME: this.s3Bucket.bucketName,
           OUTPUT_BUCKET: this.s3Bucket.bucketName,
-          ALLOWED_BUCKET_PATTERNS: JSON.stringify([
-            "^k12-temp-testing-\\d+$",
-            "^meeting-minutes-processor-files-.*$",
-          ]),
         },
       }
     );
 
-    // 2. Verify S3 File Function
-    const verifyS3FileFunction = new lambda.Function(
+    // 2. Processing Status Monitor - Monitors conversion jobs and file availability
+    const processingStatusMonitor = new lambda.Function(
       this,
-      "VerifyS3FileFunction",
+      "ProcessingStatusMonitor",
       {
-        functionName: "meeting-processor-verify-s3-file-v2",
+        functionName: `${uniquePrefix}-processing-status-monitor`,
         runtime: lambda.Runtime.PYTHON_3_12,
         code: lambda.Code.fromAsset("lambda/src/verify_s3_file"),
         handler: "handler.lambda_handler",
@@ -141,90 +191,83 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
       }
     );
 
-    // 3. Process Transcript Function
-    const processTranscriptFunction = new lambda.Function(
-      this,
-      "ProcessTranscriptFunction",
-      {
-        functionName: "meeting-processor-process-transcript-v2",
-        runtime: lambda.Runtime.PYTHON_3_12,
-        code: lambda.Code.fromAsset("lambda/src/process_transcript", {
-          bundling: {
-            image: lambda.Runtime.PYTHON_3_12.bundlingImage,
-            command: [
-              "bash",
-              "-c",
-              "pip install -r requirements.txt -t /asset-output && cp -au . /asset-output",
-            ],
-          },
-        }),
-        handler: "handler.lambda_handler",
-        timeout: cdk.Duration.minutes(15),
-        memorySize: 4096,
-        environment: {
-          S3_BUCKET: this.s3Bucket.bucketName,
-        },
-      }
-    );
-
-    // 4. HTML to PDF Function
-    const htmlToPdfFunction = new lambda.Function(this, "HtmlToPdfFunction", {
-      functionName: "meeting-processor-html-to-pdf-v2",
+    // 3. AI Meeting Analyzer - Uses AI to analyze transcripts and generate meeting minutes
+    const aiMeetingAnalyzer = new lambda.Function(this, "AiMeetingAnalyzer", {
+      functionName: `${uniquePrefix}-ai-meeting-analyzer`,
       runtime: lambda.Runtime.PYTHON_3_12,
-      code: lambda.Code.fromAsset("lambda/src/html_to_pdf"),
+      code: lambda.Code.fromAsset("lambda/src/process_transcript", {
+        bundling: {
+          image: lambda.Runtime.PYTHON_3_12.bundlingImage,
+          command: [
+            "bash",
+            "-c",
+            "pip install -r requirements.txt -t /asset-output && cp -au . /asset-output",
+          ],
+        },
+      }),
       handler: "handler.lambda_handler",
-      timeout: cdk.Duration.minutes(5),
-      memorySize: 1536,
-      layers: [weasyPrintLayer],
+      timeout: cdk.Duration.minutes(15),
+      memorySize: 4096,
       environment: {
-        BUCKET_NAME: this.s3Bucket.bucketName,
-        LD_LIBRARY_PATH: "/opt/lib",
-        FONTCONFIG_PATH: "/opt/fonts",
+        S3_BUCKET: this.s3Bucket.bucketName,
+        TRANSCRIPT_MODEL_ID: "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+        TRANSCRIPT_MAX_TOKENS: "8000",
+        TRANSCRIPT_TEMPERATURE: "0.2",
+        TRANSCRIPT_PROMPT_TEMPLATE: transcriptPromptTemplate,
+        FALLBACK_AGENDA_TEXT: fallbackAgendaText,
       },
     });
 
-    // 5. Email Sender Function
-    const emailSenderFunction = new lambda.Function(
+    // 4. Document PDF Generator - Converts HTML meeting minutes to PDF format
+    const documentPdfGenerator = new lambda.Function(
       this,
-      "EmailSenderFunction",
+      "DocumentPdfGenerator",
       {
-        functionName: "meeting-processor-email-sender-v2",
+        functionName: `${uniquePrefix}-document-pdf-generator`,
         runtime: lambda.Runtime.PYTHON_3_12,
-        code: lambda.Code.fromAsset("lambda/src/email_sender"),
+        code: lambda.Code.fromAsset("lambda/src/html_to_pdf"),
         handler: "handler.lambda_handler",
-        timeout: cdk.Duration.minutes(1),
-        memorySize: 256,
+        timeout: cdk.Duration.minutes(5),
+        memorySize: 1536,
+        layers: [pdfGenerationLayer],
         environment: {
-          SNS_TOPIC_ARN: this.emailNotificationTopic.topicArn,
+          BUCKET_NAME: this.s3Bucket.bucketName,
+          LD_LIBRARY_PATH: "/opt/lib",
+          FONTCONFIG_PATH: "/opt/fonts",
         },
       }
     );
+
+    // 5. Notification Sender - Sends email notifications when processing is complete
+    const notificationSender = new lambda.Function(this, "NotificationSender", {
+      functionName: `${uniquePrefix}-notification-sender`,
+      runtime: lambda.Runtime.PYTHON_3_12,
+      code: lambda.Code.fromAsset("lambda/src/email_sender"),
+      handler: "handler.lambda_handler",
+      timeout: cdk.Duration.minutes(1),
+      memorySize: 256,
+      environment: {
+        SNS_TOPIC_ARN: this.emailNotificationTopic.topicArn,
+        NOTIFICATION_EMAIL: "user@example.com", // User can update this via console
+      },
+    });
 
     // =================================================================
     // IAM PERMISSIONS - Grant necessary permissions to Lambda functions
     // =================================================================
 
     // S3 permissions for all functions
-    this.s3Bucket.grantReadWrite(mediaConvertTriggerFunction);
-    this.s3Bucket.grantReadWrite(verifyS3FileFunction);
-    this.s3Bucket.grantReadWrite(processTranscriptFunction);
-    this.s3Bucket.grantReadWrite(htmlToPdfFunction);
-    this.s3Bucket.grantRead(emailSenderFunction);
+    this.s3Bucket.grantReadWrite(videoToAudioConverter);
+    this.s3Bucket.grantReadWrite(processingStatusMonitor);
+    this.s3Bucket.grantReadWrite(aiMeetingAnalyzer);
+    this.s3Bucket.grantReadWrite(documentPdfGenerator);
+    this.s3Bucket.grantRead(notificationSender);
 
-    // SNS permissions for email sender
-    this.emailNotificationTopic.grantPublish(emailSenderFunction);
-
-    // Allow EmailSenderFunction to read email.txt from external config bucket
-    emailSenderFunction.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["s3:GetObject"],
-        resources: ["arn:aws:s3:::k12-temp-testing-static-files/*"],
-      })
-    );
+    // SNS permissions for notification sender
+    this.emailNotificationTopic.grantPublish(notificationSender);
 
     // Grant SNS subscribe and list permissions for confirmation flow
-    emailSenderFunction.addToRolePolicy(
+    notificationSender.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ["sns:Subscribe", "sns:ListSubscriptionsByTopic"],
@@ -232,8 +275,8 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
       })
     );
 
-    // MediaConvert permissions
-    mediaConvertTriggerFunction.addToRolePolicy(
+    // MediaConvert permissions for video conversion
+    videoToAudioConverter.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: [
@@ -247,7 +290,7 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
     );
 
     // IAM PassRole permission for MediaConvert
-    mediaConvertTriggerFunction.addToRolePolicy(
+    videoToAudioConverter.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ["iam:PassRole"],
@@ -260,8 +303,8 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
       })
     );
 
-    // MediaConvert permissions for VerifyS3FileFunction (to check job status)
-    verifyS3FileFunction.addToRolePolicy(
+    // MediaConvert permissions for ProcessingStatusMonitor (to check job status)
+    processingStatusMonitor.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ["mediaconvert:GetJob", "mediaconvert:ListJobs"],
@@ -269,8 +312,8 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
       })
     );
 
-    // Transcribe permissions
-    [mediaConvertTriggerFunction, verifyS3FileFunction].forEach((func) => {
+    // Transcribe permissions for video converter and status monitor
+    [videoToAudioConverter, processingStatusMonitor].forEach((func) => {
       func.addToRolePolicy(
         new iam.PolicyStatement({
           effect: iam.Effect.ALLOW,
@@ -285,7 +328,7 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
     });
 
     // Bedrock permissions for AI analysis
-    processTranscriptFunction.addToRolePolicy(
+    aiMeetingAnalyzer.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: [
@@ -301,21 +344,11 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
       })
     );
 
-    // Allow ProcessTranscriptFunction to read external prompt and agenda files
-    processTranscriptFunction.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["s3:GetObject"],
-        resources: ["arn:aws:s3:::k12-temp-testing-static-files/*"],
-      })
-    );
-
     // =================================================================
     // STEP FUNCTIONS STATE MACHINE - Main workflow orchestration
     // =================================================================
 
     // Read the state machine definition and substitute variables
-    const fs = require("fs");
     let stateMachineDefinitionString = fs.readFileSync(
       "statemachine/transcribe.asl.json",
       "utf8"
@@ -325,15 +358,18 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
     stateMachineDefinitionString = stateMachineDefinitionString
       .replace(
         /\$\{MediaConvertLambdaArn\}/g,
-        mediaConvertTriggerFunction.functionArn
+        videoToAudioConverter.functionArn
       )
-      .replace(/\$\{VerifyS3FileLambdaArn\}/g, verifyS3FileFunction.functionArn)
+      .replace(
+        /\$\{VerifyS3FileLambdaArn\}/g,
+        processingStatusMonitor.functionArn
+      )
       .replace(
         /\$\{ProcessTranscriptLambdaArn\}/g,
-        processTranscriptFunction.functionArn
+        aiMeetingAnalyzer.functionArn
       )
-      .replace(/\$\{HtmlToPdfFunctionArn\}/g, htmlToPdfFunction.functionArn)
-      .replace(/\$\{EmailSenderLambdaArn\}/g, emailSenderFunction.functionArn)
+      .replace(/\$\{HtmlToPdfFunctionArn\}/g, documentPdfGenerator.functionArn)
+      .replace(/\$\{EmailSenderLambdaArn\}/g, notificationSender.functionArn)
       .replace(/\$\{OutputBucketName\}/g, this.s3Bucket.bucketName);
 
     const stateMachineDefinition = stepfunctions.DefinitionBody.fromString(
@@ -342,9 +378,9 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
 
     this.stateMachine = new stepfunctions.StateMachine(
       this,
-      "TranscriptionStateMachine",
+      "MeetingProcessingWorkflow",
       {
-        stateMachineName: "meeting-processor-transcription-v2",
+        stateMachineName: `${uniquePrefix}-processing-workflow`,
         definitionBody: stateMachineDefinition,
         timeout: cdk.Duration.hours(4),
       }
@@ -374,11 +410,11 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
 
     // Grant state machine permissions to invoke Lambda functions
     [
-      mediaConvertTriggerFunction,
-      verifyS3FileFunction,
-      processTranscriptFunction,
-      htmlToPdfFunction,
-      emailSenderFunction,
+      videoToAudioConverter,
+      processingStatusMonitor,
+      aiMeetingAnalyzer,
+      documentPdfGenerator,
+      notificationSender,
     ].forEach((func) => {
       func.grantInvoke(this.stateMachine);
     });
@@ -387,11 +423,12 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
     // AGENDA PROCESSOR FUNCTION - Created after state machine for ARN reference
     // =================================================================
 
-    // Create a dedicated IAM role with full Bedrock access for the agenda processor
+    // Create a dedicated IAM role with full Bedrock access for the agenda document processor
     const agendaProcessorRole = new iam.Role(this, "AgendaProcessorRole", {
+      roleName: `${uniquePrefix}-agenda-processor-role`,
       assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
       description:
-        "Role for AgendaProcessor Lambda with full Amazon Bedrock access",
+        "Role for Semantic Lighthouse Agenda Document Processor Lambda with full Amazon Bedrock access",
       managedPolicies: [
         iam.ManagedPolicy.fromAwsManagedPolicyName(
           "service-role/AWSLambdaBasicExecutionRole"
@@ -400,12 +437,12 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
       ],
     });
 
-    // 6. Agenda Processor Function
-    const agendaProcessorFunction = new lambda.Function(
+    // 6. Agenda Document Processor - Analyzes uploaded meeting agendas using AI
+    const agendaDocumentProcessor = new lambda.Function(
       this,
-      "AgendaProcessorFunction",
+      "AgendaDocumentProcessor",
       {
-        functionName: "meeting-processor-agenda-processor-v2",
+        functionName: `${uniquePrefix}-agenda-document-processor`,
         runtime: lambda.Runtime.PYTHON_3_12,
         code: lambda.Code.fromAsset("lambda/src/agenda_processor"),
         handler: "handler.lambda_handler",
@@ -415,16 +452,18 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
         environment: {
           BUCKET_NAME: this.s3Bucket.bucketName,
           STATE_MACHINE_ARN: this.stateMachine.stateMachineArn,
-          TEST_NOVA_ONLY: "false",
+          AGENDA_MODEL_ID: "us.anthropic.claude-sonnet-4-20250514-v1:0",
+          AGENDA_MAX_TOKENS: "65535",
+          AGENDA_TEMPERATURE: "0.1",
         },
       }
     );
 
-    // Additional IAM permissions for AgendaProcessorFunction
-    this.s3Bucket.grantReadWrite(agendaProcessorFunction);
+    // Additional IAM permissions for AgendaDocumentProcessor
+    this.s3Bucket.grantReadWrite(agendaDocumentProcessor);
 
-    // Textract permissions for AgendaProcessorFunction
-    agendaProcessorFunction.addToRolePolicy(
+    // Textract permissions for AgendaDocumentProcessor
+    agendaDocumentProcessor.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: [
@@ -435,8 +474,8 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
       })
     );
 
-    // Bedrock permissions for AgendaProcessorFunction (Nova Premier)
-    agendaProcessorFunction.addToRolePolicy(
+    // Bedrock permissions for AgendaDocumentProcessor (Nova Premier)
+    agendaDocumentProcessor.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ["bedrock:InvokeModel"],
@@ -448,7 +487,7 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
     );
 
     // Marketplace subscribe permissions for third-party models
-    agendaProcessorFunction.addToRolePolicy(
+    agendaDocumentProcessor.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: [
@@ -460,8 +499,8 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
       })
     );
 
-    // Step Functions permissions for AgendaProcessorFunction (to trigger combined processing)
-    agendaProcessorFunction.addToRolePolicy(
+    // Step Functions permissions for AgendaDocumentProcessor (to trigger combined processing)
+    agendaDocumentProcessor.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ["states:StartExecution"],
@@ -469,8 +508,8 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
       })
     );
 
-    // STS permissions for AgendaProcessorFunction (to get account ID)
-    agendaProcessorFunction.addToRolePolicy(
+    // STS permissions for AgendaDocumentProcessor (to get account ID)
+    agendaDocumentProcessor.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ["sts:GetCallerIdentity"],
@@ -521,9 +560,9 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
       },
     });
 
-    // Add Agenda Processor as target for agenda uploads
+    // Add Agenda Document Processor as target for agenda uploads
     s3AgendaUploadRule.addTarget(
-      new targets.LambdaFunction(agendaProcessorFunction, {
+      new targets.LambdaFunction(agendaDocumentProcessor, {
         event: events.RuleTargetInput.fromEventPath("$"),
       })
     );
@@ -534,22 +573,23 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
 
     new cdk.CfnOutput(this, "S3BucketName", {
       value: this.s3Bucket.bucketName,
-      description: "S3 bucket for meeting files",
+      description: "Semantic Lighthouse S3 bucket for meeting files storage",
     });
 
     new cdk.CfnOutput(this, "StateMachineArn", {
       value: this.stateMachine.stateMachineArn,
-      description: "Step Functions state machine ARN",
+      description: "Semantic Lighthouse meeting processing workflow ARN",
     });
 
     new cdk.CfnOutput(this, "EmailNotificationTopicArn", {
       value: this.emailNotificationTopic.topicArn,
-      description: "SNS topic for email notifications",
+      description: "Semantic Lighthouse SNS topic for email notifications",
     });
 
-    new cdk.CfnOutput(this, "AgendaProcessorFunctionArn", {
-      value: agendaProcessorFunction.functionArn,
-      description: "Agenda processor Lambda function ARN",
+    new cdk.CfnOutput(this, "AgendaDocumentProcessorArn", {
+      value: agendaDocumentProcessor.functionArn,
+      description:
+        "Semantic Lighthouse agenda document processor Lambda function ARN",
     });
   }
 }

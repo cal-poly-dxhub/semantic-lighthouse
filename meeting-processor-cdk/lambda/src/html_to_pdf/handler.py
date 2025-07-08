@@ -4,7 +4,7 @@ import boto3
 import tempfile
 from urllib.parse import urlparse
 
-# WeasyPrint will be provided by the external Lambda layer
+# Provided by lambda layer
 from weasyprint import HTML  # type: ignore
 
 logger = logging.getLogger()
@@ -41,7 +41,7 @@ def upload_pdf_to_s3(pdf_bytes: bytes, bucket: str, key: str) -> str:
 
 
 def convert_html_to_pdf(html_content: str) -> bytes:
-    """Convert HTML string to PDF bytes using WeasyPrint."""
+    """Convert HTML string to PDF bytes"""
     with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as tmp_html:
         tmp_html.write(html_content.encode("utf-8"))
         tmp_html.flush()

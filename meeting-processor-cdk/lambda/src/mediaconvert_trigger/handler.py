@@ -1,11 +1,12 @@
 import json
 import boto3
 import uuid
-import re
 import math
 import logging
 from urllib.parse import unquote_plus
-from pymediainfo import MediaInfo
+
+# Provided by lambda layer
+from pymediainfo import MediaInfo  # type: ignore
 import os
 
 # Set up logging
@@ -16,35 +17,19 @@ logger.setLevel(logging.INFO)
 s3_client = boto3.client("s3")
 mediaconvert_client = boto3.client("mediaconvert")
 
-# Configuration - Read allowed bucket patterns from environment variable
-try:
-    ALLOWED_BUCKET_PATTERNS = json.loads(
-        os.environ.get("ALLOWED_BUCKET_PATTERNS", "[]")
-    )
-except json.JSONDecodeError:
-    # Fallback to default patterns if environment variable is malformed
-    ALLOWED_BUCKET_PATTERNS = [
-        r"^k12-temp-testing-\d+$",  # Matches k12-temp-testing-1, k12-temp-testing-25, etc.
-        r"^meeting-minutes-processor-files-.*$",  # Matches meeting-minutes-processor-files-* buckets
-    ]
+# Configuration
 
 # Chunking configuration
-CHUNK_DURATION_HOURS = 4  # Split videos into 4-hour chunks
+CHUNK_DURATION_HOURS = (
+    4  # Split videos into 4-hour chunks (AWS Transcribe limits files to 4)
+)
 DURATION_THRESHOLD_HOURS = 4  # Split if video > 4 hours
-SIGNED_URL_EXPIRATION = 300  # 5 minutes should be enough for metadata extraction
-
-
-def is_bucket_allowed(bucket_name):
-    """Return True if bucket name matches allowed patterns."""
-    for pattern in ALLOWED_BUCKET_PATTERNS:
-        if re.match(pattern, bucket_name):
-            return True
-    return False
+SIGNED_URL_EXPIRATION = 300  # 5 minutes (arbitrary but should be enough)
 
 
 def get_target_bucket(source_bucket):
-    """Return target bucket (same as source if allowed)."""
-    return source_bucket if is_bucket_allowed(source_bucket) else None
+    """Return target bucket (same as source bucket)."""
+    return source_bucket
 
 
 def generate_signed_url(bucket, key, expiration=SIGNED_URL_EXPIRATION):
@@ -190,12 +175,8 @@ def lambda_handler(event, context):
 
         logger.info("Incoming object: s3://%s/%s", bucket, key)
 
-        if not is_bucket_allowed(bucket):
-            logger.warning(
-                "Bucket %s is not allowed based on ALLOWED_BUCKET_PATTERNS – skipping",
-                bucket,
-            )
-            continue
+        # Bucket validation removed - IAM permissions provide security boundary
+        logger.info("Processing bucket: %s", bucket)
 
         # If Step Functions provided output bucket use it; otherwise derive
         if not target_bucket:
@@ -269,7 +250,7 @@ def lambda_handler(event, context):
     logger.info("=== Summary ===")
     logger.info("Total MediaConvert jobs submitted: %d", len(job_ids))
     if not job_ids:
-        logger.warning("No jobs were submitted – check earlier logs for reasons")
+        logger.warning("No jobs were submitted - check earlier logs for reasons")
     else:
         for i, jid in enumerate(job_ids, 1):
             logger.info("Job %d ID: %s", i, jid)
@@ -284,7 +265,7 @@ def lambda_handler(event, context):
         "statusCode": 200,
         "body": json.dumps(response_body),
         "status": "COMPLETED" if job_ids else "ERROR",
-        "job_ids": job_ids,  # Include job_ids directly in result for state machine access
+        "job_ids": job_ids,
     }
 
     # Include audioOutputUri only if we have a target bucket

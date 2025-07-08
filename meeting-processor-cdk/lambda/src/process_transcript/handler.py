@@ -7,8 +7,6 @@ import datetime
 import re
 import markdown
 
-# PDF generation is now handled by separate HtmlToPdfFunction
-
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -195,11 +193,22 @@ def analyze_transcript_with_bedrock(
 
         logger.info(f"Formatted prompt length: {len(formatted_prompt)} characters")
 
+        # Get model configuration from environment variables with defaults
+        model_id = os.environ.get(
+            "TRANSCRIPT_MODEL_ID", "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+        )
+        max_tokens = int(os.environ.get("TRANSCRIPT_MAX_TOKENS", "8000"))
+        temperature = float(os.environ.get("TRANSCRIPT_TEMPERATURE", "0.2"))
+
+        logger.info(
+            f"Using model: {model_id}, max_tokens: {max_tokens}, temperature: {temperature}"
+        )
+
         # Create the request payload for Claude
         request_body = {
             "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 8000,
-            "temperature": 0.2,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
             "messages": [{"role": "user", "content": formatted_prompt}],
         }
 
@@ -207,7 +216,7 @@ def analyze_transcript_with_bedrock(
 
         # Make the streaming API call
         response = bedrock_runtime.invoke_model_with_response_stream(
-            modelId="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+            modelId=model_id,
             contentType="application/json",
             accept="application/json",
             body=json.dumps(request_body),
@@ -936,14 +945,13 @@ def process_transcript_analysis(
 
     analysis_error = None
     try:
-        # Fetch prompt template - always from external bucket for now
-        external_bucket = "k12-temp-testing-static-files"
-        prompt_key = "detailed_prompt.txt"
+        # Get prompt template from environment variable
+        logger.info("Reading prompt template from environment variable...")
+        prompt_template = os.environ.get(
+            "TRANSCRIPT_PROMPT_TEMPLATE", "Default prompt template not configured"
+        )
 
-        logger.info("Fetching prompt template from external S3 bucket...")
-        prompt_template = fetch_s3_text_content(external_bucket, prompt_key)
-
-        # Determine agenda source - use agenda data if available, otherwise fallback to static
+        # Determine agenda source - use agenda data if available, otherwise fallback to environment variable
         if (
             agenda_data
             and agenda_data.get("agenda_exists")
@@ -988,10 +996,11 @@ Participants:"""
             )
         else:
             logger.info(
-                "No agenda data available - fetching static agenda from external S3 bucket..."
+                "No agenda data available - using fallback agenda from environment variable..."
             )
-            agenda_key = "agenda.txt"
-            agenda_text = fetch_s3_text_content(external_bucket, agenda_key)
+            agenda_text = os.environ.get(
+                "FALLBACK_AGENDA_TEXT", "General meeting agenda not configured"
+            )
 
         # Perform Bedrock analysis with enhanced prompt for agenda integration
         logger.info("Performing Bedrock analysis with agenda context...")

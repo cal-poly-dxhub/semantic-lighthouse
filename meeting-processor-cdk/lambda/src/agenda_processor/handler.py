@@ -16,22 +16,26 @@ s3_client = boto3.client("s3")
 textract_client = boto3.client("textract")
 bedrock_runtime = boto3.client(
     "bedrock-runtime",
-    region_name="us-west-2",
+    region_name=os.environ.get("AWS_REGION"),
     # High timeout to handle increased response times for large payloads
     config=Config(connect_timeout=30, read_timeout=300, retries={"max_attempts": 3}),
 )
 
 
 # Configuration
-SONNET_MODEL_ID = "us.anthropic.claude-sonnet-4-20250514-v1:0"
+MODEL_ID = os.environ.get(
+    "AGENDA_MODEL_ID", "us.anthropic.claude-sonnet-4-20250514-v1:0"
+)
 MAX_TEXTRACT_WAIT_TIME = 15 * 60  # 15 minutes
 TEXTRACT_POLL_INTERVAL = 30  # Poll every 30 seconds
 
 
 def extract_correlation_key(s3_key):
     """
-    Extract correlation key from S3 key
-    uploads/agenda_documents/board_meeting_2024_01_15.pdf -> board_meeting_2024_01_15
+    Extract correlation key from S3 key to match agenda documents with corresponding videos.
+    This allows us to pair files based on naming convention rather than complex metadata lookups.
+
+    Example: uploads/agenda_documents/board_meeting_2024_01_15.pdf -> board_meeting_2024_01_15
     """
     filename = s3_key.split("/")[-1]  # Get filename
     base_name = os.path.splitext(filename)[0]  # Remove extension
@@ -52,8 +56,11 @@ def check_s3_object_exists(bucket, key):
 
 def check_for_corresponding_video(bucket, correlation_key):
     """
-    Check if corresponding video file exists
-    Example of pair:
+    Check if corresponding video file exists to determine processing strategy.
+    If both agenda and video exist, we can create comprehensive meeting minutes.
+    If only agenda exists, we provide agenda analysis for future video processing.
+
+    Example of expected file pairs:
     agenda_key: uploads/agenda_documents/board_meeting_2024_01_15.pdf
     video_key: uploads/meeting_recordings/board_meeting_2024_01_15.mp4
     """
@@ -68,7 +75,9 @@ def check_for_corresponding_video(bucket, correlation_key):
 
 
 def start_textract_job(bucket, pdf_key):
-    """Start Textract document text detection job (simple OCR)"""
+    """
+    Start Textract document text detection job (simple OCR).
+    """
     try:
         logger.info(f"Starting Textract job for s3://{bucket}/{pdf_key}")
 
@@ -175,13 +184,21 @@ Please analyze this agenda and provide a structured JSON summary with meeting me
 
 def analyze_agenda(agenda_text):
     """Analyze agenda text and extract structured information"""
-    logger.info(f"Starting agenda analysis using model {SONNET_MODEL_ID}")
+    logger.info(f"Starting agenda analysis using model {MODEL_ID}")
 
     # Load the prompt template and substitute the agenda text
     prompt_template = load_prompt_template()
     prompt = prompt_template.format(agenda_text=agenda_text)
 
     try:
+        # Get model configuration from environment variables with defaults
+        max_tokens = int(os.environ.get("AGENDA_MAX_TOKENS", "65535"))
+        temperature = float(os.environ.get("AGENDA_TEMPERATURE", "0.1"))
+
+        logger.info(
+            f"Using model: {MODEL_ID}, max_tokens: {max_tokens}, temperature: {temperature}"
+        )
+
         # Create conversation for the model
         conversation = [
             {
@@ -190,18 +207,22 @@ def analyze_agenda(agenda_text):
             }
         ]
 
-        logger.info(f"Sending {len(agenda_text)} characters to model {SONNET_MODEL_ID}")
+        logger.info(f"Sending {len(agenda_text)} characters to model {MODEL_ID}")
 
         response = bedrock_runtime.converse(
-            modelId=SONNET_MODEL_ID,
+            modelId=MODEL_ID,
             messages=conversation,
-            inferenceConfig={"maxTokens": 65535, "temperature": 0.1, "topP": 0.9},
+            inferenceConfig={
+                "maxTokens": max_tokens,
+                "temperature": temperature,
+                "topP": 0.9,
+            },
         )
 
         # Extract the response text
         analysis_text = response["output"]["message"]["content"][0]["text"]
 
-        logger.info(f"Agenda analysis completed using model {SONNET_MODEL_ID}")
+        logger.info(f"Agenda analysis completed using model {MODEL_ID}")
         logger.info(f"Analysis response length: {len(analysis_text)} characters")
 
         # Try to parse as JSON
@@ -210,7 +231,7 @@ def analyze_agenda(agenda_text):
             logger.info(f"Parsed JSON: {analysis_json}")
             return analysis_json
         except Exception as e:
-            logger.warning(f"Model {SONNET_MODEL_ID} response could not be parsed: {e}")
+            logger.warning(f"Model {MODEL_ID} response could not be parsed: {e}")
             # Return a fallback structure with the raw text to keep pipeline alive
             return {
                 "error": "Invalid JSON response",
@@ -224,7 +245,7 @@ def analyze_agenda(agenda_text):
             }
 
     except Exception as e:
-        logger.error(f"Error in agenda analysis using model {SONNET_MODEL_ID}: {e}")
+        logger.error(f"Error in agenda analysis using model {MODEL_ID}: {e}")
         raise
 
 
@@ -338,31 +359,6 @@ def lambda_handler(event, context):
         # Extract correlation key
         correlation_key = extract_correlation_key(pdf_key)
         logger.info(f"Correlation key: {correlation_key}")
-
-        # ------------------------------------------------------------------
-        # TEST MODE: skip Textract and call analysis directly
-        # ------------------------------------------------------------------
-        if os.environ.get("TEST_AI_ONLY", "false").lower() == "true":
-            logger.info(
-                "TEST_AI_ONLY enabled – skipping Textract and testing analysis function"
-            )
-
-            test_prompt = "What country has Baghdad as its capital?"
-
-            # Call analysis function with test prompt
-            agenda_analysis = analyze_agenda(test_prompt)
-
-            # Return immediately with the analysis response
-            result = {
-                "statusCode": 200,
-                "success": True,
-                "test_mode": True,
-                "prompt": test_prompt,
-                "agenda_analysis": agenda_analysis,
-            }
-
-            logger.info("Test mode result: %s", json.dumps(result, indent=2))
-            return result
 
         # Check for corresponding video
         video_info = check_for_corresponding_video(bucket_name, correlation_key)

@@ -13,27 +13,22 @@ s3_client = boto3.client("s3")
 sns_client = boto3.client("sns")
 
 # Configuration
-EMAIL_FILE_S3_URI = (
-    "https://k12-temp-testing-static-files.s3.us-west-2.amazonaws.com/email.txt"
-)
-PRESIGNED_URL_EXPIRATION = 86400  # 24 hours
+PRESIGNED_URL_EXPIRATION = 7 * 24 * 60 * 60  # 7 days
 
 
-def get_email_from_s3():
-    """Read email address from the S3 text file."""
+def get_notification_email():
+    """Get notification email address from environment variable."""
     try:
-        bucket = "k12-temp-testing-static-files"
-        key = "email.txt"
+        email = os.environ.get("NOTIFICATION_EMAIL")
+        if not email:
+            raise ValueError("NOTIFICATION_EMAIL environment variable is required")
 
-        logger.info(f"Reading email from s3://{bucket}/{key}")
-        response = s3_client.get_object(Bucket=bucket, Key=key)
-        email = response["Body"].read().decode("utf-8").strip()
-
-        logger.info(f"Found email: {email}")
+        email = email.strip()
+        logger.info(f"Using notification email: {email}")
         return email
 
     except Exception as e:
-        logger.error(f"Failed to read email from S3: {e}")
+        logger.error(f"Failed to get notification email: {e}")
         raise
 
 
@@ -226,7 +221,7 @@ def lambda_handler(event, context):
         logger.info(f"Original filename: {original_filename}")
 
         # Get email address from S3
-        email = get_email_from_s3()
+        email = get_notification_email()
 
         # Generate presigned URLs for available files
         html_download_url = None
