@@ -6,6 +6,11 @@ import { CustomEmailResources } from "./custom-email";
 import { FrontendResources } from "./frontend";
 import { MeetingApiResources } from "./meeting-api";
 import { MeetingDataResources } from "./meeting-data";
+import { NotificationsResources } from "./notifications";
+import { ProcessingFunctionsResources } from "./processing-functions";
+import { ProcessingWorkflowResources } from "./processing-workflow";
+import { AgendaProcessorResources } from "./agenda-processor";
+import { ProcessingEventsResources } from "./processing-events";
 
 export class SemanticLighthouseStack extends cdk.Stack {
   constructor(
@@ -59,6 +64,40 @@ export class SemanticLighthouseStack extends cdk.Stack {
     new CustomEmailResources(this, "CustomEmail", {
       userPool: authResources.userPool,
       frontendDistribution: frontendResources.distribution,
+    });
+
+    // ------------ MEETING PROCESSOR ------------
+
+    const resourcePrefix = "semantic-lighthouse";
+    const uniquePrefix = `${resourcePrefix}-${uniqueId}`;
+
+    const notifications = new NotificationsResources(this, "Notifications", {
+      uniquePrefix,
+    });
+
+    const processingFunctions = new ProcessingFunctionsResources(this, "ProcessingFunctions", {
+      uniquePrefix,
+      meetingsBucket: meetingDataResources.bucket,
+      meetingsTable: meetingDataResources.table,
+      emailNotificationTopicArn: notifications.emailNotificationTopic.topicArn,
+    });
+
+    const processingWorkflow = new ProcessingWorkflowResources(this, "ProcessingWorkflow", {
+      uniquePrefix,
+      meetingsBucket: meetingDataResources.bucket,
+      processingFunctions: processingFunctions.functions,
+    });
+
+    const agendaProcessor = new AgendaProcessorResources(this, "AgendaProcessor", {
+      uniquePrefix,
+      meetingsBucket: meetingDataResources.bucket,
+      stateMachine: processingWorkflow.stateMachine,
+    });
+
+    new ProcessingEventsResources(this, "ProcessingEvents", {
+      meetingsBucket: meetingDataResources.bucket,
+      stateMachine: processingWorkflow.stateMachine,
+      agendaDocumentProcessor: agendaProcessor.agendaDocumentProcessor,
     });
 
     // ------------ OUTPUTS ------------
