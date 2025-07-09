@@ -19,6 +19,49 @@ const corsHeaders = {
 };
 
 const s3Client = new S3Client({});
+const dynamoClient = new DynamoDBClient({});
+
+/**
+ * Extract user information from JWT token in Authorization header
+ */
+function extractUserFromToken(
+  event: APIGatewayProxyEvent
+): { userId: string; userEmail: string } | null {
+  try {
+    // Get the authorization header
+    const authHeader =
+      event.headers.Authorization || event.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      console.error("ERROR: No valid authorization header found");
+      return null;
+    }
+
+    // Extract JWT token (Bearer <token>)
+    const token = authHeader.split(" ")[1];
+
+    // Decode JWT payload (middle section between dots)
+    // Note: In production, you should verify the JWT signature, but for now we'll just decode
+    const payload = JSON.parse(
+      Buffer.from(token.split(".")[1], "base64").toString()
+    );
+
+    const userId = payload.sub || payload["cognito:username"];
+    const userEmail = payload.email;
+
+    if (!userId || !userEmail) {
+      console.error(
+        "ERROR: Missing userId or userEmail in JWT payload",
+        payload
+      );
+      return null;
+    }
+
+    return { userId, userEmail };
+  } catch (error) {
+    console.error("ERROR: Failed to extract user from token:", error);
+    return null;
+  }
+}
 
 /**
  * lambda to generate presigned url for uploading video.mp4 and agenda.pdf
@@ -29,6 +72,20 @@ export const handler = async (
 ): Promise<APIGatewayProxyResult> => {
   console.log("INFO: Received event:", JSON.stringify(event, null, 2));
 
+  // Extract user information from JWT token
+  const userInfo = extractUserFromToken(event);
+  if (!userInfo) {
+    return {
+      statusCode: 401,
+      headers: corsHeaders,
+      body: JSON.stringify({
+        error: "Unauthorized",
+        details: "Valid authentication token required",
+      }),
+    };
+  }
+
+  const { userId, userEmail } = userInfo;
   const meetingId = randomUUID();
 
   const body = JSON.parse(event.body ?? "{}");
@@ -76,25 +133,43 @@ export const handler = async (
       expiresIn: 3600, // 60 min
     });
 
-    // store metadata in dynamodb
-    const dynamoClient = new DynamoDBClient({});
+    // =================================================================
+    // STORE MEETING METADATA WITH USER ASSOCIATION IN DYNAMODB
+    // =================================================================
     const putCommand = new PutItemCommand({
       TableName: process.env.MEETINGS_TABLE_NAME,
       Item: {
-        PK: { S: meetingId },
+        // Enhanced schema with user associations
         meetingId: { S: meetingId },
         createdAt: { S: new Date().toISOString() },
+
+        // User association
+        userId: { S: userId },
+        userEmail: { S: userEmail },
+
+        // Meeting metadata
         meetingTitle: { S: body.meetingTitle },
         meetingDate: { S: body.meetingDate },
         meetingDescription: { S: body.meetingDescription },
         videoVisibility: { S: body.videoVisibility },
+
+        // Processing status
         status: { S: "uploading" },
+
+        // File paths
+        videoS3Key: { S: videoKey },
+        agendaS3Key: { S: agendaKey },
+
+        // Timestamps
+        updatedAt: { S: new Date().toISOString() },
       },
     });
 
     await dynamoClient.send(putCommand);
 
-    // TODO: maybe log user as well
+    console.log(
+      `INFO: Meeting ${meetingId} associated with user ${userId} (${userEmail})`
+    );
     console.log(
       "INFO: Generated presigned URLs for uploading:",
       videoPresignedUrl,

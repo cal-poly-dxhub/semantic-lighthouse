@@ -3,6 +3,7 @@ import { Construct } from "constructs";
 
 export interface AuthStackProps {
   uniqueId: string;
+  userPreferencesTable: cdk.aws_dynamodb.Table;
 }
 
 export class AuthResources extends Construct {
@@ -58,18 +59,20 @@ export class AuthResources extends Construct {
       precedence: 2,
     });
 
-    // lambda to disable self-signup and add first user to admin group
+    // lambda to disable self-signup, add first user to admin group, and create SNS topics
     const postConfirmationLambda = new cdk.aws_lambda.Function(
       this,
       "PostConfirmationLambda",
       {
-        description: "lambda function handling post-confirmation",
+        description:
+          "lambda function handling post-confirmation with SNS topic creation",
         runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
         code: cdk.aws_lambda.Code.fromAsset("lambda/dist/auth"),
         handler: "post-confirmation.handler",
         timeout: cdk.Duration.seconds(30),
         environment: {
           ADMIN_GROUP_NAME: adminGroupName,
+          USER_PREFERENCES_TABLE_NAME: props.userPreferencesTable.tableName,
         },
         logGroup: new cdk.aws_logs.LogGroup(
           this,
@@ -96,6 +99,19 @@ export class AuthResources extends Construct {
         ],
       })
     );
+
+    // grant lambda permission to create SNS topics and subscribe users
+    postConfirmationLambda.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        actions: ["sns:CreateTopic", "sns:Subscribe", "sns:SetTopicAttributes"],
+        resources: [
+          `arn:aws:sns:${stack.region}:${stack.account}:semantic-lighthouse-user-*`,
+        ],
+      })
+    );
+
+    // grant lambda permission to write to user preferences table
+    props.userPreferencesTable.grantWriteData(postConfirmationLambda);
 
     // trigger to signup first user and disable self-signup
     this.userPool.addTrigger(

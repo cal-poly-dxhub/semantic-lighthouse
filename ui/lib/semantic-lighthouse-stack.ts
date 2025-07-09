@@ -5,7 +5,8 @@ import { AuthResources } from "./auth";
 import { CustomEmailResources } from "./custom-email";
 import { FrontendResources } from "./frontend";
 import { MeetingApiResources } from "./meeting-api";
-import { MeetingDataResources } from "./meeting-data";
+import { DataResources } from "./data-resources";
+import { MeetingProcessorIntegration } from "./meeting-processor-integration";
 
 export class SemanticLighthouseStack extends cdk.Stack {
   constructor(
@@ -23,27 +24,50 @@ export class SemanticLighthouseStack extends cdk.Stack {
 
     // TODO: change all .DESTROY to .RETAIN in production
 
-    // ------------ AUTH AND ADMIN SETUP ------------
+    // ------------ ENHANCED DATA RESOURCES (DynamoDB + S3 + CloudFront) ------------
 
-    const authResources = new AuthResources(this, "Auth", { uniqueId });
-
-    // ------------ MEETING DATA ------------
-
-    const meetingDataResources = new MeetingDataResources(this, "MeetingData", {
+    const dataResources = new DataResources(this, "DataResources", {
       uniqueId,
-      userPool: authResources.userPool,
     });
 
-    // ------------ MEETING API ------------
+    // ------------ AUTH AND ADMIN SETUP WITH SNS INTEGRATION ------------
+
+    const authResources = new AuthResources(this, "Auth", {
+      uniqueId,
+      userPreferencesTable: dataResources.userPreferencesTable,
+    });
+
+    // ------------ MEETING API WITH ENHANCED DATA INTEGRATION ------------
 
     const meetingApi = new MeetingApiResources(this, "MeetingApi", {
       uniqueId,
       userPool: authResources.userPool,
       userPoolClient: authResources.userPoolClient,
-      meetingsBucket: meetingDataResources.bucket,
-      meetingsTable: meetingDataResources.table,
-      videoDistribution: meetingDataResources.distribution,
+      meetingsBucket: dataResources.bucket,
+      meetingsTable: dataResources.meetingsTable,
+      videoDistribution: dataResources.distribution,
       defaultUserGroupName: authResources.defaultUserGroupName,
+    });
+
+    // ------------ MEETING PROCESSOR INTEGRATION (Video processing pipeline) ------------
+
+    const meetingProcessorIntegration = new MeetingProcessorIntegration(
+      this,
+      "MeetingProcessorIntegration",
+      {
+        uniqueId,
+        bucket: dataResources.bucket,
+        meetingsTable: dataResources.meetingsTable,
+        userPreferencesTable: dataResources.userPreferencesTable,
+        systemConfigTable: dataResources.systemConfigTable,
+      }
+    );
+
+    // ------------ CUSTOM EMAIL MESSAGING ------------
+
+    new CustomEmailResources(this, "CustomEmail", {
+      userPool: authResources.userPool,
+      frontendDistribution: this.distribution, // Will add this property
     });
 
     // ------------ FRONTEND HOSTING ------------
@@ -54,18 +78,106 @@ export class SemanticLighthouseStack extends cdk.Stack {
       meetingApi: meetingApi.api,
     });
 
-    // ------------ CUSTOM EMAIL SETUP ------------
+    // Store the distribution for custom email
+    this.distribution = frontendResources.distribution;
 
-    new CustomEmailResources(this, "CustomEmail", {
-      userPool: authResources.userPool,
-      frontendDistribution: frontendResources.distribution,
+    // =================================================================
+    // OUTPUTS FOR INTEGRATED STACK
+    // =================================================================
+    new cdk.CfnOutput(this, "UserPoolId", {
+      value: authResources.userPool.userPoolId,
+      description: "Cognito User Pool ID",
     });
 
-    // ------------ OUTPUTS ------------
+    new cdk.CfnOutput(this, "UserPoolClientId", {
+      value: authResources.userPoolClient.userPoolClientId,
+      description: "Cognito User Pool Client ID",
+    });
 
-    new cdk.CfnOutput(this, "FrontendDistributionUrl", {
+    new cdk.CfnOutput(this, "ApiEndpoint", {
+      value: meetingApi.api.url,
+      description: "API Gateway endpoint URL",
+    });
+
+    new cdk.CfnOutput(this, "FrontendUrl", {
       value: `https://${frontendResources.distribution.distributionDomainName}`,
-      description: "URL of the deployed frontend application",
+      description: "Frontend CloudFront URL",
     });
+
+    new cdk.CfnOutput(this, "VideoDistributionUrl", {
+      value: `https://${dataResources.distribution.distributionDomainName}`,
+      description: "Video CDN CloudFront URL for citation links",
+    });
+
+    new cdk.CfnOutput(this, "ProcessingWorkflowArn", {
+      value: meetingProcessorIntegration.stateMachine.stateMachineArn,
+      description: "Step Functions state machine ARN for meeting processing",
+    });
+
+    // =================================================================
+    // S3 EVENT TRIGGERS FOR MEETING PROCESSING
+    // =================================================================
+
+    // EventBridge rule for video uploads - triggers Step Functions workflow
+    const s3VideoUploadRule = new cdk.aws_events.Rule(
+      this,
+      "S3VideoUploadRule",
+      {
+        eventPattern: {
+          source: ["aws.s3"],
+          detailType: ["Object Created"],
+          detail: {
+            bucket: {
+              name: [dataResources.bucket.bucketName],
+            },
+            object: {
+              key: [{ prefix: "uploads/meeting_recordings/" }],
+            },
+          },
+        },
+      }
+    );
+
+    // Add Step Functions as target for video uploads
+    s3VideoUploadRule.addTarget(
+      new cdk.aws_events_targets.SfnStateMachine(
+        meetingProcessorIntegration.stateMachine,
+        {
+          input: cdk.aws_events.RuleTargetInput.fromEventPath("$"),
+        }
+      )
+    );
+
+    // EventBridge rule for agenda uploads - triggers agenda processor
+    const s3AgendaUploadRule = new cdk.aws_events.Rule(
+      this,
+      "S3AgendaUploadRule",
+      {
+        eventPattern: {
+          source: ["aws.s3"],
+          detailType: ["Object Created"],
+          detail: {
+            bucket: {
+              name: [dataResources.bucket.bucketName],
+            },
+            object: {
+              key: [{ prefix: "uploads/agenda_documents/" }],
+            },
+          },
+        },
+      }
+    );
+
+    // Add Agenda Document Processor as target for agenda uploads
+    s3AgendaUploadRule.addTarget(
+      new cdk.aws_events_targets.LambdaFunction(
+        meetingProcessorIntegration.agendaProcessor,
+        {
+          event: cdk.aws_events.RuleTargetInput.fromEventPath("$"),
+        }
+      )
+    );
   }
+
+  private distribution?: cdk.aws_cloudfront.Distribution;
 }

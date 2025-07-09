@@ -247,8 +247,9 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
       timeout: cdk.Duration.minutes(1),
       memorySize: 256,
       environment: {
-        SNS_TOPIC_ARN: this.emailNotificationTopic.topicArn,
-        NOTIFICATION_EMAIL: "user@example.com", // User can update this via console
+        // Database integration - table names will be provided from unified stack
+        MEETINGS_TABLE_NAME: "PLACEHOLDER_MEETINGS_TABLE", // To be replaced by unified stack
+        USER_PREFERENCES_TABLE_NAME: "PLACEHOLDER_USER_PREFERENCES_TABLE", // To be replaced by unified stack
       },
     });
 
@@ -263,15 +264,26 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
     this.s3Bucket.grantReadWrite(documentPdfGenerator);
     this.s3Bucket.grantRead(notificationSender);
 
-    // SNS permissions for notification sender
-    this.emailNotificationTopic.grantPublish(notificationSender);
-
-    // Grant SNS subscribe and list permissions for confirmation flow
+    // DynamoDB permissions for notification sender (to read meeting and user data)
     notificationSender.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
-        actions: ["sns:Subscribe", "sns:ListSubscriptionsByTopic"],
-        resources: [this.emailNotificationTopic.topicArn],
+        actions: ["dynamodb:Query", "dynamodb:GetItem"],
+        resources: [
+          // These will be dynamically assigned when integrated with unified stack
+          "arn:aws:dynamodb:*:*:table/PLACEHOLDER_MEETINGS_TABLE",
+          "arn:aws:dynamodb:*:*:table/PLACEHOLDER_MEETINGS_TABLE/index/*",
+          "arn:aws:dynamodb:*:*:table/PLACEHOLDER_USER_PREFERENCES_TABLE",
+        ],
+      })
+    );
+
+    // SNS permissions for notification sender (to publish to user-specific topics)
+    notificationSender.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["sns:Publish"],
+        resources: ["arn:aws:sns:*:*:semantic-lighthouse-user-*"], // User-specific topics
       })
     );
 

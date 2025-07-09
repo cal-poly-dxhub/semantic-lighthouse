@@ -1,4 +1,4 @@
-import { DynamoDBClient, ScanCommand } from "@aws-sdk/client-dynamodb";
+import { DynamoDBClient, QueryCommand } from "@aws-sdk/client-dynamodb";
 import { S3Client } from "@aws-sdk/client-s3";
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 
@@ -24,8 +24,50 @@ const corsHeaders = {
 };
 
 const dynamoClient = new DynamoDBClient({});
+
 /**
- * lambda to generate presigned url for video.mp4
+ * Extract user information from JWT token in Authorization header
+ */
+function extractUserFromToken(
+  event: APIGatewayProxyEvent
+): { userId: string; userEmail: string } | null {
+  try {
+    // Get the authorization header
+    const authHeader =
+      event.headers.Authorization || event.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      console.error("ERROR: No valid authorization header found");
+      return null;
+    }
+
+    // Extract JWT token (Bearer <token>)
+    const token = authHeader.split(" ")[1];
+
+    // Decode JWT payload (middle section between dots)
+    const payload = JSON.parse(
+      Buffer.from(token.split(".")[1], "base64").toString()
+    );
+
+    const userId = payload.sub || payload["cognito:username"];
+    const userEmail = payload.email;
+
+    if (!userId || !userEmail) {
+      console.error(
+        "ERROR: Missing userId or userEmail in JWT payload",
+        payload
+      );
+      return null;
+    }
+
+    return { userId, userEmail };
+  } catch (error) {
+    console.error("ERROR: Failed to extract user from token:", error);
+    return null;
+  }
+}
+
+/**
+ * lambda to get all meetings for the authenticated user
  * @param event
  */
 export const handler = async (
@@ -33,22 +75,47 @@ export const handler = async (
 ): Promise<APIGatewayProxyResult> => {
   console.log("INFO: Received event:", JSON.stringify(event, null, 2));
 
+  // Extract user information from JWT token
+  const userInfo = extractUserFromToken(event);
+  if (!userInfo) {
+    return {
+      statusCode: 401,
+      headers: corsHeaders,
+      body: JSON.stringify({
+        error: "Unauthorized",
+        details: "Valid authentication token required",
+      }),
+    };
+  }
+
+  const { userId } = userInfo;
+
   try {
-    // query dynamo for all meetings
+    // Query DynamoDB for meetings belonging to this user only
+    // Using GSI to query by userId since meetingId is the primary key
     const result = await dynamoClient.send(
-      new ScanCommand({
+      new QueryCommand({
         TableName: process.env.MEETINGS_TABLE_NAME,
+        IndexName: "UserMeetingsIndex", // GSI on userId
+        KeyConditionExpression: "userId = :userId",
+        ExpressionAttributeValues: {
+          ":userId": { S: userId },
+        },
+        ScanIndexForward: false, // Sort by createdAt descending (newest first)
       })
     );
 
-    console.log("INFO: DynamoDB Scan result:", JSON.stringify(result));
+    console.log(
+      `INFO: Found ${result.Items?.length || 0} meetings for user ${userId}`
+    );
 
     if (!result.Items || result.Items.length === 0) {
       return {
-        statusCode: 404,
+        statusCode: 200,
         headers: corsHeaders,
         body: JSON.stringify({
-          error: "No meetings found.",
+          data: [],
+          message: "No meetings found for this user.",
         }),
       };
     }
@@ -60,7 +127,7 @@ export const handler = async (
         meetingDescription: item.meetingDescription?.S || "n/a",
         meetingDate: item.meetingDate?.S || "n/a",
         videoVisibility: item.videoVisibility?.S || "n/a",
-        status: "n/a",
+        status: item.status?.S || "n/a",
       })),
     };
 
@@ -70,7 +137,7 @@ export const handler = async (
       body: JSON.stringify(responseBody),
     };
   } catch (error) {
-    console.error("ERROR: Failed to generate presigned URL:", error);
+    console.error("ERROR: Failed to query meetings:", error);
     return {
       statusCode: 500,
       headers: corsHeaders,
