@@ -791,29 +791,37 @@ def parse_segment_references(text):
     for match in re.finditer(range_pattern1, text):
         start_seg = int(match.group(1))
         end_seg = int(match.group(2))
-        segments = [f"seg_{i}" for i in range(start_seg, end_seg + 1)]
-        references.append(
-            {
-                "original": match.group(0),
-                "segments": segments,
-                "start": match.start(),
-                "end": match.end(),
-            }
-        )
+        # Ensure valid range (start <= end)
+        if start_seg <= end_seg:
+            segments = [f"seg_{i}" for i in range(start_seg, end_seg + 1)]
+            references.append(
+                {
+                    "original": match.group(0),
+                    "segments": segments,
+                    "start": match.start(),
+                    "end": match.end(),
+                }
+            )
+        else:
+            logger.warning(f"Skipping invalid range: {match.group(0)} (start {start_seg} > end {end_seg})")
 
     # Find range segments (format 2: seg_X-seg_Y)
     for match in re.finditer(range_pattern2, text):
         start_seg = int(match.group(1))
         end_seg = int(match.group(2))
-        segments = [f"seg_{i}" for i in range(start_seg, end_seg + 1)]
-        references.append(
-            {
-                "original": match.group(0),
-                "segments": segments,
-                "start": match.start(),
-                "end": match.end(),
-            }
-        )
+        # Ensure valid range (start <= end)
+        if start_seg <= end_seg:
+            segments = [f"seg_{i}" for i in range(start_seg, end_seg + 1)]
+            references.append(
+                {
+                    "original": match.group(0),
+                    "segments": segments,
+                    "start": match.start(),
+                    "end": match.end(),
+                }
+            )
+        else:
+            logger.warning(f"Skipping invalid range: {match.group(0)} (start {start_seg} > end {end_seg})")
 
     # Remove overlapping matches (keep longer/more specific ones)
     # Sort by start position and remove overlaps
@@ -874,48 +882,66 @@ def replace_segment_citations_with_links(analysis_text, segment_mapping, bucket,
 
         # Process references in reverse order to maintain string positions
         modified_text = analysis_text
+        successful_replacements = 0
+        failed_replacements = 0
 
         for ref in reversed(references):
-            original_citation = ref["original"]
-            segments = ref["segments"]
+            try:
+                original_citation = ref["original"]
+                segments = ref["segments"]
 
-            # Use the timestamp of the first segment in the range
-            first_segment = segments[0]
+                # Skip if segments list is empty (could happen with malformed ranges)
+                if not segments:
+                    logger.warning(f"Skipping empty segments list for citation: {original_citation}")
+                    failed_replacements += 1
+                    continue
 
-            if first_segment in segment_mapping:
-                timestamp = segment_mapping[first_segment]
-                video_url = generate_video_url_with_timestamp(bucket, key, timestamp)
+                # Use the timestamp of the first segment in the range
+                first_segment = segments[0]
 
-                if video_url:
-                    # Use a special marker format that won't be converted by html2text
-                    # We'll process this during PDF generation to create proper ReportLab links
-                    link_text = f"{original_citation}VIDEOLINK[{video_url}]ENDLINK"
+                if first_segment in segment_mapping:
+                    timestamp = segment_mapping[first_segment]
+                    video_url = generate_video_url_with_timestamp(bucket, key, timestamp)
 
-                    # Replace in text
-                    start_pos = ref["start"]
-                    end_pos = ref["end"]
-                    modified_text = (
-                        modified_text[:start_pos] + link_text + modified_text[end_pos:]
-                    )
+                    if video_url:
+                        # Use a special marker format that won't be converted by html2text
+                        # We'll process this during PDF generation to create proper ReportLab links
+                        link_text = f"{original_citation}VIDEOLINK[{video_url}]ENDLINK"
 
-                    logger.info(
-                        f"Replaced {original_citation} with video link at {timestamp}"
-                    )
+                        # Replace in text
+                        start_pos = ref["start"]
+                        end_pos = ref["end"]
+                        modified_text = (
+                            modified_text[:start_pos] + link_text + modified_text[end_pos:]
+                        )
+
+                        logger.info(
+                            f"Replaced {original_citation} with video link at {timestamp}"
+                        )
+                        successful_replacements += 1
+                    else:
+                        logger.warning(
+                            f"Failed to generate video URL for {original_citation}"
+                        )
+                        failed_replacements += 1
                 else:
                     logger.warning(
-                        f"Failed to generate video URL for {original_citation}"
+                        f"No timestamp found for segment {first_segment} in citation {original_citation}"
                     )
-            else:
-                logger.warning(
-                    f"No timestamp found for segment {first_segment} in citation {original_citation}"
-                )
+                    failed_replacements += 1
 
-        logger.info(f"Successfully processed {len(references)} segment references")
+            except Exception as e:
+                logger.error(f"Error processing individual segment reference {ref.get('original', 'unknown')}: {e}")
+                failed_replacements += 1
+                continue  # Skip this reference but continue with others
+
+        logger.info(f"Segment link processing completed: {successful_replacements} successful, {failed_replacements} failed out of {len(references)} total references")
         return modified_text
 
     except Exception as e:
-        logger.error(f"Error replacing segment citations with links: {e}")
-        return analysis_text  # Return original text if processing fails
+        logger.error(f"Critical error in replace_segment_citations_with_links: {e}")
+        logger.error("Returning original text without any segment links")
+        return analysis_text  # Return original text only if there's a critical failure
 
 
 def process_transcript_analysis(
