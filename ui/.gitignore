@@ -1,0 +1,16 @@
+*.js
+!jest.config.js
+*.d.ts
+node_modules
+
+# CDK asset staging directory
+.cdk.staging
+cdk.out
+
+deploy.sh
+creds.csv
+.vscode
+assets
+!frontend-rewrite.js
+*.zip
+cdk.context.json
