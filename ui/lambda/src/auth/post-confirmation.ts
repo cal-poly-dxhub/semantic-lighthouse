@@ -42,6 +42,11 @@ export const handler = async (event: PostConfirmationTriggerEvent) => {
     );
 
     const topicArn = createTopicResponse.TopicArn;
+
+    if (!topicArn) {
+      throw new Error(`Failed to create SNS topic for user ${userName}`);
+    }
+
     console.log(`INFO: Created SNS topic ${topicArn} for user ${userName}`);
 
     // =================================================================

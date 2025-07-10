@@ -49,6 +49,14 @@ export class SemanticLighthouseStack extends cdk.Stack {
       defaultUserGroupName: authResources.defaultUserGroupName,
     });
 
+    // ------------ FRONTEND HOSTING ------------
+
+    const frontendResources = new FrontendResources(this, "Frontend", {
+      userPool: authResources.userPool,
+      userPoolClient: authResources.userPoolClient,
+      meetingApi: meetingApi.api,
+    });
+
     // ------------ MEETING PROCESSOR INTEGRATION (Video processing pipeline) ------------
 
     const meetingProcessorIntegration = new MeetingProcessorIntegration(
@@ -67,19 +75,8 @@ export class SemanticLighthouseStack extends cdk.Stack {
 
     new CustomEmailResources(this, "CustomEmail", {
       userPool: authResources.userPool,
-      frontendDistribution: this.distribution, // Will add this property
+      frontendDistribution: frontendResources.distribution,
     });
-
-    // ------------ FRONTEND HOSTING ------------
-
-    const frontendResources = new FrontendResources(this, "Frontend", {
-      userPool: authResources.userPool,
-      userPoolClient: authResources.userPoolClient,
-      meetingApi: meetingApi.api,
-    });
-
-    // Store the distribution for custom email
-    this.distribution = frontendResources.distribution;
 
     // =================================================================
     // OUTPUTS FOR INTEGRATED STACK
@@ -178,6 +175,4 @@ export class SemanticLighthouseStack extends cdk.Stack {
       )
     );
   }
-
-  private distribution?: cdk.aws_cloudfront.Distribution;
 }
