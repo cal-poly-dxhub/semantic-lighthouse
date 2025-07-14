@@ -146,7 +146,6 @@ export class FrontendResources extends Construct {
         },
         artifacts: {
           "base-directory": "frontend/out",
-          "s3-artifact-acl": "bucket-owner-full-control",
           files: ["**/*"],
         },
       }),
