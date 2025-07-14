@@ -29,6 +29,26 @@ export class MeetingProcessorIntegration extends Construct {
       `semantic-lighthouse-${props.uniqueId}-${timestamp}`.toLowerCase();
 
     // =================================================================
+    // CONFIGURATION FILES - Read prompt templates at deployment time
+    // =================================================================
+
+    // Read prompt templates from config files
+    const transcriptPromptTemplate = fs.readFileSync(
+      path.join(
+        __dirname,
+        "../../meeting-processor-cdk/config/prompts/transcript-analysis.txt"
+      ),
+      "utf8"
+    );
+    const fallbackAgendaText = fs.readFileSync(
+      path.join(
+        __dirname,
+        "../../meeting-processor-cdk/config/prompts/fallback-agenda.txt"
+      ),
+      "utf8"
+    );
+
+    // =================================================================
     // AI CONFIGURATION - Hardcoded in database via custom resource
     // =================================================================
     this.populateAIConfiguration(props.systemConfigTable);
@@ -74,6 +94,44 @@ export class MeetingProcessorIntegration extends Construct {
     );
 
     // =================================================================
+    // MEDIACONVERT SERVICE ROLE - Create MediaConvert service role for video conversion
+    // =================================================================
+
+    // Create MediaConvert service role
+    const mediaConvertRole = new cdk.aws_iam.Role(
+      this,
+      "MediaConvertServiceRole",
+      {
+        roleName: `${uniquePrefix}-mediaconvert-service-role`,
+        assumedBy: new cdk.aws_iam.ServicePrincipal(
+          "mediaconvert.amazonaws.com"
+        ),
+        description: "Service role for MediaConvert to access S3 buckets",
+        inlinePolicies: {
+          S3Access: new cdk.aws_iam.PolicyDocument({
+            statements: [
+              new cdk.aws_iam.PolicyStatement({
+                effect: cdk.aws_iam.Effect.ALLOW,
+                actions: [
+                  "s3:GetObject",
+                  "s3:PutObject",
+                  "s3:DeleteObject",
+                  "s3:GetObjectVersion",
+                ],
+                resources: [`${props.bucket.bucketArn}/*`],
+              }),
+              new cdk.aws_iam.PolicyStatement({
+                effect: cdk.aws_iam.Effect.ALLOW,
+                actions: ["s3:ListBucket", "s3:GetBucketLocation"],
+                resources: [props.bucket.bucketArn],
+              }),
+            ],
+          }),
+        },
+      }
+    );
+
+    // =================================================================
     // LAMBDA FUNCTIONS - Meeting processing pipeline with database integration
     // =================================================================
 
@@ -96,6 +154,8 @@ export class MeetingProcessorIntegration extends Construct {
           OUTPUT_BUCKET: props.bucket.bucketName,
           MEETINGS_TABLE_NAME: props.meetingsTable.tableName,
           SYSTEM_CONFIG_TABLE_NAME: props.systemConfigTable.tableName,
+          MEDIACONVERT_ROLE_ARN: mediaConvertRole.roleArn,
+          MEDIACONVERT_QUEUE_ARN: `arn:aws:mediaconvert:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:queues/Default`,
         },
       }
     );
@@ -147,7 +207,12 @@ export class MeetingProcessorIntegration extends Construct {
           S3_BUCKET: props.bucket.bucketName,
           MEETINGS_TABLE_NAME: props.meetingsTable.tableName,
           SYSTEM_CONFIG_TABLE_NAME: props.systemConfigTable.tableName,
-          // AI configuration now comes from database instead of hardcoded env vars
+          // AI model configuration
+          TRANSCRIPT_MODEL_ID: "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+          TRANSCRIPT_MAX_TOKENS: "8000",
+          TRANSCRIPT_TEMPERATURE: "0.2",
+          TRANSCRIPT_PROMPT_TEMPLATE: transcriptPromptTemplate,
+          FALLBACK_AGENDA_TEXT: fallbackAgendaText,
         },
       }
     );
@@ -227,49 +292,64 @@ export class MeetingProcessorIntegration extends Construct {
       })
     );
 
-    // MediaConvert permissions
+    // MediaConvert permissions - Full access for now
     videoToAudioConverter.addToRolePolicy(
       new cdk.aws_iam.PolicyStatement({
         effect: cdk.aws_iam.Effect.ALLOW,
-        actions: [
-          "mediaconvert:CreateJob",
-          "mediaconvert:GetJob",
-          "mediaconvert:ListJobs",
-          "mediaconvert:DescribeEndpoints",
-        ],
+        actions: ["mediaconvert:*"],
         resources: ["*"],
       })
     );
 
-    // Bedrock permissions for AI functions
+    // IAM PassRole permission for MediaConvert - Broader permission for now
+    videoToAudioConverter.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        effect: cdk.aws_iam.Effect.ALLOW,
+        actions: ["iam:PassRole"],
+        resources: ["*"],
+        conditions: {
+          StringEquals: {
+            "iam:PassedToService": "mediaconvert.amazonaws.com",
+          },
+        },
+      })
+    );
+
+    // Bedrock permissions for AI functions - Full access for now
     [aiMeetingAnalyzer].forEach((func) => {
       func.addToRolePolicy(
         new cdk.aws_iam.PolicyStatement({
           effect: cdk.aws_iam.Effect.ALLOW,
-          actions: [
-            "bedrock:InvokeModel",
-            "bedrock:InvokeModelWithResponseStream",
-          ],
-          resources: [
-            // Claude models for transcript analysis
-            "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-7-sonnet-*",
-            "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-7-sonnet-*",
-            // Nova models for agenda analysis
-            "arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-premier-v1:0",
-            "arn:aws:bedrock:us-west-2::foundation-model/amazon.nova-premier-v1:0",
-          ],
+          actions: ["bedrock:*"],
+          resources: ["*"],
         })
       );
     });
 
-    // Transcribe permissions for Step Functions
+    // Transcribe permissions for video and status monitor functions
+    [videoToAudioConverter, processingStatusMonitor].forEach((func) => {
+      func.addToRolePolicy(
+        new cdk.aws_iam.PolicyStatement({
+          effect: cdk.aws_iam.Effect.ALLOW,
+          actions: ["transcribe:*"],
+          resources: ["*"],
+        })
+      );
+    });
+
+    // MediaConvert permissions for status monitor (to check job status)
+    processingStatusMonitor.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        effect: cdk.aws_iam.Effect.ALLOW,
+        actions: ["mediaconvert:*"],
+        resources: ["*"],
+      })
+    );
+
+    // Transcribe permissions for Step Functions - Full access for now
     const transcribePermissions = new cdk.aws_iam.PolicyStatement({
       effect: cdk.aws_iam.Effect.ALLOW,
-      actions: [
-        "transcribe:StartTranscriptionJob",
-        "transcribe:GetTranscriptionJob",
-        "transcribe:ListTranscriptionJobs",
-      ],
+      actions: ["transcribe:*"],
       resources: ["*"],
     });
 
@@ -370,29 +450,30 @@ export class MeetingProcessorIntegration extends Construct {
     props.meetingsTable.grantReadWriteData(this.agendaProcessor);
     props.systemConfigTable.grantReadData(this.agendaProcessor);
 
-    // Textract permissions for agenda processor
+    // Textract permissions for agenda processor - Full access for now
     this.agendaProcessor.addToRolePolicy(
       new cdk.aws_iam.PolicyStatement({
         effect: cdk.aws_iam.Effect.ALLOW,
-        actions: [
-          "textract:StartDocumentAnalysis",
-          "textract:GetDocumentAnalysis",
-        ],
+        actions: ["textract:*"],
         resources: ["*"],
       })
     );
 
-    // Bedrock permissions for agenda processor
+    // Bedrock permissions for agenda processor - Full access for now
     this.agendaProcessor.addToRolePolicy(
       new cdk.aws_iam.PolicyStatement({
         effect: cdk.aws_iam.Effect.ALLOW,
-        actions: ["bedrock:InvokeModel", "bedrock:Converse"],
-        resources: [
-          "arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-premier-v1:0",
-          "arn:aws:bedrock:us-west-2::foundation-model/amazon.nova-premier-v1:0",
-          "arn:aws:bedrock:us-east-1::foundation-model/us.anthropic.claude-sonnet-4-*",
-          "arn:aws:bedrock:us-west-2::foundation-model/us.anthropic.claude-sonnet-4-*",
-        ],
+        actions: ["bedrock:*"],
+        resources: ["*"],
+      })
+    );
+
+    // STS permissions for agenda processor
+    this.agendaProcessor.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        effect: cdk.aws_iam.Effect.ALLOW,
+        actions: ["sts:GetCallerIdentity"],
+        resources: ["*"],
       })
     );
 

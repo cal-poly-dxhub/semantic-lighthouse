@@ -69,38 +69,62 @@ def get_user_sns_topic_for_meeting(meeting_id):
         user_id = meeting.get("userId", {}).get("S")
         user_email = meeting.get("userEmail", {}).get("S")
         
-        if not user_id:
-            logger.error(f"No userId found for meeting {meeting_id}")
+        if not user_email:
+            logger.error(f"No userEmail found for meeting {meeting_id}")
             return None
             
-        # Now get user's SNS topic from user preferences table
+        # Extract username from email for user preferences lookup
+        # UserPreferences table uses username as userId, not Cognito user ID
+        username = user_email.split('@')[0] if user_email else None
+        if not username:
+            logger.error(f"Could not extract username from email: {user_email}")
+            return None
+            
+        # Get user's SNS topic from user preferences table
         user_preferences_table = os.environ.get("USER_PREFERENCES_TABLE_NAME")
         if not user_preferences_table:
             raise ValueError("USER_PREFERENCES_TABLE_NAME environment variable is required")
             
+        logger.info(f"Looking up user preferences in table: {user_preferences_table}")
+        logger.info(f"Searching for username: {username} (extracted from email: {user_email})")
+        logger.info(f"Original Cognito userId was: {user_id}")
+        
         user_response = dynamodb_client.get_item(
             TableName=user_preferences_table,
             Key={
-                "userId": {"S": user_id}
+                "userId": {"S": username}
             }
         )
         
+        logger.info(f"DynamoDB response: {user_response}")
+        
         if not user_response.get("Item"):
-            logger.error(f"User preferences not found for user {user_id}")
+            logger.error(f"User preferences not found for username {username}")
+            logger.error(f"Table: {user_preferences_table}")
+            logger.error(f"Searched username: {username} (from email: {user_email})")
+            logger.error(f"Original Cognito userId: {user_id}")
             return None
             
         user_prefs = user_response["Item"]
         sns_topic_arn = user_prefs.get("snsTopicArn", {}).get("S")
         email_notifications_enabled = user_prefs.get("emailNotificationsEnabled", {}).get("BOOL", True)
         
+        logger.info(f"Found SNS topic: {sns_topic_arn}")
+        logger.info(f"Email notifications enabled: {email_notifications_enabled}")
+        
         if not email_notifications_enabled:
-            logger.info(f"Email notifications disabled for user {user_id}")
+            logger.info(f"Email notifications disabled for username {username}")
             return None
             
-        logger.info(f"Found SNS topic {sns_topic_arn} for user {user_id} (meeting {meeting_id})")
+        if not sns_topic_arn:
+            logger.error(f"No SNS topic ARN found for username {username}")
+            return None
+            
+        logger.info(f"Found SNS topic {sns_topic_arn} for username {username} (meeting {meeting_id})")
         return {
             "sns_topic_arn": sns_topic_arn,
-            "user_id": user_id,
+            "user_id": user_id,  # Keep original Cognito user ID for reference
+            "username": username,  # Add username for clarity
             "user_email": user_email
         }
         
@@ -235,16 +259,18 @@ def lambda_handler(event, context):
         # EXTRACT MEETING ID AND GET USER'S SNS TOPIC FROM DATABASE
         # =================================================================
         
-        # Try to extract meetingId from either HTML or PDF S3 URI
+        # Extract meetingId from originalFileName 
+        # Format: uploads/meeting_recordings/{meetingId}.mp4
         meeting_id = None
-        if html_s3_uri:
-            meeting_id = get_meeting_info_from_s3_uri(html_s3_uri)
-        elif pdf_s3_uri:
-            meeting_id = get_meeting_info_from_s3_uri(pdf_s3_uri)
+        if original_filename:
+            # Extract filename from path and remove extension
+            filename = original_filename.split('/')[-1]  # Get the filename part
+            meeting_id = filename.split('.')[0]  # Remove extension
+            logger.info(f"Extracted meetingId: {meeting_id} from original filename: {original_filename}")
             
         if not meeting_id:
-            logger.error("Could not extract meetingId from S3 URIs")
-            raise ValueError("Unable to determine meeting ID from provided S3 URIs")
+            logger.error("Could not extract meetingId from original filename")
+            raise ValueError("Unable to determine meeting ID from original filename")
             
         # Get user's SNS topic information
         user_info = get_user_sns_topic_for_meeting(meeting_id)

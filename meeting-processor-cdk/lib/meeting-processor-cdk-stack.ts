@@ -170,6 +170,8 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
         environment: {
           BUCKET_NAME: this.s3Bucket.bucketName,
           OUTPUT_BUCKET: this.s3Bucket.bucketName,
+          MEDIACONVERT_ROLE_ARN: mediaConvertRole.roleArn,
+          MEDIACONVERT_QUEUE_ARN: `arn:aws:mediaconvert:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:queues/Default`,
         },
       }
     );
@@ -254,6 +256,38 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
     });
 
     // =================================================================
+    // MEDIACONVERT SERVICE ROLE - Create MediaConvert service role for video conversion
+    // =================================================================
+
+    // Create MediaConvert service role
+    const mediaConvertRole = new iam.Role(this, "MediaConvertServiceRole", {
+      roleName: `${uniquePrefix}-mediaconvert-service-role`,
+      assumedBy: new iam.ServicePrincipal("mediaconvert.amazonaws.com"),
+      description: "Service role for MediaConvert to access S3 buckets",
+      inlinePolicies: {
+        S3Access: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              effect: iam.Effect.ALLOW,
+              actions: [
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:DeleteObject",
+                "s3:GetObjectVersion",
+              ],
+              resources: [`${this.s3Bucket.bucketArn}/*`],
+            }),
+            new iam.PolicyStatement({
+              effect: iam.Effect.ALLOW,
+              actions: ["s3:ListBucket", "s3:GetBucketLocation"],
+              resources: [this.s3Bucket.bucketArn],
+            }),
+          ],
+        }),
+      },
+    });
+
+    // =================================================================
     // IAM PERMISSIONS - Grant necessary permissions to Lambda functions
     // =================================================================
 
@@ -301,12 +335,12 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
       })
     );
 
-    // IAM PassRole permission for MediaConvert
+    // IAM PassRole permission for MediaConvert - specific to our created role
     videoToAudioConverter.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ["iam:PassRole"],
-        resources: ["*"],
+        resources: [mediaConvertRole.roleArn],
         conditions: {
           StringEquals: {
             "iam:PassedToService": "mediaconvert.amazonaws.com",
@@ -348,7 +382,7 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
           "bedrock:InvokeModelWithResponseStream",
         ],
         resources: [
-          `arn:aws:bedrock:us-west-2:${this.account}:inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0`,
+          `arn:aws:bedrock:us-west-2:${cdk.Aws.ACCOUNT_ID}:inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0`,
           "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0",
           "arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0",
           "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0",
@@ -447,6 +481,54 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
         ),
         iam.ManagedPolicy.fromAwsManagedPolicyName("AmazonBedrockFullAccess"),
       ],
+      inlinePolicies: {
+        TextractAccess: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              effect: iam.Effect.ALLOW,
+              actions: [
+                "textract:StartDocumentTextDetection",
+                "textract:GetDocumentTextDetection",
+              ],
+              resources: ["*"],
+            }),
+          ],
+        }),
+        BedrockNovaAccess: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              effect: iam.Effect.ALLOW,
+              actions: ["bedrock:InvokeModel"],
+              resources: [
+                "arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-premier-v1:0",
+                "arn:aws:bedrock:us-west-2::foundation-model/amazon.nova-premier-v1:0",
+              ],
+            }),
+          ],
+        }),
+        MarketplaceAccess: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              effect: iam.Effect.ALLOW,
+              actions: [
+                "aws-marketplace:Subscribe",
+                "aws-marketplace:Unsubscribe",
+                "aws-marketplace:ViewSubscriptions",
+              ],
+              resources: ["*"],
+            }),
+          ],
+        }),
+        STSAccess: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              effect: iam.Effect.ALLOW,
+              actions: ["sts:GetCallerIdentity"],
+              resources: ["*"],
+            }),
+          ],
+        }),
+      },
     });
 
     // 6. Agenda Document Processor - Analyzes uploaded meeting agendas using AI
@@ -474,58 +556,12 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
     // Additional IAM permissions for AgendaDocumentProcessor
     this.s3Bucket.grantReadWrite(agendaDocumentProcessor);
 
-    // Textract permissions for AgendaDocumentProcessor
-    agendaDocumentProcessor.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          "textract:StartDocumentTextDetection",
-          "textract:GetDocumentTextDetection",
-        ],
-        resources: ["*"],
-      })
-    );
-
-    // Bedrock permissions for AgendaDocumentProcessor (Nova Premier)
-    agendaDocumentProcessor.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["bedrock:InvokeModel"],
-        resources: [
-          "arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-premier-v1:0",
-          "arn:aws:bedrock:us-west-2::foundation-model/amazon.nova-premier-v1:0",
-        ],
-      })
-    );
-
-    // Marketplace subscribe permissions for third-party models
-    agendaDocumentProcessor.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          "aws-marketplace:Subscribe",
-          "aws-marketplace:Unsubscribe",
-          "aws-marketplace:ViewSubscriptions",
-        ],
-        resources: ["*"],
-      })
-    );
-
     // Step Functions permissions for AgendaDocumentProcessor (to trigger combined processing)
     agendaDocumentProcessor.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ["states:StartExecution"],
         resources: [this.stateMachine.stateMachineArn],
-      })
-    );
-
-    // STS permissions for AgendaDocumentProcessor (to get account ID)
-    agendaDocumentProcessor.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["sts:GetCallerIdentity"],
-        resources: ["*"],
       })
     );
 

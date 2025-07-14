@@ -35,6 +35,7 @@ export class DataResources extends Construct {
       publicReadAccess: false,
       encryption: cdk.aws_s3.BucketEncryption.S3_MANAGED,
       blockPublicAccess: cdk.aws_s3.BlockPublicAccess.BLOCK_ALL,
+      eventBridgeEnabled: true, // Enable EventBridge notifications for triggering workflows
       cors: [
         {
           allowedMethods: [

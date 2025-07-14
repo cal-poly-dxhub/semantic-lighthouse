@@ -21,7 +21,7 @@ def convert_to_human_readable(transcript_data):
     Output format: [seg_X][speaker_label][HH:MM:SS] spoken text
     Example: [seg_0][spk_0][00:00:15] Hello everyone, welcome to the meeting.
 
-    This format allows easy parsing with regex: \[([^\]]+)\]\[([^\]]+)\]\[([^\]]+)\] (.+)
+    This format allows easy parsing with regex: \\[([^\\]]+)\\]\\[([^\\]]+)\\]\\[([^\\]]+)\\] (.+)
     Groups: (1) segment_id, (2) speaker, (3) timestamp, (4) text
     """
     try:
@@ -214,8 +214,14 @@ def analyze_transcript_with_bedrock(
 
         logger.info("Invoking Claude via Bedrock...")
 
-        logger.info(f"Request body: {json.dumps(request_body, indent=2)}")
-        logger.info(f"Formatted prompt: {formatted_prompt}")
+        # Log the complete message being sent to LLM
+        logger.info("=== MESSAGE BEING SENT TO LLM ===")
+        logger.info(f"Model ID: {model_id}")
+        logger.info(f"Request configuration: max_tokens={max_tokens}, temperature={temperature}")
+        logger.info(f"Full request body: {json.dumps(request_body, indent=2)}")
+        logger.info("=== COMPLETE PROMPT TEXT ===")
+        logger.info(formatted_prompt)
+        logger.info("=== END OF PROMPT TEXT ===")
 
         # Make the streaming API call
         response = bedrock_runtime.invoke_model_with_response_stream(
@@ -241,6 +247,11 @@ def analyze_transcript_with_bedrock(
 
         # Combine all chunks to return the complete analysis
         analysis = "".join(analysis_chunks)
+        
+        # Log the complete response from LLM
+        logger.info("=== COMPLETE RESPONSE FROM LLM ===")
+        logger.info(analysis)
+        logger.info("=== END OF LLM RESPONSE ===")
         logger.info(
             f"Bedrock analysis completed successfully. Response length: {len(analysis)} characters"
         )

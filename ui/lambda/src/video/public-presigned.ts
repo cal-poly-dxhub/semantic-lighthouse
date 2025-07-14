@@ -79,7 +79,7 @@ export const handler = async (
       };
     }
 
-    const key = `${meetingId}/video.mp4`;
+    const key = `uploads/meeting_recordings/${meetingId}.mp4`;
 
     const command = new GetObjectCommand({
       Bucket: process.env.MEETINGS_BUCKET_NAME,

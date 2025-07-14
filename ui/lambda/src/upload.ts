@@ -111,14 +111,14 @@ export const handler = async (
   }
 
   try {
-    const videoKey = `${meetingId}/video.mp4`;
+    const videoKey = `uploads/meeting_recordings/${meetingId}.mp4`;
     const command = new PutObjectCommand({
       Bucket: process.env.MEETINGS_BUCKET_NAME,
       Key: videoKey,
       ContentType: "video/mp4",
     });
 
-    const agendaKey = `${meetingId}/agenda.pdf`;
+    const agendaKey = `uploads/agenda_documents/${meetingId}.pdf`;
     const agendaCommand = new PutObjectCommand({
       Bucket: process.env.MEETINGS_BUCKET_NAME,
       Key: agendaKey,

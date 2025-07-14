@@ -86,7 +86,7 @@ def create_mediaconvert_job(
         ]
 
     job_settings = {
-        "Role": "arn:aws:iam::412072465402:role/MediaConvertServiceRole",
+        "Role": os.environ.get("MEDIACONVERT_ROLE_ARN"),
         "Settings": {
             "Inputs": [input_settings],
             "OutputGroups": [
@@ -121,7 +121,7 @@ def create_mediaconvert_job(
                 }
             ],
         },
-        "Queue": "arn:aws:mediaconvert:us-west-2:412072465402:queues/Default",
+        "Queue": os.environ.get("MEDIACONVERT_QUEUE_ARN"),
         "UserMetadata": {
             "OriginalFile": key,
             "SourceBucket": source_bucket,
