@@ -36,7 +36,6 @@ export const handler = async (event: PostConfirmationTriggerEvent) => {
         Name: topicName,
         Attributes: {
           DisplayName: `Semantic Lighthouse Notifications for ${userName}`,
-          Description: `Meeting minutes notifications for user ${userName}`,
         },
       })
     );
