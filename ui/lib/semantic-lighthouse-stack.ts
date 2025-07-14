@@ -68,6 +68,8 @@ export class SemanticLighthouseStack extends cdk.Stack {
         meetingsTable: dataResources.meetingsTable,
         userPreferencesTable: dataResources.userPreferencesTable,
         systemConfigTable: dataResources.systemConfigTable,
+        videoDistribution: dataResources.distribution,
+        frontendDistribution: frontendResources.distribution,
       }
     );
 

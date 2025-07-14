@@ -9,6 +9,8 @@ export interface MeetingProcessorIntegrationProps {
   meetingsTable: cdk.aws_dynamodb.Table;
   userPreferencesTable: cdk.aws_dynamodb.Table;
   systemConfigTable: cdk.aws_dynamodb.Table;
+  videoDistribution: cdk.aws_cloudfront.Distribution;
+  frontendDistribution: cdk.aws_cloudfront.Distribution;
 }
 
 export class MeetingProcessorIntegration extends Construct {
@@ -207,6 +209,10 @@ export class MeetingProcessorIntegration extends Construct {
           S3_BUCKET: props.bucket.bucketName,
           MEETINGS_TABLE_NAME: props.meetingsTable.tableName,
           SYSTEM_CONFIG_TABLE_NAME: props.systemConfigTable.tableName,
+          CLOUDFRONT_DOMAIN_NAME:
+            props.videoDistribution.distributionDomainName,
+          FRONTEND_DOMAIN_NAME:
+            props.frontendDistribution.distributionDomainName,
           // AI model configuration
           TRANSCRIPT_MODEL_ID: "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
           TRANSCRIPT_MAX_TOKENS: "8000",

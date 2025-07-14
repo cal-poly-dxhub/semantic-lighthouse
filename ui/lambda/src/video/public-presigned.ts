@@ -81,21 +81,33 @@ export const handler = async (
 
     const key = `uploads/meeting_recordings/${meetingId}.mp4`;
 
-    const command = new GetObjectCommand({
-      Bucket: process.env.MEETINGS_BUCKET_NAME,
-      Key: key,
-    });
+    // Use CloudFront for better performance and CDN delivery
+    const cloudFrontDomain = process.env.CLOUDFRONT_DOMAIN_NAME;
+    let videoUrl: string;
 
-    const presignedUrl = await getSignedUrl(s3Client, command, {
-      expiresIn: 14400,
-    });
+    if (cloudFrontDomain) {
+      // Use CloudFront URL for public videos
+      videoUrl = `https://${cloudFrontDomain}/${key}`;
+      console.log("INFO: Generated CloudFront URL for public video:", videoUrl);
+    } else {
+      // Fallback to S3 presigned URL if CloudFront not configured
+      console.warn(
+        "CloudFront domain not configured, falling back to S3 presigned URL"
+      );
+      const command = new GetObjectCommand({
+        Bucket: process.env.MEETINGS_BUCKET_NAME,
+        Key: key,
+      });
 
-    // TODO: maybe log user as well
-    console.log("INFO: Generated presigned URL:", presignedUrl);
+      videoUrl = await getSignedUrl(s3Client, command, {
+        expiresIn: 14400,
+      });
+      console.log("INFO: Generated S3 presigned URL:", videoUrl);
+    }
 
     const responseBody: ResponseBody = {
       meetingId,
-      presignedUrl,
+      presignedUrl: videoUrl,
     };
 
     return {

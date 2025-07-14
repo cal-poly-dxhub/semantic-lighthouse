@@ -851,23 +851,51 @@ def parse_segment_references(text):
 
 def generate_video_url_with_timestamp(bucket, key, timestamp_str):
     """
-    Create presigned URL with timestamp fragment
+    Create video player URL with timestamp for meeting minutes links.
+    Uses the frontend video player page which handles public/private authentication.
 
-    Input: bucket, key, "00:01:23"
-    Output: "https://s3.../video.mp4?AWS...#t=00:01:23"
+    Input: bucket, key, "00:01:23"  
+    Output: "https://frontend.../video?id=meetingId&time=83" (time in seconds)
     """
     try:
-        # Generate presigned URL (24 hours expiration)
-        presigned_url = s3_client.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": bucket, "Key": key},
-            ExpiresIn=86400,  # 24 hours
-        )
-
-        # Add timestamp fragment
-        video_url_with_timestamp = f"{presigned_url}#t={timestamp_str}"
-
-        return video_url_with_timestamp
+        # Extract meetingId from the key path
+        # Expected format: uploads/meeting_recordings/{meetingId}.mp4
+        if "/meeting_recordings/" in key:
+            meeting_id = key.split("/meeting_recordings/")[1].replace(".mp4", "")
+        else:
+            logger.warning(f"Unexpected key format: {key}")
+            meeting_id = key.replace(".mp4", "")
+        
+        # Convert timestamp HH:MM:SS to seconds
+        try:
+            time_parts = timestamp_str.split(":")
+            if len(time_parts) == 3:
+                hours, minutes, seconds = map(float, time_parts)
+                total_seconds = hours * 3600 + minutes * 60 + seconds
+            elif len(time_parts) == 2:
+                minutes, seconds = map(float, time_parts)
+                total_seconds = minutes * 60 + seconds
+            else:
+                total_seconds = float(timestamp_str)
+        except (ValueError, TypeError):
+            logger.warning(f"Could not parse timestamp: {timestamp_str}")
+            total_seconds = 0
+        
+        # Generate full frontend video player URL with meeting ID and timestamp
+        # This will handle public/private video authentication automatically
+        frontend_domain = os.environ.get("FRONTEND_DOMAIN_NAME")
+        
+        if frontend_domain:
+            # Use full URL to frontend application
+            video_player_url = f"https://{frontend_domain}/video?id={meeting_id}&time={total_seconds}"
+            logger.info(f"Generated full frontend video URL: {video_player_url} for meeting {meeting_id} at {timestamp_str}")
+        else:
+            # Fallback to relative URL if frontend domain not configured
+            logger.warning("Frontend domain not configured, using relative URL")
+            video_player_url = f"/video?id={meeting_id}&time={total_seconds}"
+            logger.info(f"Generated relative video URL: {video_player_url} for meeting {meeting_id} at {timestamp_str}")
+        
+        return video_player_url
 
     except Exception as e:
         logger.error(f"Failed to generate video URL with timestamp: {e}")

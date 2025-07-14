@@ -89,6 +89,7 @@ export class MeetingApiResources extends Construct {
         code: cdk.aws_lambda.Code.fromAsset("lambda/dist/video"),
         environment: {
           MEETINGS_BUCKET_NAME: props.meetingsBucket.bucketName,
+          MEETINGS_TABLE_NAME: props.meetingsTable.tableName,
           CLOUDFRONT_DOMAIN_NAME:
             props.videoDistribution.distributionDomainName,
         },
@@ -103,7 +104,8 @@ export class MeetingApiResources extends Construct {
       }
     );
 
-    props.meetingsTable.grantWriteData(privateVideoAuthLambda);
+    // Grant DynamoDB read permissions for private video authentication
+    props.meetingsTable.grantReadData(privateVideoAuthLambda);
     props.meetingsBucket.grantRead(privateVideoAuthLambda);
     privateVideoAuthResource.addMethod(
       "GET",
