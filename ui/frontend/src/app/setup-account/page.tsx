@@ -1,6 +1,5 @@
 "use client";
 
-import { useApiRequest } from "@/constants/apiRequest";
 import { useAuth } from "@/constants/AuthContext";
 import {
   Alert,
@@ -32,8 +31,7 @@ function SetupAccountPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const { handleLogin } = useAuth();
-  const { apiRequest } = useApiRequest();
+  const { handleLogin, handleCompleteNewPasswordChallenge } = useAuth();
   const router = useRouter();
 
   const searchParams = useSearchParams();
@@ -69,35 +67,11 @@ function SetupAccountPage() {
     setSuccess(null);
 
     try {
-      const { data, status, error } = await apiRequest<{
-        message: string;
-        accessToken: string;
-        idToken: string;
-        refreshToken: string;
-      }>("POST", "users/setup", {
-        body: {
-          email: values.email,
-          temporaryPassword: values.temporaryPassword,
-          newPassword: values.newPassword,
-        },
-      });
-
-      if (status !== 200) {
-        throw new Error(error || "Failed to change password");
-      }
-
-      if (!data || !data.accessToken || !data.idToken || !data.refreshToken) {
-        throw new Error("Unexpected response from server");
-      }
-
-      if (error) {
-        throw new Error(error);
-      }
-
       handleLogin(
         values.email,
-        values.newPassword,
+        values.temporaryPassword,
         () => {
+          console.log("INFO: Password changed successfully");
           setLoading(false);
           setSuccess(
             "Password changed successfully! Redirecting to dashboard..."
@@ -105,14 +79,45 @@ function SetupAccountPage() {
           router.push("/");
         },
         (err: unknown) => {
+          console.error("Error changing password:", err);
           setLoading(false);
           setError(
             (err as { message: string }).message ||
               "Login failed. Please try again."
           );
+        },
+        (cognitoUser, userAttributes) => {
+          console.log(
+            "INFO: SETUP: New password required:",
+            cognitoUser,
+            userAttributes
+          );
+
+          handleCompleteNewPasswordChallenge(
+            cognitoUser,
+            values.newPassword,
+            userAttributes,
+            (result) => {
+              console.log("INFO: SETUP: Password change successful:", result);
+              setLoading(false);
+              setSuccess(
+                "Password changed successfully! Redirecting to dashboard..."
+              );
+              router.push("/");
+            },
+            (err) => {
+              console.error("Error changing password:", err);
+              setLoading(false);
+              setError(
+                (err as { message: string }).message ||
+                  "Password change failed. Please try again."
+              );
+            }
+          );
         }
       );
     } catch (err) {
+      console.error("Error changing password:", err);
       const typedErr = err as { message: string };
       setError(typedErr.message || "Password change failed. Please try again.");
     } finally {

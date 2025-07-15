@@ -278,34 +278,39 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
     onSuccess: (result: unknown) => void,
     onFailure: (err: unknown) => void
   ) => {
-    cognitoUser.completeNewPasswordChallenge(newPassword, userAttributes, {
-      onSuccess: (result) => {
-        const newToken = result.getIdToken().getJwtToken();
-        const payload = result.getIdToken().payload;
+    console.log(userAttributes);
+    cognitoUser.completeNewPasswordChallenge(
+      newPassword,
+      {},
+      {
+        onSuccess: (result) => {
+          const newToken = result.getIdToken().getJwtToken();
+          const payload = result.getIdToken().payload;
 
-        // extract user information from the token payload
-        const newUser: User = {
-          id: payload.sub,
-          email: payload.email || userAttributes.email,
-          username: payload["cognito:username"] || cognitoUser.getUsername(),
-          name:
-            payload.name ||
-            payload["cognito:username"] ||
-            cognitoUser.getUsername(),
-        };
+          // extract user information from the token payload
+          const newUser: User = {
+            id: payload.sub,
+            email: payload.email || userAttributes.email,
+            username: payload["cognito:username"] || cognitoUser.getUsername(),
+            name:
+              payload.name ||
+              payload["cognito:username"] ||
+              cognitoUser.getUsername(),
+          };
 
-        setUser(newUser);
-        setToken(newToken);
-        localStorage.setItem("token", newToken);
-        localStorage.setItem("user", JSON.stringify(newUser));
+          setUser(newUser);
+          setToken(newToken);
+          localStorage.setItem("token", newToken);
+          localStorage.setItem("user", JSON.stringify(newUser));
 
-        onSuccess(result);
-      },
-      onFailure: (err: unknown) => {
-        console.error("New password challenge failed:", err);
-        onFailure(err);
-      },
-    });
+          onSuccess(result);
+        },
+        onFailure: (err: unknown) => {
+          console.error("New password challenge failed:", err);
+          onFailure(err);
+        },
+      }
+    );
   };
 
   const handleRefreshToken = (): Promise<string | null> => {
