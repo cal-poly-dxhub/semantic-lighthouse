@@ -27,11 +27,11 @@ cd lambda && yarn install && yarn build && cd ..
 
 echo "🚀 Deploying unified stack..."
 # deploy stack with unified ID (use v5 to match user's command)
-JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION=1 UNIQUE_ID="unified-v5" npx cdk deploy --require-approval never
+JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION=1 UNIQUE_ID="unified-v6" npx cdk deploy --require-approval never
 
 echo "🧹 Cleaning up build artifacts..."
 # cleanup
 cd lambda && rm -rf dist && cd ..
 
 echo "✅ Deployment complete!"
-echo "🌐 Your stack has been deployed as: SemanticLighthouseStack-unified-v5" 
+echo "🌐 Your stack has been deployed as: SemanticLighthouseStack-unified-v5"
