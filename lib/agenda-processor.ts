@@ -23,35 +23,47 @@ export class AgendaProcessorResources extends Construct {
     const agendaProcessorRole = new iam.Role(this, "AgendaProcessorRole", {
       roleName: `${uniquePrefix}-agenda-processor-role`,
       assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
-      description: "Role for Semantic Lighthouse Agenda Document Processor Lambda with full Amazon Bedrock access",
+      description:
+        "Role for Semantic Lighthouse Agenda Document Processor Lambda with full Amazon Bedrock access",
       managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole"),
+        iam.ManagedPolicy.fromAwsManagedPolicyName(
+          "service-role/AWSLambdaBasicExecutionRole"
+        ),
         iam.ManagedPolicy.fromAwsManagedPolicyName("AmazonBedrockFullAccess"),
       ],
     });
 
-    this.agendaDocumentProcessor = new lambda.Function(this, "AgendaDocumentProcessor", {
-      functionName: `${uniquePrefix}-agenda-document-processor`,
-      runtime: lambda.Runtime.PYTHON_3_12,
-      code: lambda.Code.fromAsset("lambda/src/agenda_processor"),
-      handler: "handler.lambda_handler",
-      timeout: cdk.Duration.minutes(15),
-      memorySize: 1024,
-      role: agendaProcessorRole,
-      environment: {
-        BUCKET_NAME: meetingsBucket.bucketName,
-        STATE_MACHINE_ARN: stateMachine.stateMachineArn,
-        AGENDA_MODEL_ID: "us.anthropic.claude-sonnet-4-20250514-v1:0",
-        AGENDA_MAX_TOKENS: "65535",
-        AGENDA_TEMPERATURE: "0.1",
-      },
-    });
+    this.agendaDocumentProcessor = new lambda.Function(
+      this,
+      "AgendaDocumentProcessor",
+      {
+        functionName: `${uniquePrefix}-agenda-document-processor`,
+        runtime: lambda.Runtime.PYTHON_3_12,
+        code: lambda.Code.fromAsset(
+          "lambda/src/meeting-processor/agenda_processor"
+        ),
+        handler: "handler.lambda_handler",
+        timeout: cdk.Duration.minutes(15),
+        memorySize: 1024,
+        role: agendaProcessorRole,
+        environment: {
+          BUCKET_NAME: meetingsBucket.bucketName,
+          STATE_MACHINE_ARN: stateMachine.stateMachineArn,
+          AGENDA_MODEL_ID: "us.anthropic.claude-sonnet-4-20250514-v1:0",
+          AGENDA_MAX_TOKENS: "65535",
+          AGENDA_TEMPERATURE: "0.1",
+        },
+      }
+    );
 
     // Grant permissions
     this.grantPermissions(meetingsBucket, stateMachine);
   }
 
-  private grantPermissions(meetingsBucket: s3.Bucket, stateMachine: stepfunctions.StateMachine) {
+  private grantPermissions(
+    meetingsBucket: s3.Bucket,
+    stateMachine: stepfunctions.StateMachine
+  ) {
     // S3 permissions
     meetingsBucket.grantReadWrite(this.agendaDocumentProcessor);
 
@@ -64,18 +76,6 @@ export class AgendaProcessorResources extends Construct {
           "textract:GetDocumentTextDetection",
         ],
         resources: ["*"],
-      })
-    );
-
-    // Bedrock permissions (Nova Premier)
-    this.agendaDocumentProcessor.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["bedrock:InvokeModel"],
-        resources: [
-          "arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-premier-v1:0",
-          "arn:aws:bedrock:us-west-2::foundation-model/amazon.nova-premier-v1:0",
-        ],
       })
     );
 

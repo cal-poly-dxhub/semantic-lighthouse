@@ -134,6 +134,9 @@ export class FrontendResources extends Construct {
         version: "0.2",
         phases: {
           install: {
+            "runtime-versions": {
+              nodejs: "22",
+            },
             commands: [
               "cd frontend",
               "echo installing dependencies...",

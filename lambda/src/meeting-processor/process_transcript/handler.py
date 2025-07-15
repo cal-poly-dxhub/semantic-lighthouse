@@ -271,7 +271,7 @@ def process_video_links_for_html(text):
     return re.sub(pattern, replace_link, text)
 
 
-def generate_html_from_analysis(analysis_text, job_name, bucket_name):
+def generate_html_from_analysis(meeting_id, analysis_text, job_name, bucket_name):
     """
     Generate an HTML file from the Bedrock analysis text and save it to S3.
 
@@ -390,8 +390,8 @@ def generate_html_from_analysis(analysis_text, job_name, bucket_name):
 </html>
 """
 
-        # Save HTML to S3
-        html_key = f"analysis/{job_name}_analysis.html"
+        # Save HTML to S3 using meeting ID structure
+        html_key = f"{meeting_id}/processed/{job_name}_analysis.html"
         logger.info(f"Saving HTML to s3://{bucket_name}/{html_key}")
 
         s3_client.put_object(
@@ -803,7 +803,9 @@ def parse_segment_references(text):
                 }
             )
         else:
-            logger.warning(f"Skipping invalid range: {match.group(0)} (start {start_seg} > end {end_seg})")
+            logger.warning(
+                f"Skipping invalid range: {match.group(0)} (start {start_seg} > end {end_seg})"
+            )
 
     # Find range segments (format 2: seg_X-seg_Y)
     for match in re.finditer(range_pattern2, text):
@@ -821,7 +823,9 @@ def parse_segment_references(text):
                 }
             )
         else:
-            logger.warning(f"Skipping invalid range: {match.group(0)} (start {start_seg} > end {end_seg})")
+            logger.warning(
+                f"Skipping invalid range: {match.group(0)} (start {start_seg} > end {end_seg})"
+            )
 
     # Remove overlapping matches (keep longer/more specific ones)
     # Sort by start position and remove overlaps
@@ -892,7 +896,9 @@ def replace_segment_citations_with_links(analysis_text, segment_mapping, bucket,
 
                 # Skip if segments list is empty (could happen with malformed ranges)
                 if not segments:
-                    logger.warning(f"Skipping empty segments list for citation: {original_citation}")
+                    logger.warning(
+                        f"Skipping empty segments list for citation: {original_citation}"
+                    )
                     failed_replacements += 1
                     continue
 
@@ -901,7 +907,9 @@ def replace_segment_citations_with_links(analysis_text, segment_mapping, bucket,
 
                 if first_segment in segment_mapping:
                     timestamp = segment_mapping[first_segment]
-                    video_url = generate_video_url_with_timestamp(bucket, key, timestamp)
+                    video_url = generate_video_url_with_timestamp(
+                        bucket, key, timestamp
+                    )
 
                     if video_url:
                         # Use a special marker format that won't be converted by html2text
@@ -912,7 +920,9 @@ def replace_segment_citations_with_links(analysis_text, segment_mapping, bucket,
                         start_pos = ref["start"]
                         end_pos = ref["end"]
                         modified_text = (
-                            modified_text[:start_pos] + link_text + modified_text[end_pos:]
+                            modified_text[:start_pos]
+                            + link_text
+                            + modified_text[end_pos:]
                         )
 
                         logger.info(
@@ -931,11 +941,15 @@ def replace_segment_citations_with_links(analysis_text, segment_mapping, bucket,
                     failed_replacements += 1
 
             except Exception as e:
-                logger.error(f"Error processing individual segment reference {ref.get('original', 'unknown')}: {e}")
+                logger.error(
+                    f"Error processing individual segment reference {ref.get('original', 'unknown')}: {e}"
+                )
                 failed_replacements += 1
                 continue  # Skip this reference but continue with others
 
-        logger.info(f"Segment link processing completed: {successful_replacements} successful, {failed_replacements} failed out of {len(references)} total references")
+        logger.info(
+            f"Segment link processing completed: {successful_replacements} successful, {failed_replacements} failed out of {len(references)} total references"
+        )
         return modified_text
 
     except Exception as e:
@@ -950,8 +964,12 @@ def process_transcript_analysis(
     """
     Common function to handle transcript analysis and PDF generation
     """
+    # Extract ID from video info to build proper path structure
+    video_key = video_info.get("key", "") if video_info else ""
+    meeting_id = video_key.split("/")[0] if "/" in video_key else "unknown"
+
     # Save human-readable version to S3
-    human_readable_key = f"transcripts/{job_name}_human_readable.txt"
+    human_readable_key = f"{meeting_id}/transcripts/{job_name}_human_readable.txt"
 
     logger.info(
         f"Saving human-readable transcript to s3://{bucket_name}/{human_readable_key}"
@@ -1057,7 +1075,7 @@ Participants:"""
             )
 
         # Save analysis result to S3
-        analysis_key = f"analysis/{job_name}_analysis.txt"
+        analysis_key = f"{meeting_id}/processed/{job_name}_analysis.txt"
         logger.info(f"Saving analysis result to s3://{bucket_name}/{analysis_key}")
 
         s3_client.put_object(
@@ -1079,7 +1097,7 @@ Participants:"""
 
         try:
             html_key = generate_html_from_analysis(
-                analysis_result, job_name, bucket_name
+                meeting_id, analysis_result, job_name, bucket_name
             )
             logger.info(f"=== HTML Generation Completed Successfully: {html_key} ===")
             html_success = True

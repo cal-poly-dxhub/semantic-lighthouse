@@ -73,8 +73,14 @@ def lambda_handler(event, context):
     bucket = parsed.netloc
     html_key = parsed.path.lstrip("/")
 
-    job_root = os.path.splitext(os.path.basename(html_key))[0].replace("_analysis", "")
-    output_pdf_key = f"analysis/{job_root}_analysis.pdf"
+    # Extract meeting ID from HTML path (format: {id}/processed/{job}_analysis.html)
+    path_parts = html_key.split("/")
+    meeting_id = path_parts[0] if len(path_parts) > 0 else "unknown"
+    
+    # Generate final PDF name with date
+    from datetime import datetime
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    output_pdf_key = f"{meeting_id}/Meeting_{date_str}_minutes.pdf"
 
     # 1. Download HTML
     html_content = fetch_html_from_s3(html_s3_uri)

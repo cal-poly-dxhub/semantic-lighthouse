@@ -86,7 +86,7 @@ def create_mediaconvert_job(
         ]
 
     job_settings = {
-        "Role": "arn:aws:iam::412072465402:role/MediaConvertServiceRole",
+        "Role": os.environ["MEDIACONVERT_ROLE_ARN"],
         "Settings": {
             "Inputs": [input_settings],
             "OutputGroups": [
@@ -95,7 +95,7 @@ def create_mediaconvert_job(
                     "OutputGroupSettings": {
                         "Type": "FILE_GROUP_SETTINGS",
                         "FileGroupSettings": {
-                            "Destination": f"s3://{target_bucket}/audio/"
+                            "Destination": f"s3://{target_bucket}/{os.path.dirname(key)}/audio/"
                         },
                     },
                     "Outputs": [
@@ -121,7 +121,7 @@ def create_mediaconvert_job(
                 }
             ],
         },
-        "Queue": "arn:aws:mediaconvert:us-west-2:412072465402:queues/Default",
+        "Queue": os.environ["MEDIACONVERT_QUEUE_ARN"],
         "UserMetadata": {
             "OriginalFile": key,
             "SourceBucket": source_bucket,
@@ -235,7 +235,7 @@ def lambda_handler(event, context):
                 )
                 job_ids.append(resp["Job"]["Id"])
                 base_filename = os.path.splitext(os.path.basename(key))[0]
-                output_key = f"audio/{base_filename}_part{part:02d}.mp3"
+                output_key = f"{os.path.dirname(key)}/audio/{base_filename}_part{part:02d}.mp3"
                 audio_output_keys.append(output_key)
         else:
             logger.info("Video under threshold – single job conversion mode")
@@ -244,7 +244,7 @@ def lambda_handler(event, context):
             resp = create_mediaconvert_job(bucket, key, target_bucket, job_name)
             job_ids.append(resp["Job"]["Id"])
             base_filename = os.path.splitext(os.path.basename(key))[0]
-            output_key = f"audio/{base_filename}_converted.mp3"
+            output_key = f"{os.path.dirname(key)}/audio/{base_filename}_converted.mp3"
             audio_output_keys.append(output_key)
 
     logger.info("=== Summary ===")

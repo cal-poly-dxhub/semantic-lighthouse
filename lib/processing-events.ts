@@ -28,7 +28,7 @@ export class ProcessingEventsResources extends Construct {
             name: [meetingsBucket.bucketName],
           },
           object: {
-            key: [{ prefix: "uploads/meeting_recordings/" }],
+            key: [{ suffix: "uploads/video.mp4" }],
           },
         },
       },
@@ -51,7 +51,7 @@ export class ProcessingEventsResources extends Construct {
             name: [meetingsBucket.bucketName],
           },
           object: {
-            key: [{ prefix: "uploads/agenda_documents/" }],
+            key: [{ suffix: "uploads/agenda.pdf" }],
           },
         },
       },

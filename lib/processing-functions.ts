@@ -23,6 +23,7 @@ export interface ProcessingFunctions {
 
 export class ProcessingFunctionsResources extends Construct {
   public readonly functions: ProcessingFunctions;
+  private readonly mediaConvertRole: iam.Role;
 
   constructor(scope: Construct, id: string, props: ProcessingFunctionsProps) {
     super(scope, id);
@@ -38,6 +39,16 @@ export class ProcessingFunctionsResources extends Construct {
       path.join(__dirname, "../config/prompts/fallback-agenda.txt"),
       "utf8"
     );
+
+    // Create MediaConvert service role
+    this.mediaConvertRole = new iam.Role(this, "MediaConvertServiceRole", {
+      roleName: `${uniquePrefix}-mediaconvert-service-role`,
+      assumedBy: new iam.ServicePrincipal("mediaconvert.amazonaws.com"),
+      description: "Service role for MediaConvert to access S3 resources",
+    });
+
+    // Grant MediaConvert role S3 permissions
+    meetingsBucket.grantReadWrite(this.mediaConvertRole);
 
     // Lambda Layers
     const videoAnalysisLayer = new lambda.LayerVersion(this, "VideoAnalysisLayer", {
@@ -58,7 +69,7 @@ export class ProcessingFunctionsResources extends Construct {
     const videoToAudioConverter = new lambda.Function(this, "VideoToAudioConverter", {
       functionName: `${uniquePrefix}-video-to-audio-converter`,
       runtime: lambda.Runtime.PYTHON_3_12,
-      code: lambda.Code.fromAsset("lambda/src/mediaconvert_trigger"),
+      code: lambda.Code.fromAsset("lambda/src/meeting-processor/mediaconvert_trigger"),
       handler: "handler.lambda_handler",
       timeout: cdk.Duration.minutes(15),
       memorySize: 2048,
@@ -66,13 +77,15 @@ export class ProcessingFunctionsResources extends Construct {
       environment: {
         BUCKET_NAME: meetingsBucket.bucketName,
         OUTPUT_BUCKET: meetingsBucket.bucketName,
+        MEDIACONVERT_ROLE_ARN: this.mediaConvertRole.roleArn,
+        MEDIACONVERT_QUEUE_ARN: `arn:aws:mediaconvert:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:queues/Default`,
       },
     });
 
     const processingStatusMonitor = new lambda.Function(this, "ProcessingStatusMonitor", {
       functionName: `${uniquePrefix}-processing-status-monitor`,
       runtime: lambda.Runtime.PYTHON_3_12,
-      code: lambda.Code.fromAsset("lambda/src/verify_s3_file"),
+      code: lambda.Code.fromAsset("lambda/src/meeting-processor/verify_s3_file"),
       handler: "handler.lambda_handler",
       timeout: cdk.Duration.minutes(5),
       memorySize: 512,
@@ -84,7 +97,7 @@ export class ProcessingFunctionsResources extends Construct {
     const aiMeetingAnalyzer = new lambda.Function(this, "AiMeetingAnalyzer", {
       functionName: `${uniquePrefix}-ai-meeting-analyzer`,
       runtime: lambda.Runtime.PYTHON_3_12,
-      code: lambda.Code.fromAsset("lambda/src/process_transcript", {
+      code: lambda.Code.fromAsset("lambda/src/meeting-processor/process_transcript", {
         bundling: {
           image: lambda.Runtime.PYTHON_3_12.bundlingImage,
           command: [
@@ -110,7 +123,7 @@ export class ProcessingFunctionsResources extends Construct {
     const documentPdfGenerator = new lambda.Function(this, "DocumentPdfGenerator", {
       functionName: `${uniquePrefix}-document-pdf-generator`,
       runtime: lambda.Runtime.PYTHON_3_12,
-      code: lambda.Code.fromAsset("lambda/src/html_to_pdf"),
+      code: lambda.Code.fromAsset("lambda/src/meeting-processor/html_to_pdf"),
       handler: "handler.lambda_handler",
       timeout: cdk.Duration.minutes(5),
       memorySize: 1536,
@@ -125,7 +138,7 @@ export class ProcessingFunctionsResources extends Construct {
     const notificationSender = new lambda.Function(this, "NotificationSender", {
       functionName: `${uniquePrefix}-notification-sender`,
       runtime: lambda.Runtime.PYTHON_3_12,
-      code: lambda.Code.fromAsset("lambda/src/email_sender"),
+      code: lambda.Code.fromAsset("lambda/src/meeting-processor/email_sender"),
       handler: "handler.lambda_handler",
       timeout: cdk.Duration.minutes(1),
       memorySize: 256,
@@ -183,9 +196,17 @@ export class ProcessingFunctionsResources extends Construct {
           "mediaconvert:GetJob",
           "mediaconvert:ListJobs",
           "mediaconvert:DescribeEndpoints",
-          "iam:PassRole",
         ],
         resources: ["*"],
+      })
+    );
+
+    // Allow Lambda to pass the MediaConvert role
+    videoToAudioConverter.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["iam:PassRole"],
+        resources: [this.mediaConvertRole.roleArn],
         conditions: {
           StringEquals: {
             "iam:PassedToService": "mediaconvert.amazonaws.com",

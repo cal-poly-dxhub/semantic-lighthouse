@@ -66,20 +66,18 @@ def check_mediaconvert_jobs_status(job_ids):
 def extract_correlation_key_from_video(video_s3_key):
     """
     Extract correlation key from video S3 key
-    uploads/meeting_recordings/board_meeting_2024_01_15.mp4 -> board_meeting_2024_01_15
+    {id}/uploads/video.mp4 -> {id}
     """
-    filename = video_s3_key.split("/")[-1]  # Get filename
-    base_name = os.path.splitext(filename)[0]  # Remove extension
-    return base_name
+    return video_s3_key.split("/")[0]  # Get the ID (first part of path)
 
 
-def check_agenda_exists(bucket, correlation_key):
+def check_agenda_exists(bucket, correlation_key, meeting_id):
     """
     Check if agenda analysis exists for the given correlation key
     Returns both the existence status and the analysis data if available
     """
-    analysis_key = f"processed/agenda/analysis/{correlation_key}.json"
-    raw_text_key = f"processed/agenda/raw_text/{correlation_key}.txt"
+    analysis_key = f"{meeting_id}/processed/agenda_analysis.json"
+    raw_text_key = f"{meeting_id}/processed/agenda_text.txt"
 
     try:
         # Check if analysis file exists
@@ -140,6 +138,7 @@ def lambda_handler(event, context):
     # Check if this is an agenda checking request
     if event.get("check_agenda"):
         video_s3_key = event.get("video_s3_key")
+        meeting_id = event.get("meeting_id")
         if not video_s3_key:
             raise ValueError("video_s3_key is required when check_agenda is true")
 
@@ -151,7 +150,7 @@ def lambda_handler(event, context):
         if not bucket:
             raise ValueError("BUCKET_NAME environment variable is required")
 
-        result = check_agenda_exists(bucket, correlation_key)
+        result = check_agenda_exists(bucket, correlation_key, meeting_id)
         logger.info(f"Agenda check result: {json.dumps(result)}")
         return result
 

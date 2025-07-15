@@ -496,30 +496,31 @@ This is a standard school board meeting. Please analyze the transcript for:
 ### 7.2 Meeting Processor Bucket Structure
 
 ```
-uploads/
-├── meeting_recordings/          # EventBridge trigger path
-│   └── {filename}.mp4
-└── agenda_documents/           # EventBridge trigger path
-    └── {filename}.pdf
+meeting_id/
+  uploads/
+  ├── meeting_recordings/          # EventBridge trigger path
+  │   └── {filename}.mp4
+  └── agenda_documents/           # EventBridge trigger path
+      └── {filename}.pdf
 
-audio/                          # MediaConvert output
-├── {filename}_converted.mp3    # Single file output
-└── {filename}_part{N:02d}.mp3  # Chunked output
+  audio/                          # MediaConvert output
+  ├── {filename}_converted.mp3    # Single file output
+  └── {filename}_part{N:02d}.mp3  # Chunked output
 
-transcripts/                    # AWS Transcribe output
-└── {transcription_job_name}.json
+  transcripts/                    # AWS Transcribe output
+  └── {transcription_job_name}.json
 
-processed/
-├── agenda/
-│   ├── raw_text/              # Textract extracted text
-│   │   └── {correlation_key}.txt
-│   └── analysis/              # AI processed agenda
-│       └── {correlation_key}.json
-└── transcripts/               # AI processed transcripts
+  processed/
+  ├── agenda/
+  │   ├── raw_text/              # Textract extracted text
+  │   │   └── {correlation_key}.txt
+  │   └── analysis/              # AI processed agenda
+  │       └── {correlation_key}.json
+  └── transcripts/               # AI processed transcripts
 
-analysis/                      # Final outputs
-├── {job_name}_analysis.html   # Interactive HTML
-└── {job_name}_analysis.pdf    # Printable PDF
+  analysis/                      # Final outputs
+  ├── {job_name}_analysis.html   # Interactive HTML
+  └── {job_name}_analysis.pdf    # Printable PDF
 ```
 
 ### 7.3 EventBridge Trigger Paths

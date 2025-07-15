@@ -249,11 +249,11 @@ def analyze_agenda(agenda_text):
         raise
 
 
-def save_results_to_s3(bucket, correlation_key, raw_text, analysis_json):
+def save_results_to_s3(meeting_id, bucket, correlation_key, raw_text, analysis_json):
     """Save processing results to S3"""
     try:
         # Save raw text
-        raw_text_key = f"processed/agenda/raw_text/{correlation_key}.txt"
+        raw_text_key = f"{meeting_id}/processed/agenda/raw_text/{correlation_key}.txt"
         s3_client.put_object(
             Bucket=bucket,
             Key=raw_text_key,
@@ -263,7 +263,7 @@ def save_results_to_s3(bucket, correlation_key, raw_text, analysis_json):
         logger.info(f"Saved raw text to s3://{bucket}/{raw_text_key}")
 
         # Save analysis JSON
-        analysis_key = f"processed/agenda/analysis/{correlation_key}.json"
+        analysis_key = f"{meeting_id}/processed/agenda/analysis/{correlation_key}.json"
         s3_client.put_object(
             Bucket=bucket,
             Key=analysis_key,
@@ -353,6 +353,7 @@ def lambda_handler(event, context):
         # Extract S3 information from event
         bucket_name = event["detail"]["bucket"]["name"]
         pdf_key = event["detail"]["object"]["key"]
+        meeting_id = pdf_key.split("/")[0]
 
         logger.info(f"Processing agenda: s3://{bucket_name}/{pdf_key}")
 
@@ -375,7 +376,7 @@ def lambda_handler(event, context):
 
         # Save results to S3
         s3_uris = save_results_to_s3(
-            bucket_name, correlation_key, extracted_text, agenda_analysis
+            meeting_id, bucket_name, correlation_key, extracted_text, agenda_analysis
         )
 
         # Check if we should trigger combined processing
