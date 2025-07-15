@@ -45,6 +45,7 @@ export class SemanticLighthouseStack extends cdk.Stack {
       userPoolClient: authResources.userPoolClient,
       meetingsBucket: dataResources.bucket,
       meetingsTable: dataResources.meetingsTable,
+      promptTemplatesTable: dataResources.promptTemplatesTable,
       videoDistribution: dataResources.distribution,
       defaultUserGroupName: authResources.defaultUserGroupName,
     });
@@ -68,6 +69,7 @@ export class SemanticLighthouseStack extends cdk.Stack {
         meetingsTable: dataResources.meetingsTable,
         userPreferencesTable: dataResources.userPreferencesTable,
         systemConfigTable: dataResources.systemConfigTable,
+        promptTemplatesTable: dataResources.promptTemplatesTable,
         videoDistribution: dataResources.distribution,
         frontendDistribution: frontendResources.distribution,
       }
@@ -171,6 +173,36 @@ export class SemanticLighthouseStack extends cdk.Stack {
     s3AgendaUploadRule.addTarget(
       new cdk.aws_events_targets.LambdaFunction(
         meetingProcessorIntegration.agendaProcessor,
+        {
+          event: cdk.aws_events.RuleTargetInput.fromEventPath("$"),
+        }
+      )
+    );
+
+    // EventBridge rule for prompt template uploads - triggers prompt template processor
+    const s3PromptTemplateUploadRule = new cdk.aws_events.Rule(
+      this,
+      "S3PromptTemplateUploadRule",
+      {
+        eventPattern: {
+          source: ["aws.s3"],
+          detailType: ["Object Created"],
+          detail: {
+            bucket: {
+              name: [dataResources.bucket.bucketName],
+            },
+            object: {
+              key: [{ prefix: "uploads/prompt_templates/" }],
+            },
+          },
+        },
+      }
+    );
+
+    // Add Prompt Template Processor as target for prompt template uploads
+    s3PromptTemplateUploadRule.addTarget(
+      new cdk.aws_events_targets.LambdaFunction(
+        meetingProcessorIntegration.promptTemplateProcessor,
         {
           event: cdk.aws_events.RuleTargetInput.fromEventPath("$"),
         }

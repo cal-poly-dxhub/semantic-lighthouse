@@ -11,6 +11,7 @@ export class DataResources extends Construct {
   public readonly meetingsTable: cdk.aws_dynamodb.Table;
   public readonly userPreferencesTable: cdk.aws_dynamodb.Table;
   public readonly systemConfigTable: cdk.aws_dynamodb.Table;
+  public readonly promptTemplatesTable: cdk.aws_dynamodb.Table;
 
   constructor(scope: Construct, id: string, props: DataResourcesProps) {
     super(scope, id);
@@ -144,6 +145,39 @@ export class DataResources extends Construct {
         billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST,
       }
     );
+
+    // =================================================================
+    // PROMPT TEMPLATES TABLE - Organization-level custom prompt templates
+    // =================================================================
+    this.promptTemplatesTable = new cdk.aws_dynamodb.Table(
+      this,
+      "PromptTemplatesTable",
+      {
+        partitionKey: {
+          name: "templateId",
+          type: cdk.aws_dynamodb.AttributeType.STRING,
+        },
+        sortKey: {
+          name: "createdAt",
+          type: cdk.aws_dynamodb.AttributeType.STRING,
+        },
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST,
+      }
+    );
+
+    // Add GSI for querying by status (available/processing)
+    this.promptTemplatesTable.addGlobalSecondaryIndex({
+      indexName: "StatusIndex",
+      partitionKey: {
+        name: "status",
+        type: cdk.aws_dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: "createdAt",
+        type: cdk.aws_dynamodb.AttributeType.STRING,
+      },
+    });
 
     // =================================================================
     // PRE-POPULATE SYSTEM CONFIG - Hardcoded AI and processing settings
@@ -322,6 +356,11 @@ export class DataResources extends Construct {
     new cdk.CfnOutput(this, "SystemConfigTableName", {
       value: this.systemConfigTable.tableName,
       description: "DynamoDB table for system configuration",
+    });
+
+    new cdk.CfnOutput(this, "PromptTemplatesTableName", {
+      value: this.promptTemplatesTable.tableName,
+      description: "DynamoDB table for custom prompt templates",
     });
   }
 }

@@ -9,6 +9,7 @@ export interface MeetingProcessorIntegrationProps {
   meetingsTable: cdk.aws_dynamodb.Table;
   userPreferencesTable: cdk.aws_dynamodb.Table;
   systemConfigTable: cdk.aws_dynamodb.Table;
+  promptTemplatesTable: cdk.aws_dynamodb.Table;
   videoDistribution: cdk.aws_cloudfront.Distribution;
   frontendDistribution: cdk.aws_cloudfront.Distribution;
 }
@@ -16,6 +17,7 @@ export interface MeetingProcessorIntegrationProps {
 export class MeetingProcessorIntegration extends Construct {
   public readonly stateMachine: cdk.aws_stepfunctions.StateMachine;
   public readonly agendaProcessor: cdk.aws_lambda.Function;
+  public readonly promptTemplateProcessor: cdk.aws_lambda.Function;
 
   constructor(
     scope: Construct,
@@ -209,6 +211,7 @@ export class MeetingProcessorIntegration extends Construct {
           S3_BUCKET: props.bucket.bucketName,
           MEETINGS_TABLE_NAME: props.meetingsTable.tableName,
           SYSTEM_CONFIG_TABLE_NAME: props.systemConfigTable.tableName,
+          PROMPT_TEMPLATES_TABLE_NAME: props.promptTemplatesTable.tableName,
           CLOUDFRONT_DOMAIN_NAME:
             props.videoDistribution.distributionDomainName,
           FRONTEND_DOMAIN_NAME:
@@ -288,6 +291,7 @@ export class MeetingProcessorIntegration extends Construct {
     props.systemConfigTable.grantReadData(aiMeetingAnalyzer);
 
     props.userPreferencesTable.grantReadData(notificationSender);
+    props.promptTemplatesTable.grantReadData(aiMeetingAnalyzer);
 
     // SNS permissions for notification sender (to publish to user-specific topics)
     notificationSender.addToRolePolicy(
@@ -484,6 +488,72 @@ export class MeetingProcessorIntegration extends Construct {
 
     // Note: Agenda processor no longer needs Step Functions permissions
     // It saves agenda data to S3 and lets the existing workflow find it
+
+    // =================================================================
+    // PROMPT TEMPLATE PROCESSOR - Generate custom prompts from example PDFs
+    // =================================================================
+
+    this.promptTemplateProcessor = new cdk.aws_lambda.Function(
+      this,
+      "PromptTemplateProcessor",
+      {
+        functionName: `${uniquePrefix}-prompt-template-processor`,
+        runtime: cdk.aws_lambda.Runtime.PYTHON_3_12,
+        code: cdk.aws_lambda.Code.fromAsset(
+          "../meeting-processor-cdk/lambda/src/prompt_template_processor",
+          {
+            bundling: {
+              image: cdk.aws_lambda.Runtime.PYTHON_3_12.bundlingImage,
+              command: [
+                "bash",
+                "-c",
+                "pip install -r requirements.txt -t /asset-output && cp -au . /asset-output",
+              ],
+            },
+          }
+        ),
+        handler: "handler.lambda_handler",
+        timeout: cdk.Duration.minutes(15), // Increased for async Textract + Claude processing
+        memorySize: 2048,
+        environment: {
+          BUCKET_NAME: props.bucket.bucketName,
+          PROMPT_TEMPLATES_TABLE_NAME: props.promptTemplatesTable.tableName,
+          SYSTEM_CONFIG_TABLE_NAME: props.systemConfigTable.tableName,
+        },
+      }
+    );
+
+    // Permissions for prompt template processor
+    props.bucket.grantReadWrite(this.promptTemplateProcessor);
+    props.promptTemplatesTable.grantReadWriteData(this.promptTemplateProcessor);
+    props.systemConfigTable.grantReadData(this.promptTemplateProcessor);
+
+    // Textract permissions for prompt template processor
+    this.promptTemplateProcessor.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        effect: cdk.aws_iam.Effect.ALLOW,
+        actions: ["textract:*"],
+        resources: ["*"],
+      })
+    );
+
+    // Bedrock permissions for prompt template processor
+    this.promptTemplateProcessor.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        effect: cdk.aws_iam.Effect.ALLOW,
+        actions: ["bedrock:*"],
+        resources: ["*"],
+      })
+    );
+
+    // STS permissions for prompt template processor
+    this.promptTemplateProcessor.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        effect: cdk.aws_iam.Effect.ALLOW,
+        actions: ["sts:GetCallerIdentity"],
+        resources: ["*"],
+      })
+    );
   }
 
   /**
@@ -616,6 +686,26 @@ export class MeetingProcessorIntegration extends Construct {
                 configValue: '7',
                 description: 'Presigned URL expiration in days',
                 category: 'email_notifications'
+              },
+              
+              // Prompt Generation Configuration
+              {
+                configKey: 'prompt_generation_model_id',
+                configValue: 'us.anthropic.claude-sonnet-4-20250514-v1:0',
+                description: 'AI model for prompt template generation',
+                category: 'prompt_generation'
+              },
+              {
+                configKey: 'prompt_generation_max_tokens',
+                configValue: '8000',
+                description: 'Maximum tokens for prompt generation',
+                category: 'prompt_generation'
+              },
+              {
+                configKey: 'prompt_generation_temperature',
+                configValue: '0.1',
+                description: 'Temperature for prompt generation',
+                category: 'prompt_generation'
               }
             ];
             
