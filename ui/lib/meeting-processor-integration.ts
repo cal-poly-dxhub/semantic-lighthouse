@@ -444,7 +444,6 @@ export class MeetingProcessorIntegration extends Construct {
         memorySize: 1024,
         environment: {
           BUCKET_NAME: props.bucket.bucketName,
-          STATE_MACHINE_ARN: this.stateMachine.stateMachineArn,
           MEETINGS_TABLE_NAME: props.meetingsTable.tableName,
           SYSTEM_CONFIG_TABLE_NAME: props.systemConfigTable.tableName,
         },
@@ -483,14 +482,8 @@ export class MeetingProcessorIntegration extends Construct {
       })
     );
 
-    // Step Functions permissions for agenda processor
-    this.agendaProcessor.addToRolePolicy(
-      new cdk.aws_iam.PolicyStatement({
-        effect: cdk.aws_iam.Effect.ALLOW,
-        actions: ["states:StartExecution"],
-        resources: [this.stateMachine.stateMachineArn],
-      })
-    );
+    // Note: Agenda processor no longer needs Step Functions permissions
+    // It saves agenda data to S3 and lets the existing workflow find it
   }
 
   /**

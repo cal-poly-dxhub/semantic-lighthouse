@@ -378,59 +378,13 @@ def lambda_handler(event, context):
             bucket_name, correlation_key, extracted_text, agenda_analysis
         )
 
-        # Check if we should trigger combined processing
+        # The agenda data is now saved to S3 and will be automatically discovered
+        # by any running Step Functions workflows during their agenda check phases
         if video_info["video_exists"]:
-            logger.info("Corresponding video found - triggering combined processing")
-            try:
-                # Trigger the video processing state machine with agenda data
-                step_functions_client = boto3.client("stepfunctions")
-
-                # Get the state machine ARN from environment or construct it
-                # Note: You'll need to add this environment variable to the CDK
-                state_machine_arn = os.environ.get("STATE_MACHINE_ARN")
-                if not state_machine_arn:
-                    # Fallback construction - this should be set via environment variable
-                    region = os.environ.get("AWS_REGION", "us-west-2")
-                    account_id = boto3.client("sts").get_caller_identity()["Account"]
-                    state_machine_arn = f"arn:aws:states:{region}:{account_id}:stateMachine:meeting-processor-transcription-v2"
-
-                # Create the event payload for the video processing
-                video_event = {
-                    "detail": {
-                        "bucket": {"name": bucket_name},
-                        "object": {"key": video_info["video_key"]},
-                    },
-                    "agendaData": {
-                        "agenda_exists": True,
-                        "analysis_s3_uri": s3_uris["analysis_s3_uri"],
-                        "raw_text_s3_uri": s3_uris["raw_text_s3_uri"],
-                        "analysis_data": agenda_analysis,
-                        "correlation_key": correlation_key,
-                    },
-                }
-
-                # Start the state machine execution
-                execution_name = (
-                    f"combined-processing-{correlation_key}-{int(time.time())}"
-                )
-
-                response = step_functions_client.start_execution(
-                    stateMachineArn=state_machine_arn,
-                    name=execution_name,
-                    input=json.dumps(video_event),
-                )
-
-                logger.info(
-                    f"Started combined processing execution: {response['executionArn']}"
-                )
-
-                combined_processing_triggered = True
-                execution_arn = response["executionArn"]
-
-            except Exception as e:
-                logger.error(f"Failed to trigger combined processing: {e}")
-                combined_processing_triggered = False
-                execution_arn = None
+            logger.info("Corresponding video found - agenda data saved and ready for pickup")
+            logger.info(f"Video processing workflow will find agenda at: {s3_uris['analysis_s3_uri']}")
+            combined_processing_triggered = False  # Not manually triggering anymore
+            execution_arn = None
         else:
             logger.info("No corresponding video found - agenda analysis completed")
             combined_processing_triggered = False
