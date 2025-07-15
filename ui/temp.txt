@@ -1,0 +1,401 @@
+b/39073536085382984092874486548389560921798762696300036096/s	f/39073538842312609261222772570172407068538782024792670208/s
+EVENTS	1752117955616	[Container] 2025/07/10 03:25:49.725674 Running on CodeBuild On-demand
+	1752117955590
+EVENTS	1752117955616	[Container] 2025/07/10 03:25:49.725686 Waiting for agent ping
+	1752117955590
+EVENTS	1752117955616	[Container] 2025/07/10 03:25:49.927160 Waiting for DOWNLOAD_SOURCE
+	1752117955590
+EVENTS	1752117955616	[Container] 2025/07/10 03:25:51.534785 Phase is DOWNLOAD_SOURCE
+	1752117955590
+EVENTS	1752117955616	[Container] 2025/07/10 03:25:51.536303 CODEBUILD_SRC_DIR=/codebuild/output/src450375331/src
+	1752117955590
+EVENTS	1752117955616	[Container] 2025/07/10 03:25:51.536834 YAML location is /codebuild/readonly/buildspec.yml
+	1752117955590
+EVENTS	1752117955616	[Container] 2025/07/10 03:25:51.536993 Found possible syntax errors in buildspec:
+	1752117955590
+EVENTS	1752117955616	In the section artifacts
+	1752117955590
+EVENTS	1752117955616		The following keys cannot be identified:
+	1752117955590
+EVENTS	1752117955616			s3-artifact-acl
+	1752117955590
+EVENTS	1752117955616	[Container] 2025/07/10 03:25:51.539252 Setting HTTP client timeout to higher timeout for S3 source
+	1752117955590
+EVENTS	1752117955616	[Container] 2025/07/10 03:25:51.539399 Processing environment variables
+	1752117955590
+EVENTS	1752117955616	[Container] 2025/07/10 03:25:51.736790 No runtime version selected in buildspec.
+	1752117955590
+EVENTS	1752117955616	[Container] 2025/07/10 03:25:51.759063 Moving to directory /codebuild/output/src450375331/src
+	1752117955590
+EVENTS	1752117955616	[Container] 2025/07/10 03:25:51.759088 Cache is not defined in the buildspec
+	1752117955590
+EVENTS	1752117955616	[Container] 2025/07/10 03:25:51.801724 Skip cache due to: no paths specified to be cached
+	1752117955590
+EVENTS	1752117955616	[Container] 2025/07/10 03:25:51.802136 Registering with agent
+	1752117955590
+EVENTS	1752117955616	[Container] 2025/07/10 03:25:51.844239 Phases found in YAML: 2
+	1752117955590
+EVENTS	1752117955616	[Container] 2025/07/10 03:25:51.844260  INSTALL: 3 commands
+	1752117955590
+EVENTS	1752117955616	[Container] 2025/07/10 03:25:51.844355  BUILD: 2 commands
+	1752117955590
+EVENTS	1752117955616	[Container] 2025/07/10 03:25:51.844736 Phase complete: DOWNLOAD_SOURCE State: SUCCEEDED
+	1752117955590
+EVENTS	1752117955616	[Container] 2025/07/10 03:25:51.844749 Phase context status code:  Message:
+	1752117955590
+EVENTS	1752117955616	[Container] 2025/07/10 03:25:51.921958 Entering phase INSTALL
+	1752117955590
+EVENTS	1752117955616	[Container] 2025/07/10 03:25:51.956053 Running command cd frontend
+	1752117955590
+EVENTS	1752117955616
+	1752117955590
+EVENTS	1752117955616	[Container] 2025/07/10 03:25:51.961579 Running command echo installing dependencies...
+	1752117955590
+EVENTS	1752117955616	installing dependencies...
+	1752117955590
+EVENTS	1752117955616
+	1752117955590
+EVENTS	1752117955616	[Container] 2025/07/10 03:25:51.968025 Running command yarn install
+	1752117955590
+EVENTS	1752117957638	yarn install v1.22.22
+	1752117957635
+EVENTS	1752117957638	[1/4] Resolving packages...
+	1752117957635
+EVENTS	1752117959651	[2/4] Fetching packages...
+	1752117959648
+EVENTS	1752117995717	[3/4] Linking dependencies...
+	1752117995678
+EVENTS	1752118017768	[4/4] Building fresh packages...
+	1752118017744
+EVENTS	1752118017768	success Saved lockfile.
+	1752118017744
+EVENTS	1752118017768	Done in 60.19s.
+	1752118017744
+EVENTS	1752118017768
+	1752118017744
+EVENTS	1752118017768	[Container] 2025/07/10 03:26:56.445632 Phase complete: INSTALL State: SUCCEEDED
+	1752118017744
+EVENTS	1752118017768	[Container] 2025/07/10 03:26:56.445650 Phase context status code:  Message:
+	1752118017744
+EVENTS	1752118017768	[Container] 2025/07/10 03:26:56.479772 Entering phase PRE_BUILD
+	1752118017744
+EVENTS	1752118017768	[Container] 2025/07/10 03:26:56.482348 Phase complete: PRE_BUILD State: SUCCEEDED
+	1752118017744
+EVENTS	1752118017768	[Container] 2025/07/10 03:26:56.482364 Phase context status code:  Message:
+	1752118017744
+EVENTS	1752118017768	[Container] 2025/07/10 03:26:56.517222 Entering phase BUILD
+	1752118017744
+EVENTS	1752118017768	[Container] 2025/07/10 03:26:56.518225 Running command echo building...
+	1752118017744
+EVENTS	1752118017768	building...
+	1752118017744
+EVENTS	1752118017768
+	1752118017744
+EVENTS	1752118017768	[Container] 2025/07/10 03:26:56.525809 Running command yarn build
+	1752118017744
+EVENTS	1752118017768	yarn run v1.22.22
+	1752118017744
+EVENTS	1752118017768	$ next build
+	1752118017744
+EVENTS	1752118017768	 ⚠ Invalid next.config.js options detected:
+	1752118017744
+EVENTS	1752118017768	 ⚠     Unrecognized key(s) in object: 'default'
+	1752118017744
+EVENTS	1752118017768	 ⚠ See more info here: https://nextjs.org/docs/messages/invalid-next-config
+	1752118017744
+EVENTS	1752118017768	⚠ No build cache found. Please configure build caching for faster rebuilds. Read more: https://nextjs.org/docs/messages/no-cache
+	1752118017744
+EVENTS	1752118017768	Attention: Next.js now collects completely anonymous telemetry regarding usage.
+	1752118017744
+EVENTS	1752118017768	This information is used to shape Next.js' roadmap and prioritize features.
+	1752118017744
+EVENTS	1752118017768	You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+	1752118017744
+EVENTS	1752118017768	https://nextjs.org/telemetry
+	1752118017744
+EVENTS	1752118017768
+	1752118017744
+EVENTS	1752118017768	   ▲ Next.js 15.3.4
+	1752118017744
+EVENTS	1752118017768
+	1752118017744
+EVENTS	1752118017768	   Creating an optimized production build ...
+	1752118017744
+EVENTS	1752118043817	<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (157kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+	1752118043790
+EVENTS	1752118043817	<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (157kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+	1752118043790
+EVENTS	1752118043817	<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (156kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+	1752118043790
+EVENTS	1752118043817	<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (156kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+	1752118043790
+EVENTS	1752118043817	<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (156kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+	1752118043790
+EVENTS	1752118043817	<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (156kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+	1752118043790
+EVENTS	1752118043817	<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (157kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+	1752118043790
+EVENTS	1752118043817	<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (157kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+	1752118043790
+EVENTS	1752118043817	<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (156kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+	1752118043790
+EVENTS	1752118043817	<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (156kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+	1752118043790
+EVENTS	1752118043817	<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (156kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+	1752118043790
+EVENTS	1752118043817	<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (156kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+	1752118043790
+EVENTS	1752118069870	<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (156kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+	1752118069845
+EVENTS	1752118069870	<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (156kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+	1752118069845
+EVENTS	1752118069870	<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (156kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+	1752118069845
+EVENTS	1752118069870	<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (156kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+	1752118069845
+EVENTS	1752118071886	 ✓ Compiled successfully in 48s
+	1752118071884
+EVENTS	1752118071886	   Linting and checking validity of types ...
+	1752118071884
+EVENTS	1752118077923
+	1752118077897
+EVENTS	1752118077923	Failed to compile.
+	1752118077897
+EVENTS	1752118077923
+	1752118077897
+EVENTS	1752118077923	./src/app/create-user/page.js
+	1752118077897
+EVENTS	1752118077923	5:22  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	6:16  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	7:16  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	8:17  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923
+	1752118077897
+EVENTS	1752118077923	./src/app/layout.js
+	1752118077897
+EVENTS	1752118077923	8:1  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	9:34  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	10:23  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	11:17  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	12:16  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923
+	1752118077897
+EVENTS	1752118077923	./src/app/login/page.js
+	1752118077897
+EVENTS	1752118077923	9:17  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	10:16  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	11:16  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	12:32  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	13:22  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	14:17  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	15:23  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923
+	1752118077897
+EVENTS	1752118077923	./src/app/page.js
+	1752118077897
+EVENTS	1752118077923	5:16  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923
+	1752118077897
+EVENTS	1752118077923	./src/app/setup-account/page.js
+	1752118077897
+EVENTS	1752118077923	8:22  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	9:23  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	10:16  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	11:16  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	12:32  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	13:22  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	14:17  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923
+	1752118077897
+EVENTS	1752118077923	./src/app/signup/page.js
+	1752118077897
+EVENTS	1752118077923	8:23  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	9:16  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	10:16  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	11:32  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	12:22  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	13:17  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923
+	1752118077897
+EVENTS	1752118077923	./src/app/upload/page.js
+	1752118077897
+EVENTS	1752118077923	5:22  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	6:23  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	7:16  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	8:20  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	9:16  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	10:23  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	11:17  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923
+	1752118077897
+EVENTS	1752118077923	./src/app/verify/page.js
+	1752118077897
+EVENTS	1752118077923	8:23  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	9:17  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	10:16  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	11:16  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	12:32  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	13:22  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	14:17  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923
+	1752118077897
+EVENTS	1752118077923	./src/app/video/page.js
+	1752118077897
+EVENTS	1752118077923	5:22  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	6:23  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	7:16  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	8:22  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	9:17  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923
+	1752118077897
+EVENTS	1752118077923	./src/components/Header.js
+	1752118077897
+EVENTS	1752118077923	7:23  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	8:16  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	9:17  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	10:53  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923
+	1752118077897
+EVENTS	1752118077923	./src/constants/AuthContext.js
+	1752118077897
+EVENTS	1752118077923	8:38  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	9:17  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	10:38  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923
+	1752118077897
+EVENTS	1752118077923	./src/constants/apiRequest.js
+	1752118077897
+EVENTS	1752118077923	4:17  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923	5:23  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923
+	1752118077897
+EVENTS	1752118077923	./src/constants/theme.d.ts
+	1752118077897
+EVENTS	1752118077923	133:26  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+	1752118077897
+EVENTS	1752118077923	134:22  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+	1752118077897
+EVENTS	1752118077923	135:20  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+	1752118077897
+EVENTS	1752118077923	136:28  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+	1752118077897
+EVENTS	1752118077923	140:22  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+	1752118077897
+EVENTS	1752118077923
+	1752118077897
+EVENTS	1752118077923	./src/constants/theme.js
+	1752118077897
+EVENTS	1752118077923	4:16  Error: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+	1752118077897
+EVENTS	1752118077923
+	1752118077897
+EVENTS	1752118077923	info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+	1752118077897
+EVENTS	1752118077923	error Command failed with exit code 1.
+	1752118077897
+EVENTS	1752118077923	info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.
+	1752118077897
+EVENTS	1752118077923
+	1752118077897
+EVENTS	1752118077923	[Container] 2025/07/10 03:27:57.209768 Command did not exit successfully yarn build exit status 1
+	1752118077897
+EVENTS	1752118077923	[Container] 2025/07/10 03:27:57.217397 Phase complete: BUILD State: FAILED
+	1752118077897
+EVENTS	1752118077923	[Container] 2025/07/10 03:27:57.217412 Phase context status code: COMMAND_EXECUTION_ERROR Message: Error while executing command: yarn build. Reason: exit status 1
+	1752118077897
+EVENTS	1752118077923	[Container] 2025/07/10 03:27:57.252581 Entering phase POST_BUILD
+	1752118077897
+EVENTS	1752118077923	[Container] 2025/07/10 03:27:57.256258 Phase complete: POST_BUILD State: SUCCEEDED
+	1752118077897
+EVENTS	1752118077923	[Container] 2025/07/10 03:27:57.256282 Phase context status code:  Message:
+	1752118077897
+EVENTS	1752118077923	[Container] 2025/07/10 03:27:57.342369 Expanding base directory path: frontend/out
+	1752118077897
+EVENTS	1752118077923	[Container] 2025/07/10 03:27:57.344192 Assembling file list
+	1752118077897
+EVENTS	1752118077923	[Container] 2025/07/10 03:27:57.344207 Expanding frontend/out
+	1752118077897
+EVENTS	1752118077923	[Container] 2025/07/10 03:27:57.345864 Skipping invalid file path frontend/out
+	1752118077897
+EVENTS	1752118077923	[Container] 2025/07/10 03:27:57.346383 Set report auto-discover timeout to 5 seconds
+	1752118077897
+EVENTS	1752118077923	[Container] 2025/07/10 03:27:57.347931 Expanding base directory path:  .
+	1752118077897
+EVENTS	1752118077923	[Container] 2025/07/10 03:27:57.349557 Assembling file list
+	1752118077897
+EVENTS	1752118077923	[Container] 2025/07/10 03:27:57.349570 Expanding .
+	1752118077897
+EVENTS	1752118077923	[Container] 2025/07/10 03:27:57.351167 Expanding file paths for base directory .
+	1752118077897
+EVENTS	1752118077923	[Container] 2025/07/10 03:27:57.351177 Assembling file list
+	1752118077897
+EVENTS	1752118077923	[Container] 2025/07/10 03:27:57.351181 Expanding **/*
+	1752118077897
+EVENTS	1752118077923	[Container] 2025/07/10 03:27:57.703455 Found 4 file(s)
+	1752118077897
+EVENTS	1752118077923	[Container] 2025/07/10 03:27:57.703501 Report auto-discover file discovery took 0.357118 seconds
+	1752118077897
+EVENTS	1752118077923	[Container] 2025/07/10 03:27:57.704451 Phase complete: UPLOAD_ARTIFACTS State: FAILED
+	1752118077897
+EVENTS	1752118077923	[Container] 2025/07/10 03:27:57.704471 Phase context status code: CLIENT_ERROR Message: no matching base directory path found for frontend/out
+	1752118077897
+EVENTS	1752118079221	no matching base directory path found for frontend/out	1752118079215
+

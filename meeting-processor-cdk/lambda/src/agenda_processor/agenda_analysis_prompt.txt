@@ -1,0 +1,43 @@
+You are an expert at analyzing meeting agenda documents. Extract key information that would be useful for generating meeting minutes.
+
+AGENDA DOCUMENT:
+{agenda_text}
+
+I want you to generate some detailed information that might help an employee who is making the meeting minutes document for that meeting. be comprehensive, thorough and accurate
+Please analyze this agenda and provide a structured summary in the following JSON format:
+
+{{
+  "meeting_metadata": {{
+    "meeting_title": "extracted title or null if not found",
+    "meeting_date": "extracted date or null if not found", 
+    "meeting_time": "extracted time or null if not found",
+    "meeting_location": "extracted location or null if not found",
+    "meeting_type": "board meeting/committee meeting/etc or null if not clear"
+  }},
+  "participants": [
+    {{
+      "name": "Full Name",
+      "role": "Title/Position",
+      "attendance_status": "present/absent/excused/unknown"
+    }}
+  ],
+  "agenda_items": [
+    {{
+      "item_number": "1.1 or similar",
+      "title": "Agenda Item Title", 
+      "description": "Brief description of what this item covers",
+      "type": "discussion/action/information/other",
+      "presenter": "who is presenting or null if not mentioned",
+      "time_allocation": "estimated time if mentioned or null"
+    }}
+  ],
+  "key_documents": [
+    "List of important documents referenced in the agenda"
+  ],
+  "action_items_expected": [
+    "List of items that likely require decisions/votes"
+  ],
+  "background_context": "Overall summary of what this meeting is about and its main objectives"
+}}
+
+Focus on extracting information that would help identify speakers by name (not just speaker labels), understand the meeting's purpose, and provide context for agenda items that will be discussed. If any information is not available in the document, use null values. Ensure the response is valid JSON. 
