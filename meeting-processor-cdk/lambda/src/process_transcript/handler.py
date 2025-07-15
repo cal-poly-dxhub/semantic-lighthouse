@@ -73,6 +73,61 @@ def get_custom_prompt_template(template_id):
         return None
 
 
+def get_meeting_metadata(video_s3_key):
+    """
+    Extract meeting ID from video S3 key and fetch meeting metadata from DynamoDB
+    Returns meeting metadata dict or None if not found
+    """
+    try:
+        # Extract meeting ID from S3 key (e.g., "uploads/meeting_recordings/meeting-id.mp4")
+        if not video_s3_key:
+            logger.warning("No video S3 key provided for meeting metadata lookup")
+            return None
+            
+        # Extract meeting ID from the filename
+        filename = video_s3_key.split('/')[-1]  # Get filename from path
+        meeting_id = filename.split('.')[0]  # Remove extension
+        
+        logger.info(f"Extracted meeting ID: {meeting_id} from video key: {video_s3_key}")
+        
+        # Query DynamoDB for meeting metadata
+        meetings_table_name = os.environ.get('MEETINGS_TABLE_NAME')
+        if not meetings_table_name:
+            logger.warning("Meetings table name not configured")
+            return None
+            
+        meetings_table = dynamodb.Table(meetings_table_name)
+        
+        # Query by meeting ID (partition key)
+        response = meetings_table.query(
+            KeyConditionExpression='meetingId = :meeting_id',
+            ExpressionAttributeValues={
+                ':meeting_id': meeting_id
+            },
+            Limit=1
+        )
+        
+        items = response.get('Items', [])
+        if not items:
+            logger.warning(f"No meeting found with ID: {meeting_id}")
+            return None
+            
+        meeting = items[0]
+        logger.info(f"Found meeting metadata for ID: {meeting_id}")
+        
+        return {
+            'meeting_id': meeting_id,
+            'custom_prompt_template_id': meeting.get('customPromptTemplateId'),
+            'meeting_title': meeting.get('meetingTitle'),
+            'user_id': meeting.get('userId'),
+            'status': meeting.get('status')
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching meeting metadata for video key {video_s3_key}: {str(e)}")
+        return None
+
+
 def convert_to_human_readable(transcript_data):
     """
     Converts a raw Transcribe JSON into a readable text format with speaker labels using segments.
@@ -597,8 +652,23 @@ def handle_single_transcription(event, bucket_name, agenda_data=None):
     # Get video info from event
     video_info = event.get("originalVideoInfo", {})
     
-    # Get custom prompt template ID if specified
-    custom_prompt_template_id = event.get("customPromptTemplateId")
+    # Get custom prompt template ID from meeting metadata
+    custom_prompt_template_id = None
+    video_s3_key = video_info.get("key") if video_info else None
+    
+    if video_s3_key:
+        meeting_metadata = get_meeting_metadata(video_s3_key)
+        if meeting_metadata:
+            custom_prompt_template_id = meeting_metadata.get('custom_prompt_template_id')
+            logger.info(f"Retrieved meeting metadata for {meeting_metadata.get('meeting_id')}")
+            if custom_prompt_template_id:
+                logger.info(f"Will use custom prompt template: {custom_prompt_template_id}")
+            else:
+                logger.info("No custom prompt template specified, will use default")
+    
+    # Fallback: check if customPromptTemplateId is passed directly in event
+    if not custom_prompt_template_id:
+        custom_prompt_template_id = event.get("customPromptTemplateId")
 
     # Continue with analysis and PDF generation
     return process_transcript_analysis(
@@ -712,8 +782,23 @@ def handle_chunked_transcription(event, bucket_name, agenda_data=None):
     # Get video info from event
     video_info = event.get("originalVideoInfo", {})
     
-    # Get custom prompt template ID if specified
-    custom_prompt_template_id = event.get("customPromptTemplateId")
+    # Get custom prompt template ID from meeting metadata
+    custom_prompt_template_id = None
+    video_s3_key = video_info.get("key") if video_info else None
+    
+    if video_s3_key:
+        meeting_metadata = get_meeting_metadata(video_s3_key)
+        if meeting_metadata:
+            custom_prompt_template_id = meeting_metadata.get('custom_prompt_template_id')
+            logger.info(f"Retrieved meeting metadata for {meeting_metadata.get('meeting_id')}")
+            if custom_prompt_template_id:
+                logger.info(f"Will use custom prompt template: {custom_prompt_template_id}")
+            else:
+                logger.info("No custom prompt template specified, will use default")
+    
+    # Fallback: check if customPromptTemplateId is passed directly in event
+    if not custom_prompt_template_id:
+        custom_prompt_template_id = event.get("customPromptTemplateId")
 
     # Continue with analysis and PDF generation
     return process_transcript_analysis(
@@ -1091,10 +1176,16 @@ def process_transcript_analysis(
                 logger.warning(f"Custom prompt template {custom_prompt_template_id} not found or not available, falling back to default")
         
         if not prompt_template:
-            logger.info("Reading default prompt template from environment variable...")
-            prompt_template = os.environ.get(
-                "TRANSCRIPT_PROMPT_TEMPLATE", "Default prompt template not configured"
-            )
+            logger.info("Attempting to fetch default prompt template from DynamoDB...")
+            default_prompt = get_custom_prompt_template("default")
+            if default_prompt:
+                prompt_template = default_prompt
+                logger.info("Using default prompt template from DynamoDB")
+            else:
+                logger.warning("Default prompt template not found in DynamoDB, falling back to environment variable")
+                prompt_template = os.environ.get(
+                    "TRANSCRIPT_PROMPT_TEMPLATE", "Default prompt template not configured"
+                )
 
         # Determine agenda source - use agenda data if available, otherwise fallback to environment variable
         if (

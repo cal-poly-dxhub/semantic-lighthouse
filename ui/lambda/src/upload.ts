@@ -110,6 +110,25 @@ export const handler = async (
     };
   }
 
+  // Validate customPromptTemplateId if provided
+  if (
+    body.customPromptTemplateId &&
+    typeof body.customPromptTemplateId !== "string"
+  ) {
+    console.error(
+      "ERROR: Invalid customPromptTemplateId:",
+      body.customPromptTemplateId
+    );
+    return {
+      statusCode: 400,
+      headers: corsHeaders,
+      body: JSON.stringify({
+        error: "Invalid request body",
+        details: "customPromptTemplateId must be a string if provided.",
+      }),
+    };
+  }
+
   try {
     const videoKey = `uploads/meeting_recordings/${meetingId}.mp4`;
     const command = new PutObjectCommand({
@@ -136,33 +155,45 @@ export const handler = async (
     // =================================================================
     // STORE MEETING METADATA WITH USER ASSOCIATION IN DYNAMODB
     // =================================================================
+    const item: any = {
+      // Enhanced schema with user associations
+      meetingId: { S: meetingId },
+      createdAt: { S: new Date().toISOString() },
+
+      // User association
+      userId: { S: userId },
+      userEmail: { S: userEmail },
+
+      // Meeting metadata
+      meetingTitle: { S: body.meetingTitle },
+      meetingDate: { S: body.meetingDate },
+      meetingDescription: { S: body.meetingDescription },
+      videoVisibility: { S: body.videoVisibility },
+
+      // Processing status
+      status: { S: "uploading" },
+
+      // File paths
+      videoS3Key: { S: videoKey },
+      agendaS3Key: { S: agendaKey },
+
+      // Timestamps
+      updatedAt: { S: new Date().toISOString() },
+    };
+
+    // Add custom prompt template ID if provided
+    if (body.customPromptTemplateId) {
+      item.customPromptTemplateId = { S: body.customPromptTemplateId };
+      console.log(
+        `INFO: Using custom prompt template: ${body.customPromptTemplateId}`
+      );
+    } else {
+      console.log("INFO: Using default prompt template");
+    }
+
     const putCommand = new PutItemCommand({
       TableName: process.env.MEETINGS_TABLE_NAME,
-      Item: {
-        // Enhanced schema with user associations
-        meetingId: { S: meetingId },
-        createdAt: { S: new Date().toISOString() },
-
-        // User association
-        userId: { S: userId },
-        userEmail: { S: userEmail },
-
-        // Meeting metadata
-        meetingTitle: { S: body.meetingTitle },
-        meetingDate: { S: body.meetingDate },
-        meetingDescription: { S: body.meetingDescription },
-        videoVisibility: { S: body.videoVisibility },
-
-        // Processing status
-        status: { S: "uploading" },
-
-        // File paths
-        videoS3Key: { S: videoKey },
-        agendaS3Key: { S: agendaKey },
-
-        // Timestamps
-        updatedAt: { S: new Date().toISOString() },
-      },
+      Item: item,
     });
 
     await dynamoClient.send(putCommand);

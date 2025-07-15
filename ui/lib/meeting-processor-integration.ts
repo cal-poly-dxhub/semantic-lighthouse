@@ -58,6 +58,14 @@ export class MeetingProcessorIntegration extends Construct {
     this.populateAIConfiguration(props.systemConfigTable);
 
     // =================================================================
+    // DEFAULT PROMPT TEMPLATE - Store default prompt in DynamoDB
+    // =================================================================
+    this.populateDefaultPromptTemplate(
+      props.promptTemplatesTable,
+      transcriptPromptTemplate
+    );
+
+    // =================================================================
     // LAMBDA LAYERS - Required for video processing and PDF generation
     // =================================================================
 
@@ -754,6 +762,118 @@ export class MeetingProcessorIntegration extends Construct {
     // Create custom resource
     new cdk.CustomResource(this, "PopulateAIConfigResource", {
       serviceToken: populateConfigLambda.functionArn,
+    });
+  }
+
+  /**
+   * Populate the default prompt template in DynamoDB
+   */
+  private populateDefaultPromptTemplate(
+    promptTemplatesTable: cdk.aws_dynamodb.Table,
+    promptTemplate: string
+  ) {
+    const populatePromptTemplateLambda = new cdk.aws_lambda.Function(
+      this,
+      "PopulatePromptTemplateLambda",
+      {
+        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
+        handler: "index.handler",
+        timeout: cdk.Duration.minutes(2),
+        code: cdk.aws_lambda.Code.fromInline(`
+        const { DynamoDBClient, PutItemCommand } = require('@aws-sdk/client-dynamodb');
+        const https = require('https');
+        const url = require('url');
+        
+        const sendResponse = async (event, context, responseStatus, responseData = {}) => {
+          const responseBody = JSON.stringify({
+            Status: responseStatus,
+            Reason: 'See CloudWatch Log Stream: ' + context.logStreamName,
+            PhysicalResourceId: 'populate-prompt-template',
+            StackId: event.StackId,
+            RequestId: event.RequestId,
+            LogicalResourceId: event.LogicalResourceId,
+            Data: responseData
+          });
+          
+          const parsedUrl = url.parse(event.ResponseURL);
+          const options = {
+            hostname: parsedUrl.hostname,
+            port: 443,
+            path: parsedUrl.path,
+            method: 'PUT',
+            headers: {
+              'content-type': '',
+              'content-length': responseBody.length
+            }
+          };
+          
+          return new Promise((resolve, reject) => {
+            const request = https.request(options, (response) => {
+              console.log('Status code: ' + response.statusCode);
+              console.log('Status message: ' + response.statusMessage);
+              resolve();
+            });
+            
+            request.on('error', (error) => {
+              console.log('send(..) failed executing https.request(..): ' + error);
+              reject(error);
+            });
+            
+            request.write(responseBody);
+            request.end();
+          });
+        };
+        
+        exports.handler = async (event, context) => {
+          console.log('Event:', JSON.stringify(event));
+          
+          try {
+            if (event.RequestType === 'Delete') {
+              console.log('Delete request - no action needed');
+              await sendResponse(event, context, 'SUCCESS');
+              return;
+            }
+            
+            const dynamodb = new DynamoDBClient({});
+            const tableName = process.env.TABLE_NAME;
+            
+                         const now = new Date().toISOString();
+             const defaultPromptTemplate = {
+               templateId: { S: 'default' },
+               createdAt: { S: now },
+               title: { S: 'Default Template' },
+               status: { S: 'available' },
+               customPrompt: { S: process.env.PROMPT_TEMPLATE },
+               updatedAt: { S: now }
+             };
+             
+             await dynamodb.send(new PutItemCommand({
+               TableName: tableName,
+               Item: defaultPromptTemplate
+             }));
+            
+            console.log('Default prompt template populated successfully');
+            await sendResponse(event, context, 'SUCCESS', { ItemCreated: true });
+            
+          } catch (error) {
+            console.error('Error populating prompt template:', error);
+            await sendResponse(event, context, 'FAILED', { Error: error.message });
+          }
+        };
+      `),
+        environment: {
+          TABLE_NAME: promptTemplatesTable.tableName,
+          PROMPT_TEMPLATE: promptTemplate,
+        },
+      }
+    );
+
+    // Grant DynamoDB permissions
+    promptTemplatesTable.grantWriteData(populatePromptTemplateLambda);
+
+    // Create custom resource
+    new cdk.CustomResource(this, "PopulatePromptTemplateResource", {
+      serviceToken: populatePromptTemplateLambda.functionArn,
     });
   }
 }
