@@ -12,6 +12,120 @@ logger.setLevel(logging.INFO)
 
 s3_client = boto3.client("s3")
 bedrock_runtime = boto3.client("bedrock-runtime", region_name="us-west-2")
+dynamodb = boto3.resource('dynamodb')
+
+# DynamoDB tables - will be set from environment variables
+prompt_templates_table = None
+
+def get_prompt_templates_table():
+    """Get the prompt templates table, initializing if needed"""
+    global prompt_templates_table
+    if prompt_templates_table is None:
+        table_name = os.environ.get('PROMPT_TEMPLATES_TABLE_NAME')
+        if table_name:
+            prompt_templates_table = dynamodb.Table(table_name)
+            logger.info(f"Initialized prompt templates table: {table_name}")
+    return prompt_templates_table
+
+def get_custom_prompt_template(template_id):
+    """
+    Fetch a custom prompt template from DynamoDB by template ID
+    Returns the custom prompt text or None if not found/available
+    """
+    try:
+        table = get_prompt_templates_table()
+        if not table:
+            logger.warning("Prompt templates table not configured")
+            return None
+        
+        logger.info(f"Fetching custom prompt template: {template_id}")
+        
+        # Query for the template - we need to scan since we only have templateId
+        response = table.scan(
+            FilterExpression='templateId = :template_id AND #status = :status',
+            ExpressionAttributeNames={
+                '#status': 'status'
+            },
+            ExpressionAttributeValues={
+                ':template_id': template_id,
+                ':status': 'available'
+            }
+        )
+        
+        items = response.get('Items', [])
+        if not items:
+            logger.warning(f"No available custom prompt template found with ID: {template_id}")
+            return None
+        
+        # Get the most recent template if multiple exist
+        template = sorted(items, key=lambda x: x['createdAt'], reverse=True)[0]
+        custom_prompt = template.get('customPrompt')
+        
+        if custom_prompt:
+            logger.info(f"Found custom prompt template: {template_id}, length: {len(custom_prompt)} characters")
+            return custom_prompt
+        else:
+            logger.warning(f"Custom prompt template {template_id} exists but has no customPrompt content")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Error fetching custom prompt template {template_id}: {str(e)}")
+        return None
+
+
+def get_meeting_metadata(video_s3_key):
+    """
+    Extract meeting ID from video S3 key and fetch meeting metadata from DynamoDB
+    Returns meeting metadata dict or None if not found
+    """
+    try:
+        # Extract meeting ID from S3 key (e.g., "uploads/meeting_recordings/meeting-id.mp4")
+        if not video_s3_key:
+            logger.warning("No video S3 key provided for meeting metadata lookup")
+            return None
+            
+        # Extract meeting ID from the filename
+        filename = video_s3_key.split('/')[-1]  # Get filename from path
+        meeting_id = filename.split('.')[0]  # Remove extension
+        
+        logger.info(f"Extracted meeting ID: {meeting_id} from video key: {video_s3_key}")
+        
+        # Query DynamoDB for meeting metadata
+        meetings_table_name = os.environ.get('MEETINGS_TABLE_NAME')
+        if not meetings_table_name:
+            logger.warning("Meetings table name not configured")
+            return None
+            
+        meetings_table = dynamodb.Table(meetings_table_name)
+        
+        # Query by meeting ID (partition key)
+        response = meetings_table.query(
+            KeyConditionExpression='meetingId = :meeting_id',
+            ExpressionAttributeValues={
+                ':meeting_id': meeting_id
+            },
+            Limit=1
+        )
+        
+        items = response.get('Items', [])
+        if not items:
+            logger.warning(f"No meeting found with ID: {meeting_id}")
+            return None
+            
+        meeting = items[0]
+        logger.info(f"Found meeting metadata for ID: {meeting_id}")
+        
+        return {
+            'meeting_id': meeting_id,
+            'custom_prompt_template_id': meeting.get('customPromptTemplateId'),
+            'meeting_title': meeting.get('meetingTitle'),
+            'user_id': meeting.get('userId'),
+            'status': meeting.get('status')
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching meeting metadata for video key {video_s3_key}: {str(e)}")
+        return None
 
 
 def convert_to_human_readable(transcript_data):
@@ -537,10 +651,28 @@ def handle_single_transcription(event, bucket_name, agenda_data=None):
 
     # Get video info from event
     video_info = event.get("originalVideoInfo", {})
+    
+    # Get custom prompt template ID from meeting metadata
+    custom_prompt_template_id = None
+    video_s3_key = video_info.get("key") if video_info else None
+    
+    if video_s3_key:
+        meeting_metadata = get_meeting_metadata(video_s3_key)
+        if meeting_metadata:
+            custom_prompt_template_id = meeting_metadata.get('custom_prompt_template_id')
+            logger.info(f"Retrieved meeting metadata for {meeting_metadata.get('meeting_id')}")
+            if custom_prompt_template_id:
+                logger.info(f"Will use custom prompt template: {custom_prompt_template_id}")
+            else:
+                logger.info("No custom prompt template specified, will use default")
+    
+    # Fallback: check if customPromptTemplateId is passed directly in event
+    if not custom_prompt_template_id:
+        custom_prompt_template_id = event.get("customPromptTemplateId")
 
     # Continue with analysis and PDF generation
     return process_transcript_analysis(
-        human_readable_transcript, job_name, bucket_name, video_info, agenda_data
+        human_readable_transcript, job_name, bucket_name, video_info, agenda_data, custom_prompt_template_id
     )
 
 
@@ -649,10 +781,28 @@ def handle_chunked_transcription(event, bucket_name, agenda_data=None):
 
     # Get video info from event
     video_info = event.get("originalVideoInfo", {})
+    
+    # Get custom prompt template ID from meeting metadata
+    custom_prompt_template_id = None
+    video_s3_key = video_info.get("key") if video_info else None
+    
+    if video_s3_key:
+        meeting_metadata = get_meeting_metadata(video_s3_key)
+        if meeting_metadata:
+            custom_prompt_template_id = meeting_metadata.get('custom_prompt_template_id')
+            logger.info(f"Retrieved meeting metadata for {meeting_metadata.get('meeting_id')}")
+            if custom_prompt_template_id:
+                logger.info(f"Will use custom prompt template: {custom_prompt_template_id}")
+            else:
+                logger.info("No custom prompt template specified, will use default")
+    
+    # Fallback: check if customPromptTemplateId is passed directly in event
+    if not custom_prompt_template_id:
+        custom_prompt_template_id = event.get("customPromptTemplateId")
 
     # Continue with analysis and PDF generation
     return process_transcript_analysis(
-        merged_transcript, base_job_name, bucket_name, video_info, agenda_data
+        merged_transcript, base_job_name, bucket_name, video_info, agenda_data, custom_prompt_template_id
     )
 
 
@@ -984,7 +1134,7 @@ def replace_segment_citations_with_links(analysis_text, segment_mapping, bucket,
 
 
 def process_transcript_analysis(
-    human_readable_transcript, job_name, bucket_name, video_info=None, agenda_data=None
+    human_readable_transcript, job_name, bucket_name, video_info=None, agenda_data=None, custom_prompt_template_id=None
 ):
     """
     Common function to handle transcript analysis and PDF generation
@@ -1013,11 +1163,29 @@ def process_transcript_analysis(
 
     analysis_error = None
     try:
-        # Get prompt template from environment variable
-        logger.info("Reading prompt template from environment variable...")
-        prompt_template = os.environ.get(
-            "TRANSCRIPT_PROMPT_TEMPLATE", "Default prompt template not configured"
-        )
+        # Get prompt template - check for custom template first, then fall back to environment variable
+        prompt_template = None
+        
+        if custom_prompt_template_id:
+            logger.info(f"Attempting to use custom prompt template: {custom_prompt_template_id}")
+            custom_prompt = get_custom_prompt_template(custom_prompt_template_id)
+            if custom_prompt:
+                prompt_template = custom_prompt
+                logger.info(f"Using custom prompt template: {custom_prompt_template_id}")
+            else:
+                logger.warning(f"Custom prompt template {custom_prompt_template_id} not found or not available, falling back to default")
+        
+        if not prompt_template:
+            logger.info("Attempting to fetch default prompt template from DynamoDB...")
+            default_prompt = get_custom_prompt_template("default")
+            if default_prompt:
+                prompt_template = default_prompt
+                logger.info("Using default prompt template from DynamoDB")
+            else:
+                logger.warning("Default prompt template not found in DynamoDB, falling back to environment variable")
+                prompt_template = os.environ.get(
+                    "TRANSCRIPT_PROMPT_TEMPLATE", "Default prompt template not configured"
+                )
 
         # Determine agenda source - use agenda data if available, otherwise fallback to environment variable
         if (

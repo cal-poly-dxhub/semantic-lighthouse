@@ -9,6 +9,7 @@ export interface MeetingProcessorIntegrationProps {
   meetingsTable: cdk.aws_dynamodb.Table;
   userPreferencesTable: cdk.aws_dynamodb.Table;
   systemConfigTable: cdk.aws_dynamodb.Table;
+  promptTemplatesTable: cdk.aws_dynamodb.Table;
   videoDistribution: cdk.aws_cloudfront.Distribution;
   frontendDistribution: cdk.aws_cloudfront.Distribution;
 }
@@ -16,6 +17,7 @@ export interface MeetingProcessorIntegrationProps {
 export class MeetingProcessorIntegration extends Construct {
   public readonly stateMachine: cdk.aws_stepfunctions.StateMachine;
   public readonly agendaProcessor: cdk.aws_lambda.Function;
+  public readonly promptTemplateProcessor: cdk.aws_lambda.Function;
 
   constructor(
     scope: Construct,
@@ -54,6 +56,14 @@ export class MeetingProcessorIntegration extends Construct {
     // AI CONFIGURATION - Hardcoded in database via custom resource
     // =================================================================
     this.populateAIConfiguration(props.systemConfigTable);
+
+    // =================================================================
+    // DEFAULT PROMPT TEMPLATE - Store default prompt in DynamoDB
+    // =================================================================
+    this.populateDefaultPromptTemplate(
+      props.promptTemplatesTable,
+      transcriptPromptTemplate
+    );
 
     // =================================================================
     // LAMBDA LAYERS - Required for video processing and PDF generation
@@ -209,6 +219,7 @@ export class MeetingProcessorIntegration extends Construct {
           S3_BUCKET: props.bucket.bucketName,
           MEETINGS_TABLE_NAME: props.meetingsTable.tableName,
           SYSTEM_CONFIG_TABLE_NAME: props.systemConfigTable.tableName,
+          PROMPT_TEMPLATES_TABLE_NAME: props.promptTemplatesTable.tableName,
           CLOUDFRONT_DOMAIN_NAME:
             props.videoDistribution.distributionDomainName,
           FRONTEND_DOMAIN_NAME:
@@ -288,6 +299,7 @@ export class MeetingProcessorIntegration extends Construct {
     props.systemConfigTable.grantReadData(aiMeetingAnalyzer);
 
     props.userPreferencesTable.grantReadData(notificationSender);
+    props.promptTemplatesTable.grantReadData(aiMeetingAnalyzer);
 
     // SNS permissions for notification sender (to publish to user-specific topics)
     notificationSender.addToRolePolicy(
@@ -484,6 +496,72 @@ export class MeetingProcessorIntegration extends Construct {
 
     // Note: Agenda processor no longer needs Step Functions permissions
     // It saves agenda data to S3 and lets the existing workflow find it
+
+    // =================================================================
+    // PROMPT TEMPLATE PROCESSOR - Generate custom prompts from example PDFs
+    // =================================================================
+
+    this.promptTemplateProcessor = new cdk.aws_lambda.Function(
+      this,
+      "PromptTemplateProcessor",
+      {
+        functionName: `${uniquePrefix}-prompt-template-processor`,
+        runtime: cdk.aws_lambda.Runtime.PYTHON_3_12,
+        code: cdk.aws_lambda.Code.fromAsset(
+          "../meeting-processor-cdk/lambda/src/prompt_template_processor",
+          {
+            bundling: {
+              image: cdk.aws_lambda.Runtime.PYTHON_3_12.bundlingImage,
+              command: [
+                "bash",
+                "-c",
+                "pip install -r requirements.txt -t /asset-output && cp -au . /asset-output",
+              ],
+            },
+          }
+        ),
+        handler: "handler.lambda_handler",
+        timeout: cdk.Duration.minutes(15), // Increased for async Textract + Claude processing
+        memorySize: 2048,
+        environment: {
+          BUCKET_NAME: props.bucket.bucketName,
+          PROMPT_TEMPLATES_TABLE_NAME: props.promptTemplatesTable.tableName,
+          SYSTEM_CONFIG_TABLE_NAME: props.systemConfigTable.tableName,
+        },
+      }
+    );
+
+    // Permissions for prompt template processor
+    props.bucket.grantReadWrite(this.promptTemplateProcessor);
+    props.promptTemplatesTable.grantReadWriteData(this.promptTemplateProcessor);
+    props.systemConfigTable.grantReadData(this.promptTemplateProcessor);
+
+    // Textract permissions for prompt template processor
+    this.promptTemplateProcessor.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        effect: cdk.aws_iam.Effect.ALLOW,
+        actions: ["textract:*"],
+        resources: ["*"],
+      })
+    );
+
+    // Bedrock permissions for prompt template processor
+    this.promptTemplateProcessor.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        effect: cdk.aws_iam.Effect.ALLOW,
+        actions: ["bedrock:*"],
+        resources: ["*"],
+      })
+    );
+
+    // STS permissions for prompt template processor
+    this.promptTemplateProcessor.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        effect: cdk.aws_iam.Effect.ALLOW,
+        actions: ["sts:GetCallerIdentity"],
+        resources: ["*"],
+      })
+    );
   }
 
   /**
@@ -616,6 +694,26 @@ export class MeetingProcessorIntegration extends Construct {
                 configValue: '7',
                 description: 'Presigned URL expiration in days',
                 category: 'email_notifications'
+              },
+              
+              // Prompt Generation Configuration
+              {
+                configKey: 'prompt_generation_model_id',
+                configValue: 'us.anthropic.claude-sonnet-4-20250514-v1:0',
+                description: 'AI model for prompt template generation',
+                category: 'prompt_generation'
+              },
+              {
+                configKey: 'prompt_generation_max_tokens',
+                configValue: '8000',
+                description: 'Maximum tokens for prompt generation',
+                category: 'prompt_generation'
+              },
+              {
+                configKey: 'prompt_generation_temperature',
+                configValue: '0.1',
+                description: 'Temperature for prompt generation',
+                category: 'prompt_generation'
               }
             ];
             
@@ -664,6 +762,118 @@ export class MeetingProcessorIntegration extends Construct {
     // Create custom resource
     new cdk.CustomResource(this, "PopulateAIConfigResource", {
       serviceToken: populateConfigLambda.functionArn,
+    });
+  }
+
+  /**
+   * Populate the default prompt template in DynamoDB
+   */
+  private populateDefaultPromptTemplate(
+    promptTemplatesTable: cdk.aws_dynamodb.Table,
+    promptTemplate: string
+  ) {
+    const populatePromptTemplateLambda = new cdk.aws_lambda.Function(
+      this,
+      "PopulatePromptTemplateLambda",
+      {
+        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
+        handler: "index.handler",
+        timeout: cdk.Duration.minutes(2),
+        code: cdk.aws_lambda.Code.fromInline(`
+        const { DynamoDBClient, PutItemCommand } = require('@aws-sdk/client-dynamodb');
+        const https = require('https');
+        const url = require('url');
+        
+        const sendResponse = async (event, context, responseStatus, responseData = {}) => {
+          const responseBody = JSON.stringify({
+            Status: responseStatus,
+            Reason: 'See CloudWatch Log Stream: ' + context.logStreamName,
+            PhysicalResourceId: 'populate-prompt-template',
+            StackId: event.StackId,
+            RequestId: event.RequestId,
+            LogicalResourceId: event.LogicalResourceId,
+            Data: responseData
+          });
+          
+          const parsedUrl = url.parse(event.ResponseURL);
+          const options = {
+            hostname: parsedUrl.hostname,
+            port: 443,
+            path: parsedUrl.path,
+            method: 'PUT',
+            headers: {
+              'content-type': '',
+              'content-length': responseBody.length
+            }
+          };
+          
+          return new Promise((resolve, reject) => {
+            const request = https.request(options, (response) => {
+              console.log('Status code: ' + response.statusCode);
+              console.log('Status message: ' + response.statusMessage);
+              resolve();
+            });
+            
+            request.on('error', (error) => {
+              console.log('send(..) failed executing https.request(..): ' + error);
+              reject(error);
+            });
+            
+            request.write(responseBody);
+            request.end();
+          });
+        };
+        
+        exports.handler = async (event, context) => {
+          console.log('Event:', JSON.stringify(event));
+          
+          try {
+            if (event.RequestType === 'Delete') {
+              console.log('Delete request - no action needed');
+              await sendResponse(event, context, 'SUCCESS');
+              return;
+            }
+            
+            const dynamodb = new DynamoDBClient({});
+            const tableName = process.env.TABLE_NAME;
+            
+                         const now = new Date().toISOString();
+             const defaultPromptTemplate = {
+               templateId: { S: 'default' },
+               createdAt: { S: now },
+               title: { S: 'Default Template' },
+               status: { S: 'available' },
+               customPrompt: { S: process.env.PROMPT_TEMPLATE },
+               updatedAt: { S: now }
+             };
+             
+             await dynamodb.send(new PutItemCommand({
+               TableName: tableName,
+               Item: defaultPromptTemplate
+             }));
+            
+            console.log('Default prompt template populated successfully');
+            await sendResponse(event, context, 'SUCCESS', { ItemCreated: true });
+            
+          } catch (error) {
+            console.error('Error populating prompt template:', error);
+            await sendResponse(event, context, 'FAILED', { Error: error.message });
+          }
+        };
+      `),
+        environment: {
+          TABLE_NAME: promptTemplatesTable.tableName,
+          PROMPT_TEMPLATE: promptTemplate,
+        },
+      }
+    );
+
+    // Grant DynamoDB permissions
+    promptTemplatesTable.grantWriteData(populatePromptTemplateLambda);
+
+    // Create custom resource
+    new cdk.CustomResource(this, "PopulatePromptTemplateResource", {
+      serviceToken: populatePromptTemplateLambda.functionArn,
     });
   }
 }

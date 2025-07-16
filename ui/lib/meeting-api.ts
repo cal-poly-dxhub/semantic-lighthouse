@@ -6,6 +6,7 @@ export interface MeetingApiResourcesProps {
   userPool: cdk.aws_cognito.UserPool;
   meetingsBucket: cdk.aws_s3.Bucket;
   meetingsTable: cdk.aws_dynamodb.Table;
+  promptTemplatesTable: cdk.aws_dynamodb.Table;
   videoDistribution: cdk.aws_cloudfront.Distribution;
   userPoolClient: cdk.aws_cognito.UserPoolClient;
   defaultUserGroupName: string;
@@ -222,17 +223,15 @@ export class MeetingApiResources extends Construct {
       }
     );
 
-    // grant lambda permission to add users to groups and list users in the user pool
+    // Add user to default group
     createUserLambda.addToRolePolicy(
       new cdk.aws_iam.PolicyStatement({
         actions: [
           "cognito-idp:AdminAddUserToGroup",
-          "cognito-idp:UpdateUserPool",
+          "cognito-idp:AdminCreateUser",
+          "cognito-idp:AdminSetUserPassword",
         ],
-        resources: [
-          // string version to avoid circular dependency
-          `arn:aws:cognito-idp:${stack.region}:${stack.account}:userpool/*`,
-        ],
+        resources: [props.userPool.userPoolArn],
       })
     );
 
@@ -240,6 +239,78 @@ export class MeetingApiResources extends Construct {
     createUserResource.addMethod(
       "POST",
       new cdk.aws_apigateway.LambdaIntegration(createUserLambda),
+      {
+        authorizationType: cdk.aws_apigateway.AuthorizationType.COGNITO,
+        authorizer: this.authorizer,
+      }
+    );
+
+    // =================================================================
+    // PROMPT TEMPLATES API - Custom prompt template management
+    // =================================================================
+
+    // /prompt-templates
+    const promptTemplatesResource =
+      this.api.root.addResource("prompt-templates");
+
+    // /prompt-templates (GET) - List all prompt templates
+    const listPromptTemplatesLambda = new cdk.aws_lambda.Function(
+      this,
+      "ListPromptTemplatesLambda",
+      {
+        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
+        handler: "list.handler",
+        code: cdk.aws_lambda.Code.fromAsset("lambda/dist/prompt-templates"),
+        environment: {
+          PROMPT_TEMPLATES_TABLE_NAME: props.promptTemplatesTable.tableName,
+        },
+        logGroup: new cdk.aws_logs.LogGroup(
+          this,
+          "ListPromptTemplatesLambdaLogGroup",
+          {
+            removalPolicy: cdk.RemovalPolicy.DESTROY,
+            retention: cdk.aws_logs.RetentionDays.ONE_WEEK,
+          }
+        ),
+      }
+    );
+
+    props.promptTemplatesTable.grantReadData(listPromptTemplatesLambda);
+
+    promptTemplatesResource.addMethod(
+      "GET",
+      new cdk.aws_apigateway.LambdaIntegration(listPromptTemplatesLambda)
+    );
+
+    // /prompt-templates/upload (POST) - Generate presigned URL for uploading templates
+    const uploadPromptTemplateResource =
+      promptTemplatesResource.addResource("upload");
+    const uploadPromptTemplateLambda = new cdk.aws_lambda.Function(
+      this,
+      "UploadPromptTemplateLambda",
+      {
+        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
+        handler: "upload.handler",
+        code: cdk.aws_lambda.Code.fromAsset("lambda/dist/prompt-templates"),
+        environment: {
+          MEETINGS_BUCKET_NAME: props.meetingsBucket.bucketName,
+        },
+        logGroup: new cdk.aws_logs.LogGroup(
+          this,
+          "UploadPromptTemplateLambdaLogGroup",
+          {
+            removalPolicy: cdk.RemovalPolicy.DESTROY,
+            retention: cdk.aws_logs.RetentionDays.ONE_WEEK,
+          }
+        ),
+      }
+    );
+
+    props.meetingsBucket.grantReadWrite(uploadPromptTemplateLambda);
+
+    uploadPromptTemplateResource.addMethod(
+      "POST",
+      new cdk.aws_apigateway.LambdaIntegration(uploadPromptTemplateLambda),
       {
         authorizationType: cdk.aws_apigateway.AuthorizationType.COGNITO,
         authorizer: this.authorizer,
