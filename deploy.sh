@@ -26,7 +26,7 @@ cd lambda && yarn install && yarn build && cd ..
 
 
 # deploy stack with unified ID (use v5 to match user's command)
-JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION=1 UNIQUE_ID="gus-v2" npx cdk deploy --profile k12
+JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION=1 UNIQUE_ID="unified-v7" npx cdk deploy --profile k12-profile
 
 # cleanup
 cd lambda && rm -rf dist && cd ..
