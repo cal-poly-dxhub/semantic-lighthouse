@@ -175,29 +175,36 @@ export class MeetingApiResources extends Construct {
       new cdk.aws_apigateway.LambdaIntegration(minutesLambda)
     );
 
-    // TODO: fetch all meetings route
-
     // /meetings
     const meetingsResource = this.api.root.addResource("meetings");
-    const meetingsLambda = new cdk.aws_lambda.Function(this, "MeetingsLambda", {
-      runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
-      handler: "meetings.handler",
-      code: cdk.aws_lambda.Code.fromAsset("lambda/dist/meetings"),
-      environment: {
-        MEETINGS_BUCKET_NAME: props.meetingsBucket.bucketName,
-        CLOUDFRONT_DOMAIN_NAME: props.videoDistribution.distributionDomainName,
-      },
-      logGroup: new cdk.aws_logs.LogGroup(this, "MeetingsLambdaLogGroup", {
-        removalPolicy: cdk.RemovalPolicy.DESTROY,
-        retention: cdk.aws_logs.RetentionDays.ONE_WEEK,
-      }),
-    });
 
-    props.meetingsTable.grantReadData(meetingsLambda);
-    props.meetingsBucket.grantRead(meetingsLambda);
-    meetingsResource.addMethod(
+    // /meetings/all
+    const allMeetingsResource = meetingsResource.addResource("all");
+    const allMeetingsLambda = new cdk.aws_lambda.Function(
+      this,
+      "AllMeetingsLambda",
+      {
+        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
+        handler: "all.handler",
+        code: cdk.aws_lambda.Code.fromAsset("lambda/dist/meetings"),
+        environment: {
+          // MEETINGS_BUCKET_NAME: props.meetingsBucket.bucketName,
+          MEETINGS_TABLE_NAME: props.meetingsTable.tableName,
+          // CLOUDFRONT_DOMAIN_NAME:
+          //   props.videoDistribution.distributionDomainName,
+        },
+        logGroup: new cdk.aws_logs.LogGroup(this, "AllMeetingsLambdaLogGroup", {
+          removalPolicy: cdk.RemovalPolicy.DESTROY,
+          retention: cdk.aws_logs.RetentionDays.ONE_WEEK,
+        }),
+      }
+    );
+
+    props.meetingsTable.grantReadData(allMeetingsLambda);
+    props.meetingsBucket.grantRead(allMeetingsLambda);
+    allMeetingsResource.addMethod(
       "GET",
-      new cdk.aws_apigateway.LambdaIntegration(meetingsLambda)
+      new cdk.aws_apigateway.LambdaIntegration(allMeetingsLambda)
     );
 
     // /users

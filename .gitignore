@@ -1,2 +1,3 @@
 deploy.sh
 creds.csv
+cdk.context.json

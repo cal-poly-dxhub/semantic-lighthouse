@@ -1,4 +1,8 @@
-import { DynamoDBClient, QueryCommand } from "@aws-sdk/client-dynamodb";
+import {
+  DynamoDBClient,
+  QueryCommand,
+  ScanCommand,
+} from "@aws-sdk/client-dynamodb";
 import { S3Client } from "@aws-sdk/client-s3";
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 
@@ -91,23 +95,17 @@ export const handler = async (
   const { userId } = userInfo;
 
   try {
-    // Query DynamoDB for meetings belonging to this user only
-    // Using GSI to query by userId since meetingId is the primary key
     const result = await dynamoClient.send(
-      new QueryCommand({
+      new ScanCommand({
         TableName: process.env.MEETINGS_TABLE_NAME,
-        IndexName: "UserMeetingsIndex", // GSI on userId
-        KeyConditionExpression: "userId = :userId",
-        ExpressionAttributeValues: {
-          ":userId": { S: userId },
-        },
-        ScanIndexForward: false, // Sort by createdAt descending (newest first)
       })
     );
 
     console.log(
       `INFO: Found ${result.Items?.length || 0} meetings for user ${userId}`
     );
+
+    console.log("INFO: Found data:", JSON.stringify(result.Items));
 
     if (!result.Items || result.Items.length === 0) {
       return {
@@ -128,6 +126,7 @@ export const handler = async (
         meetingDate: item.meetingDate?.S || "n/a",
         videoVisibility: item.videoVisibility?.S || "n/a",
         status: item.status?.S || "n/a",
+        agendaS3Key: item.agendaS3Key?.S || "n/a",
       })),
     };
 

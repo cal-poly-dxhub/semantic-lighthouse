@@ -53,6 +53,8 @@ const VideoPage = () => {
           apiUrl
         );
 
+        console.log("INFO: data", data);
+
         if (error !== null) {
           throw new Error(`Failed to fetch video URL. Status: ${status}`);
         }
