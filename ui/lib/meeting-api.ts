@@ -9,6 +9,7 @@ export interface MeetingApiResourcesProps {
   videoDistribution: cdk.aws_cloudfront.Distribution;
   userPoolClient: cdk.aws_cognito.UserPoolClient;
   defaultUserGroupName: string;
+  userPreferencesTable: cdk.aws_dynamodb.Table;
 }
 
 export class MeetingApiResources extends Construct {
@@ -214,6 +215,7 @@ export class MeetingApiResources extends Construct {
         environment: {
           USER_POOL_ID: props.userPool.userPoolId,
           GROUP_NAME: props.defaultUserGroupName,
+          USER_PREFERENCES_TABLE_NAME: props.userPreferencesTable.tableName,
         },
         logGroup: new cdk.aws_logs.LogGroup(this, "CreateUserLambdaLogGroup", {
           removalPolicy: cdk.RemovalPolicy.DESTROY,
@@ -235,6 +237,19 @@ export class MeetingApiResources extends Construct {
         ],
       })
     );
+
+    // grant lambda permission to create SNS topics and subscribe users
+    createUserLambda.addToRolePolicy(
+      new cdk.aws_iam.PolicyStatement({
+        actions: ["sns:CreateTopic", "sns:Subscribe", "sns:SetTopicAttributes"],
+        resources: [
+          `arn:aws:sns:${stack.region}:${stack.account}:semantic-lighthouse-user-*`,
+        ],
+      })
+    );
+
+    // grant lambda permission to write to user preferences table
+    props.userPreferencesTable.grantWriteData(createUserLambda);
 
     props.userPool.grant(createUserLambda, "cognito-idp:AdminCreateUser");
     createUserResource.addMethod(

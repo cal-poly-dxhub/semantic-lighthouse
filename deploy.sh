@@ -25,7 +25,7 @@ zip -r frontend.zip frontend/ -x \
 cd lambda && yarn install && yarn build && cd ..
 
 # deploy stack with unified ID (use v5 to match user's command)
-JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION=1 UNIQUE_ID="v1" npx cdk deploy --profile k12
+JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION=1 UNIQUE_ID="v3" npx cdk deploy
 
 # cleanup
 cd lambda && rm -rf dist && cd ..

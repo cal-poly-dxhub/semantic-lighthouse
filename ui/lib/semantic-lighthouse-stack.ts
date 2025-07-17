@@ -7,6 +7,7 @@ import { FrontendResources } from "./frontend";
 import { MeetingApiResources } from "./meeting-api";
 import { DataResources } from "./data-resources";
 import { MeetingProcessorIntegration } from "./meeting-processor-integration";
+import { ApiGatewayCloudWatchSetup } from "./api-gateway-cloudwatch-role";
 
 export class SemanticLighthouseStack extends cdk.Stack {
   constructor(
@@ -47,6 +48,7 @@ export class SemanticLighthouseStack extends cdk.Stack {
       meetingsTable: dataResources.meetingsTable,
       videoDistribution: dataResources.distribution,
       defaultUserGroupName: authResources.defaultUserGroupName,
+      userPreferencesTable: dataResources.userPreferencesTable,
     });
 
     // ------------ FRONTEND HOSTING ------------
@@ -70,6 +72,17 @@ export class SemanticLighthouseStack extends cdk.Stack {
         systemConfigTable: dataResources.systemConfigTable,
         videoDistribution: dataResources.distribution,
         frontendDistribution: frontendResources.distribution,
+      }
+    );
+
+    // ------------ ONE-CLICK DEPLOY AUTOMATION ------------
+
+    // Automate API Gateway CloudWatch logging setup
+    const apiGatewayCloudWatchSetup = new ApiGatewayCloudWatchSetup(
+      this,
+      "ApiGatewayCloudWatchSetup",
+      {
+        roleName: `${uniqueId}-api-gateway-cloudwatch-role`,
       }
     );
 
@@ -111,6 +124,12 @@ export class SemanticLighthouseStack extends cdk.Stack {
     new cdk.CfnOutput(this, "ProcessingWorkflowArn", {
       value: meetingProcessorIntegration.stateMachine.stateMachineArn,
       description: "Step Functions state machine ARN for meeting processing",
+    });
+
+    new cdk.CfnOutput(this, "ApiGatewayCloudWatchRoleArn", {
+      value: apiGatewayCloudWatchSetup.cloudWatchRole.roleArn,
+      description:
+        "API Gateway CloudWatch logging role (automatically configured)",
     });
 
     // =================================================================

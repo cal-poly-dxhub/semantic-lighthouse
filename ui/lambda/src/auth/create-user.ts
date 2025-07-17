@@ -3,8 +3,16 @@ import {
   AdminCreateUserCommand,
   CognitoIdentityProviderClient,
 } from "@aws-sdk/client-cognito-identity-provider";
+import {
+  SNSClient,
+  CreateTopicCommand,
+  SubscribeCommand,
+} from "@aws-sdk/client-sns";
+import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
 
 const cognitoClient = new CognitoIdentityProviderClient({});
+const snsClient = new SNSClient({});
+const dynamoClient = new DynamoDBClient({});
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -56,6 +64,62 @@ export const handler = async (event: any) => {
 
     await cognitoClient.send(addUserToGroupCommand);
     console.log(`INFO: User ${email} added to group ${process.env.GROUP_NAME}`);
+
+    // =================================================================
+    // CREATE SNS TOPIC AND USER PREFERENCES FOR ADMIN-CREATED USER
+    // =================================================================
+
+    // 1. CREATE SNS TOPIC FOR THIS USER
+    const topicName = `semantic-lighthouse-user-${username}`.replace(
+      /[^a-zA-Z0-9_-]/g,
+      "-"
+    );
+
+    const createTopicResponse = await snsClient.send(
+      new CreateTopicCommand({
+        Name: topicName,
+        Attributes: {
+          DisplayName: `Semantic Lighthouse Notifications for ${username}`,
+        },
+      })
+    );
+
+    const topicArn = createTopicResponse.TopicArn;
+
+    if (!topicArn) {
+      throw new Error(`Failed to create SNS topic for user ${username}`);
+    }
+
+    console.log(`INFO: Created SNS topic ${topicArn} for user ${username}`);
+
+    // 2. SUBSCRIBE USER EMAIL TO THEIR SNS TOPIC
+    await snsClient.send(
+      new SubscribeCommand({
+        TopicArn: topicArn,
+        Protocol: "email",
+        Endpoint: email,
+      })
+    );
+
+    console.log(`INFO: Subscribed ${email} to topic ${topicArn}`);
+
+    // 3. STORE USER PREFERENCES IN DYNAMODB
+    await dynamoClient.send(
+      new PutItemCommand({
+        TableName: process.env.USER_PREFERENCES_TABLE_NAME,
+        Item: {
+          userId: { S: username },
+          userEmail: { S: email },
+          snsTopicArn: { S: topicArn },
+          snsTopicName: { S: topicName },
+          emailNotificationsEnabled: { BOOL: true },
+          createdAt: { S: new Date().toISOString() },
+          updatedAt: { S: new Date().toISOString() },
+        },
+      })
+    );
+
+    console.log(`INFO: Stored user preferences for ${username} in DynamoDB`);
 
     return {
       statusCode: 200,
