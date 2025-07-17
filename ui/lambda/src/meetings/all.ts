@@ -48,7 +48,7 @@ function extractUserFromToken(
       Buffer.from(token.split(".")[1], "base64").toString()
     );
 
-    const userId = payload.sub || payload["cognito:username"];
+    const userId = payload["cognito:username"] || payload.sub;
     const userEmail = payload.email;
 
     if (!userId || !userEmail) {
