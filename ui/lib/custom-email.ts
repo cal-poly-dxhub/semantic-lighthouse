@@ -10,7 +10,7 @@ export class CustomEmailResources extends Construct {
   constructor(scope: Construct, id: string, props: CustomEmailResourcesProps) {
     super(scope, id);
 
-    const newUserMessageLambda = new cdk.aws_lambda.Function(
+    const customMessageLambda = new cdk.aws_lambda.Function(
       this,
       "CustomMessageLambda",
       {
@@ -35,13 +35,7 @@ export class CustomEmailResources extends Construct {
     // trigger when admin creates a user
     props.userPool.addTrigger(
       cdk.aws_cognito.UserPoolOperation.CUSTOM_MESSAGE,
-      newUserMessageLambda
-    );
-
-    // trigger when user signs up
-    props.userPool.addTrigger(
-      cdk.aws_cognito.UserPoolOperation.PRE_SIGN_UP,
-      newUserMessageLambda
+      customMessageLambda
     );
   }
 }

@@ -81,11 +81,13 @@ const firstUserEmailVerification = (event: CustomMessageTriggerEvent) => ({
 
 export const handler = async (event: CustomMessageTriggerEvent) => {
   console.log("INFO: Custom message event:", JSON.stringify(event, null, 2));
+  event.response = event.response || {};
 
   if (event.triggerSource === "CustomMessage_AdminCreateUser") {
     const { emailMessage, emailSubject } = messageAdminCreatedUser(event);
     event.response.emailSubject = emailSubject;
     event.response.emailMessage = emailMessage;
+    // event.response.smsMessage = emailMessage;
   } else if (event.triggerSource === "CustomMessage_SignUp") {
     const { emailMessage, emailSubject } = firstUserEmailVerification(event);
     event.response.emailSubject = emailSubject;
@@ -120,8 +122,8 @@ export const handler = async (event: CustomMessageTriggerEvent) => {
   }
 
   console.log(
-    "INFO: Custom message response:",
-    JSON.stringify(event.response, null, 2)
+    "INFO: Custom message event response:",
+    JSON.stringify(event, null, 2)
   );
 
   return event;

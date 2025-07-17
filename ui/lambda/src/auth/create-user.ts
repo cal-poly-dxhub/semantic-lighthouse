@@ -50,7 +50,7 @@ export const handler = async (event: any) => {
     // add user to group
     const addUserToGroupCommand = new AdminAddUserToGroupCommand({
       UserPoolId: process.env.USER_POOL_ID,
-      Username: email,
+      Username: username,
       GroupName: process.env.GROUP_NAME,
     });
 
