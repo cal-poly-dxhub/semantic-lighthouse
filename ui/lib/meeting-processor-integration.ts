@@ -204,7 +204,7 @@ export class MeetingProcessorIntegration extends Construct {
         ),
         handler: "handler.lambda_handler",
         timeout: cdk.Duration.minutes(15),
-        memorySize: 4096,
+        memorySize: 3008,
         environment: {
           S3_BUCKET: props.bucket.bucketName,
           MEETINGS_TABLE_NAME: props.meetingsTable.tableName,
