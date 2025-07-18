@@ -43,8 +43,8 @@ Thanks for your interest in our solution. Having specific examples of replicatio
 
 ## Authors
 
-- Swayam Chidrawar - <schidra@amazon.com>
-- Gus Flusser - <gflusser@amazon.com>
+- Swayam Chidrawar - <schidraw@calpoly.edu>
+- Gus Flusser - <gflusser@calpoly.edu>
 
 ## Overview
 
@@ -172,5 +172,6 @@ Common issues and solutions:
 
 For any queries or issues, please contact:
 
-- Swayam Chidrawar, Jr. SDE - <schidra@amazon.com>
-- Gus Flusser, Jr. SDE - <gflusser@amazon.com>
+- Darren Kraker - <dkraker@calpoly.edu>
+- Swayam Chidrawar, Jr. SDE - <schidraw@calpoly.edu>
+- Gus Flusser, Jr. SDE - <gflusser@calpoly.edu>
