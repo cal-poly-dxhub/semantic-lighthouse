@@ -6,7 +6,7 @@ export interface SemanticLighthouseStackProps extends cdk.StackProps {
   uniqueId: string; // unique identifier for the stack, e.g., "dev-1"
 }
 
-const uniqueId = process.env.UNIQUE_ID || "prod-1";
+const uniqueId = process.env.UNIQUE_ID || "dev-v1";
 
 const app = new cdk.App();
 

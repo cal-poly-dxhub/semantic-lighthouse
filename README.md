@@ -13,7 +13,7 @@
 
 # Collaboration
 
-Thanks for your interest in our solution. Having specific examples of replication and usage allows us to continue to grow and scale our work. If you clone or use this repository or CloudFormation Template, kindly shoot us a quick email to let us know you are interested in this work!
+Thanks for your interest in our solution. Having specific examples of replication and usage allows us to continue to grow and scale our work. If you clone or use this repository, kindly shoot us a quick email to let us know you are interested in this work!
 
 <wwps-cic@amazon.com>
 
@@ -65,7 +65,7 @@ Semantic-Lighthouse is an automated solution that transforms board meeting video
   - Agenda: PDF
 - Output Format: PDF with embedded video links
 - Processing Time: Approximately 10 minutes per hour of video
-- AWS-native solution deployed via CloudFormation
+- AWS-native solution deployed via CDK
 
 ## Architecture
 
@@ -85,7 +85,7 @@ The solution consists of several key components:
 
    - Amazon API Gateway
    - AWS Lambda functions
-   - Amazon Cognito for authentication
+   - Amazon Cognito authorizer
 
 3. Meeting Processor
 
@@ -108,14 +108,25 @@ Additionally other AWS services are used for additional functionality
 ### Prerequisites
 
 - AWS Account with appropriate permissions
-- Access to AWS Management Console
+- CDK cli [see here](https://docs.aws.amazon.com/cdk/v2/guide/cli.html)
 
-### 1. CloudFormation Deployment
+### 1. CDK Deployment
 
-1. Navigate to CloudFormation in your AWS Console
-2. Choose "Create Stack" (with new resources)
-3. Upload the template file
-4. Follow the prompts to complete deployment
+1. Bootstrap your AWS account:
+
+```bash
+cd ui
+cdk bootstrap
+cd ..
+```
+
+2. Deploy the stack
+
+```bash
+cd ui
+cdk deploy
+cd ..
+```
 
 ### 2. Initial Setup
 
