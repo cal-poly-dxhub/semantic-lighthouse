@@ -130,11 +130,15 @@ cd ..
 
 ### 2. Initial Setup
 
-After deployment:
+1. **Enable Bedrock Model Access:**
+   - Navigate to the AWS Bedrock console
+   - Request access to all models from both Anthropic and Amazon
+   - Ensure you're working in the correct AWS region/branch for your deployment
 
-1. Access the provided application URL (if you get an AccessDenied screen, just wait a few minues for the webiste build to complete)
-2. Create the initial admin user (first user to sign up)
-3. Additional users can be created through the admin interface
+2. **Application Configuration:** (After Deployment)
+   - Access the provided application URL (if you get an AccessDenied screen, wait a few minutes for the website build to complete)
+   - Create the initial admin user (first user to sign up)
+   - Additional users can be created through the admin interface
 
 ### 3. Using the System
 
