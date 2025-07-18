@@ -69,42 +69,17 @@ export class FrontendResources extends Construct {
       }
     );
 
-    // bucket for frontend source zip
-    const sourceBucket = new cdk.aws_s3.Bucket(this, "FrontendSourceBucket", {
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-      autoDeleteObjects: true,
-      blockPublicAccess: cdk.aws_s3.BlockPublicAccess.BLOCK_ALL,
-    });
-
-    // upload frontend source zip to S3 bucket
-    const sourceDeployment = new cdk.aws_s3_deployment.BucketDeployment(
-      this,
-      "FrontendSourceDeployment",
-      {
-        sources: [cdk.aws_s3_deployment.Source.asset("./frontend.zip")],
-        destinationBucket: sourceBucket,
-        extract: false, // we upload a zip file, no need to extract
-        logGroup: new cdk.aws_logs.LogGroup(
-          this,
-          "FrontendSourceDeploymentLogGroup",
-          {
-            removalPolicy: cdk.RemovalPolicy.DESTROY,
-            retention: cdk.aws_logs.RetentionDays.ONE_WEEK,
-          }
-        ),
-      }
-    );
-
-    // codebuild project to build frontend
+    // codebuild project to build frontend from GitHub
     const build = new cdk.aws_codebuild.Project(this, "FrontendBuild", {
-      // TODO: source should be github later
-      source: cdk.aws_codebuild.Source.s3({
-        bucket: sourceBucket,
-        path: cdk.Fn.select(0, sourceDeployment.objectKeys),
+      source: cdk.aws_codebuild.Source.gitHub({
+        owner: "cal-poly-dxhub",
+        repo: "semantic-lighthouse",
+        branchOrRef: "main",
+        cloneDepth: 1, // shallow clone for faster builds
       }),
       environment: {
-        // TODO: try without privilege?
-        privileged: true,
+        buildImage: cdk.aws_codebuild.LinuxBuildImage.STANDARD_7_0, // Use latest standard image
+        computeType: cdk.aws_codebuild.ComputeType.SMALL,
       },
       artifacts: cdk.aws_codebuild.Artifacts.s3({
         bucket: siteBucket,
@@ -135,7 +110,7 @@ export class FrontendResources extends Construct {
         phases: {
           install: {
             commands: [
-              "cd frontend",
+              "cd ui/frontend",
               "echo installing dependencies...",
               "yarn install",
             ],
@@ -145,7 +120,7 @@ export class FrontendResources extends Construct {
           },
         },
         artifacts: {
-          "base-directory": "frontend/out",
+          "base-directory": "ui/frontend/out",
           files: ["**/*"],
         },
       }),
@@ -164,10 +139,8 @@ export class FrontendResources extends Construct {
 
     // needs s3 access
     siteBucket.grantWrite(build);
-    sourceBucket.grantRead(build);
 
     // ensure the build runs after the source deployment and all env vars are ready
-    build.node.addDependency(sourceDeployment);
     build.node.addDependency(this.distribution);
     build.node.addDependency(props.userPool);
     build.node.addDependency(props.userPoolClient);

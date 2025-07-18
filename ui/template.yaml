@@ -6,7 +6,7 @@ Resources:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
-      BucketName: sl-v3-795592
+      BucketName: sl-v3-800429
       CorsConfiguration:
         CorsRules:
           - AllowedHeaders:
@@ -2870,110 +2870,6 @@ Resources:
               OriginAccessIdentity: ""
     Metadata:
       aws:cdk:path: SemanticLighthouseStack-v3/Frontend/FrontendDistribution/Resource
-  FrontendFrontendSourceBucket0C00C963:
-    Type: AWS::S3::Bucket
-    Properties:
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      Tags:
-        - Key: aws-cdk:auto-delete-objects
-          Value: "true"
-        - Key: aws-cdk:cr-owned:7a981b6d
-          Value: "true"
-    UpdateReplacePolicy: Delete
-    DeletionPolicy: Delete
-    Metadata:
-      aws:cdk:path: SemanticLighthouseStack-v3/Frontend/FrontendSourceBucket/Resource
-  FrontendFrontendSourceBucketPolicy25A7FC2F:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket:
-        Ref: FrontendFrontendSourceBucket0C00C963
-      PolicyDocument:
-        Statement:
-          - Action:
-              - s3:DeleteObject*
-              - s3:GetBucket*
-              - s3:List*
-              - s3:PutBucketPolicy
-            Effect: Allow
-            Principal:
-              AWS:
-                Fn::GetAtt:
-                  - CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092
-                  - Arn
-            Resource:
-              - Fn::GetAtt:
-                  - FrontendFrontendSourceBucket0C00C963
-                  - Arn
-              - Fn::Join:
-                  - ""
-                  - - Fn::GetAtt:
-                        - FrontendFrontendSourceBucket0C00C963
-                        - Arn
-                    - /*
-        Version: "2012-10-17"
-    Metadata:
-      aws:cdk:path: SemanticLighthouseStack-v3/Frontend/FrontendSourceBucket/Policy/Resource
-  FrontendFrontendSourceBucketAutoDeleteObjectsCustomResource855A5EE3:
-    Type: Custom::S3AutoDeleteObjects
-    Properties:
-      ServiceToken:
-        Fn::GetAtt:
-          - CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F
-          - Arn
-      BucketName:
-        Ref: FrontendFrontendSourceBucket0C00C963
-    DependsOn:
-      - FrontendFrontendSourceBucketPolicy25A7FC2F
-    UpdateReplacePolicy: Delete
-    DeletionPolicy: Delete
-    Metadata:
-      aws:cdk:path: SemanticLighthouseStack-v3/Frontend/FrontendSourceBucket/AutoDeleteObjectsCustomResource/Default
-  FrontendFrontendSourceDeploymentLogGroupC3AC9817:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      RetentionInDays: 7
-    UpdateReplacePolicy: Delete
-    DeletionPolicy: Delete
-    Metadata:
-      aws:cdk:path: SemanticLighthouseStack-v3/Frontend/FrontendSourceDeploymentLogGroup/Resource
-  FrontendFrontendSourceDeploymentAwsCliLayer04D8FFE7:
-    Type: AWS::Lambda::LayerVersion
-    Properties:
-      Content:
-        S3Bucket:
-          Fn::Sub: cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}
-        S3Key: b8ab94266984268614c3fb2824a1c3a55395746c48b28c003b08bc1d08688f3e.zip
-      Description: /opt/awscli/aws
-    Metadata:
-      aws:cdk:path: SemanticLighthouseStack-v3/Frontend/FrontendSourceDeployment/AwsCliLayer/Resource
-      aws:asset:path: asset.b8ab94266984268614c3fb2824a1c3a55395746c48b28c003b08bc1d08688f3e.zip
-      aws:asset:is-bundled: false
-      aws:asset:property: Content
-  FrontendFrontendSourceDeploymentCustomResource3B7EA699:
-    Type: Custom::CDKBucketDeployment
-    Properties:
-      ServiceToken:
-        Fn::GetAtt:
-          - CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C81C01536
-          - Arn
-      SourceBucketNames:
-        - Fn::Sub: cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}
-      SourceObjectKeys:
-        - 8c0fa38fe41943b3a918e548488b2fd722d20ed155db0dc02db486dab9b54da9.zip
-      DestinationBucketName:
-        Ref: FrontendFrontendSourceBucket0C00C963
-      Extract: false
-      Prune: true
-      OutputObjectKeys: true
-    UpdateReplacePolicy: Delete
-    DeletionPolicy: Delete
-    Metadata:
-      aws:cdk:path: SemanticLighthouseStack-v3/Frontend/FrontendSourceDeployment/CustomResource/Default
   FrontendFrontendBuildLogGroupA86362FC:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -3000,8 +2896,6 @@ Resources:
       - AuthUserPoolUsersGroupAAFEC657
       - AuthUserPoolClient0AA456E4
       - FrontendFrontendDistribution0FCC69EF
-      - FrontendFrontendSourceDeploymentAwsCliLayer04D8FFE7
-      - FrontendFrontendSourceDeploymentCustomResource3B7EA699
       - MeetingApiMeetingAuthApimeetingIdminutesGETApiPermissionSemanticLighthouseStackv3MeetingApiMeetingAuthApi4C43BB2BGETmeetingIdminutes5D1546AB
       - MeetingApiMeetingAuthApimeetingIdminutesGETApiPermissionTestSemanticLighthouseStackv3MeetingApiMeetingAuthApi4C43BB2BGETmeetingIdminutes49CDC07C
       - MeetingApiMeetingAuthApimeetingIdminutesGET45AE9624
@@ -3052,32 +2946,6 @@ Resources:
     Properties:
       PolicyDocument:
         Statement:
-          - Action:
-              - s3:GetBucket*
-              - s3:GetObject*
-              - s3:List*
-            Effect: Allow
-            Resource:
-              - Fn::GetAtt:
-                  - FrontendFrontendSourceBucket0C00C963
-                  - Arn
-              - Fn::Join:
-                  - ""
-                  - - Fn::GetAtt:
-                        - FrontendFrontendSourceBucket0C00C963
-                        - Arn
-                    - /
-                    - Fn::Select:
-                        - 0
-                        - Fn::GetAtt:
-                            - FrontendFrontendSourceDeploymentCustomResource3B7EA699
-                            - SourceObjectKeys
-              - Fn::Join:
-                  - ""
-                  - - Fn::GetAtt:
-                        - FrontendFrontendSourceBucket0C00C963
-                        - Arn
-                    - /*
           - Action:
               - s3:Abort*
               - s3:DeleteObject*
@@ -3177,8 +3045,6 @@ Resources:
       - AuthUserPoolUsersGroupAAFEC657
       - AuthUserPoolClient0AA456E4
       - FrontendFrontendDistribution0FCC69EF
-      - FrontendFrontendSourceDeploymentAwsCliLayer04D8FFE7
-      - FrontendFrontendSourceDeploymentCustomResource3B7EA699
       - MeetingApiMeetingAuthApimeetingIdminutesGETApiPermissionSemanticLighthouseStackv3MeetingApiMeetingAuthApi4C43BB2BGETmeetingIdminutes5D1546AB
       - MeetingApiMeetingAuthApimeetingIdminutesGETApiPermissionTestSemanticLighthouseStackv3MeetingApiMeetingAuthApi4C43BB2BGETmeetingIdminutes49CDC07C
       - MeetingApiMeetingAuthApimeetingIdminutesGET45AE9624
@@ -3278,7 +3144,7 @@ Resources:
                   - /
         Image: aws/codebuild/standard:7.0
         ImagePullCredentialsType: CODEBUILD
-        PrivilegedMode: true
+        PrivilegedMode: false
         Type: LINUX_CONTAINER
       LogsConfig:
         CloudWatchLogs:
@@ -3296,7 +3162,7 @@ Resources:
             "phases": {
               "install": {
                 "commands": [
-                  "cd frontend",
+                  "cd ui/frontend",
                   "echo installing dependencies...",
                   "yarn install"
                 ]
@@ -3309,23 +3175,17 @@ Resources:
               }
             },
             "artifacts": {
-              "base-directory": "frontend/out",
+              "base-directory": "ui/frontend/out",
               "files": [
                 "**/*"
               ]
             }
           }
-        Location:
-          Fn::Join:
-            - ""
-            - - Ref: FrontendFrontendSourceBucket0C00C963
-              - /
-              - Fn::Select:
-                  - 0
-                  - Fn::GetAtt:
-                      - FrontendFrontendSourceDeploymentCustomResource3B7EA699
-                      - SourceObjectKeys
-        Type: S3
+        GitCloneDepth: 1
+        Location: https://github.com/cal-poly-dxhub/semantic-lighthouse.git
+        ReportBuildStatus: true
+        Type: GITHUB
+      SourceVersion: main
     DependsOn:
       - AuthUserPoolAdminsGroup89379A46
       - AuthUserPoolCustomMessageCognito6AB39127
@@ -3334,8 +3194,6 @@ Resources:
       - AuthUserPoolUsersGroupAAFEC657
       - AuthUserPoolClient0AA456E4
       - FrontendFrontendDistribution0FCC69EF
-      - FrontendFrontendSourceDeploymentAwsCliLayer04D8FFE7
-      - FrontendFrontendSourceDeploymentCustomResource3B7EA699
       - MeetingApiMeetingAuthApimeetingIdminutesGETApiPermissionSemanticLighthouseStackv3MeetingApiMeetingAuthApi4C43BB2BGETmeetingIdminutes5D1546AB
       - MeetingApiMeetingAuthApimeetingIdminutesGETApiPermissionTestSemanticLighthouseStackv3MeetingApiMeetingAuthApi4C43BB2BGETmeetingIdminutes49CDC07C
       - MeetingApiMeetingAuthApimeetingIdminutesGET45AE9624
@@ -3393,13 +3251,13 @@ Resources:
           - ""
           - - '{"outputPaths":["BuildId"],"service":"CodeBuild","action":"startBuild","parameters":{"projectName":"'
             - Ref: FrontendFrontendBuild5BFE8AE0
-            - '"},"physicalResourceId":{"id":"trigger-codebuild-1752795592939"}}'
+            - '"},"physicalResourceId":{"id":"trigger-codebuild-1752800429717"}}'
       Update:
         Fn::Join:
           - ""
           - - '{"outputPaths":["BuildId"],"service":"CodeBuild","action":"startBuild","parameters":{"projectName":"'
             - Ref: FrontendFrontendBuild5BFE8AE0
-            - '"},"physicalResourceId":{"id":"trigger-codebuild-1752795592939"}}'
+            - '"},"physicalResourceId":{"id":"trigger-codebuild-1752800429717"}}'
       InstallLatestAwsSdk: false
     DependsOn:
       - FrontendFrontendBuild5BFE8AE0
@@ -3431,106 +3289,6 @@ Resources:
       - FrontendFrontendBuildRoleC7BFCAC8
     Metadata:
       aws:cdk:path: SemanticLighthouseStack-v3/Frontend/TriggerCodeBuild/CustomResourcePolicy/Resource
-  CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Statement:
-          - Action: sts:AssumeRole
-            Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-        Version: "2012-10-17"
-      ManagedPolicyArns:
-        - Fn::Join:
-            - ""
-            - - "arn:"
-              - Ref: AWS::Partition
-              - :iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-    Metadata:
-      aws:cdk:path: SemanticLighthouseStack-v3/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/ServiceRole/Resource
-  CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRoleDefaultPolicy88902FDF:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyDocument:
-        Statement:
-          - Action:
-              - s3:GetBucket*
-              - s3:GetObject*
-              - s3:List*
-            Effect: Allow
-            Resource:
-              - Fn::Join:
-                  - ""
-                  - - "arn:"
-                    - Ref: AWS::Partition
-                    - ":s3:::"
-                    - Fn::Sub: cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}
-                    - /*
-              - Fn::Join:
-                  - ""
-                  - - "arn:"
-                    - Ref: AWS::Partition
-                    - ":s3:::"
-                    - Fn::Sub: cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}
-          - Action:
-              - s3:Abort*
-              - s3:DeleteObject*
-              - s3:GetBucket*
-              - s3:GetObject*
-              - s3:List*
-              - s3:PutObject
-              - s3:PutObjectLegalHold
-              - s3:PutObjectRetention
-              - s3:PutObjectTagging
-              - s3:PutObjectVersionTagging
-            Effect: Allow
-            Resource:
-              - Fn::GetAtt:
-                  - FrontendFrontendSourceBucket0C00C963
-                  - Arn
-              - Fn::Join:
-                  - ""
-                  - - Fn::GetAtt:
-                        - FrontendFrontendSourceBucket0C00C963
-                        - Arn
-                    - /*
-        Version: "2012-10-17"
-      PolicyName: CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRoleDefaultPolicy88902FDF
-      Roles:
-        - Ref: CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265
-    Metadata:
-      aws:cdk:path: SemanticLighthouseStack-v3/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/ServiceRole/DefaultPolicy/Resource
-  CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C81C01536:
-    Type: AWS::Lambda::Function
-    Properties:
-      Code:
-        S3Bucket:
-          Fn::Sub: cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}
-        S3Key: 9a1fcb4a7ecba81ad70e9d3fb241f6794497da945dae5f25924e4dd002b65f2d.zip
-      Environment:
-        Variables:
-          AWS_CA_BUNDLE: /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
-      Handler: index.handler
-      Layers:
-        - Ref: FrontendFrontendSourceDeploymentAwsCliLayer04D8FFE7
-      LoggingConfig:
-        LogGroup:
-          Ref: FrontendFrontendSourceDeploymentLogGroupC3AC9817
-      Role:
-        Fn::GetAtt:
-          - CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265
-          - Arn
-      Runtime: python3.11
-      Timeout: 900
-    DependsOn:
-      - CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRoleDefaultPolicy88902FDF
-      - CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265
-    Metadata:
-      aws:cdk:path: SemanticLighthouseStack-v3/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/Resource
-      aws:asset:path: asset.9a1fcb4a7ecba81ad70e9d3fb241f6794497da945dae5f25924e4dd002b65f2d
-      aws:asset:is-bundled: false
-      aws:asset:property: Code
   AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2:
     Type: AWS::IAM::Role
     Properties:
@@ -3987,7 +3745,7 @@ Resources:
           Fn::Sub: cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}
         S3Key: 05a188071e3b65a75fa36710110ed76d1d6b218840e239fc0d5cc287c799360d.zip
       Description: PyMediaInfo library for video file analysis and duration extraction
-      LayerName: semantic-lighthouse-v3-795592-video-analysis
+      LayerName: semantic-lighthouse-v3-800429-video-analysis
     Metadata:
       aws:cdk:path: SemanticLighthouseStack-v3/MeetingProcessorIntegration/VideoAnalysisLayer/Resource
       aws:asset:path: asset.05a188071e3b65a75fa36710110ed76d1d6b218840e239fc0d5cc287c799360d
@@ -4003,7 +3761,7 @@ Resources:
           Fn::Sub: cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}
         S3Key: f612a9edabb69c8a471a984b8f909316afaf313887b2e07cf7ad120cac49a984.zip
       Description: PDF generation tools with fonts for converting HTML meeting minutes to PDF
-      LayerName: semantic-lighthouse-v3-795592-pdf-generation-tools
+      LayerName: semantic-lighthouse-v3-800429-pdf-generation-tools
     Metadata:
       aws:cdk:path: SemanticLighthouseStack-v3/MeetingProcessorIntegration/PdfGenerationLayer/Resource
       aws:asset:path: asset.f612a9edabb69c8a471a984b8f909316afaf313887b2e07cf7ad120cac49a984
@@ -4046,7 +3804,7 @@ Resources:
                     - Arn
             Version: "2012-10-17"
           PolicyName: S3Access
-      RoleName: semantic-lighthouse-v3-795592-mediaconvert-service-role
+      RoleName: semantic-lighthouse-v3-800429-mediaconvert-service-role
     Metadata:
       aws:cdk:path: SemanticLighthouseStack-v3/MeetingProcessorIntegration/MediaConvertServiceRole/Resource
   MeetingProcessorIntegrationVideoToAudioConverterServiceRole07666533:
@@ -4179,7 +3937,7 @@ Resources:
                 - ":"
                 - Ref: AWS::AccountId
                 - :queues/Default
-      FunctionName: semantic-lighthouse-v3-795592-video-to-audio-converter
+      FunctionName: semantic-lighthouse-v3-800429-video-to-audio-converter
       Handler: handler.lambda_handler
       Layers:
         - Ref: MeetingProcessorIntegrationVideoAnalysisLayer57D1BE94
@@ -4304,7 +4062,7 @@ Resources:
             Ref: DataResourcesMeetingsBucket978E0EC1
           MEETINGS_TABLE_NAME:
             Ref: DataResourcesMeetingsTableB4BEF5CF
-      FunctionName: semantic-lighthouse-v3-795592-processing-status-monitor
+      FunctionName: semantic-lighthouse-v3-800429-processing-status-monitor
       Handler: handler.lambda_handler
       MemorySize: 512
       Role:
@@ -4480,7 +4238,7 @@ Resources:
             7. Closing remarks
 
             Key participants and their roles should be identified from the discussion context.
-      FunctionName: semantic-lighthouse-v3-795592-ai-meeting-analyzer
+      FunctionName: semantic-lighthouse-v3-800429-ai-meeting-analyzer
       Handler: handler.lambda_handler
       MemorySize: 3008
       Role:
@@ -4600,7 +4358,7 @@ Resources:
             Ref: DataResourcesMeetingsTableB4BEF5CF
           LD_LIBRARY_PATH: /opt/lib
           FONTCONFIG_PATH: /opt/fonts
-      FunctionName: semantic-lighthouse-v3-795592-document-pdf-generator
+      FunctionName: semantic-lighthouse-v3-800429-document-pdf-generator
       Handler: handler.lambda_handler
       Layers:
         - Ref: MeetingProcessorIntegrationPdfGenerationLayer8DAC1B0A
@@ -4716,7 +4474,7 @@ Resources:
             Ref: DataResourcesMeetingsTableB4BEF5CF
           USER_PREFERENCES_TABLE_NAME:
             Ref: DataResourcesUserPreferencesTableC9E14B7D
-      FunctionName: semantic-lighthouse-v3-795592-notification-sender
+      FunctionName: semantic-lighthouse-v3-800429-notification-sender
       Handler: handler.lambda_handler
       MemorySize: 256
       Role:
@@ -5520,7 +5278,7 @@ Resources:
         Fn::GetAtt:
           - MeetingProcessorIntegrationMeetingProcessingWorkflowRole53AFE4A1
           - Arn
-      StateMachineName: semantic-lighthouse-v3-795592-processing-workflow
+      StateMachineName: semantic-lighthouse-v3-800429-processing-workflow
     DependsOn:
       - MeetingProcessorIntegrationMeetingProcessingWorkflowRoleDefaultPolicyD815DF7C
       - MeetingProcessorIntegrationMeetingProcessingWorkflowRole53AFE4A1
@@ -5666,7 +5424,7 @@ Resources:
             Ref: DataResourcesMeetingsTableB4BEF5CF
           SYSTEM_CONFIG_TABLE_NAME:
             Ref: DataResourcesSystemConfigTableCCF6C008
-      FunctionName: semantic-lighthouse-v3-795592-agenda-document-processor
+      FunctionName: semantic-lighthouse-v3-800429-agenda-document-processor
       Handler: handler.lambda_handler
       MemorySize: 1024
       Role:
@@ -5854,7 +5612,7 @@ Resources:
   CDKMetadata:
     Type: AWS::CDK::Metadata
     Properties:
-      Analytics: v2:deflate64:H4sIAAAAAAAA/+0ca2/bOPK3rD4uGF+3XeCAfnNctxds0/jstIdFEAQ0NZbZUqKWpJx6Df/340OUKL/WSZPGTvQhrTSk5j0jcqzh687rV791Xv2Cb+UJib+dMDruLEYKk29Ig24W8k1ncVqQb6CuFtHYXnzCKURvo18jFAlI+QyzAWeUzDUsBqkEn+sRXCj+DhgouBh/BaJk9FaJAlCUF2M9eQg47hICUsMnmEk9ABkR81xRnmlEozc3591P3Q/9dxrXmHHybWCf889Y6jCDTJ0KGifQz/CYQeyJEC70JM0xZozfQnwOaspjA4o+9C/1o4PP9t+L0WV0jfysC0ETmnnsJfA/mlMQHpji793ESb+8XiJNII57mtiwYPDoBJGF/BpZwlv1uE1b97DVNpMY+vdAt5mz5TXqTTLnY8j955BWDldKv/M2QOKeLlGdYglXWmGE8SKeCJ6pzmIIMueZhFLTFTXjNacwxTPKRfRW29Iy2dPPCM66xjo9AbH2Oao1Xel7fVbTguvjlXNsGV9xi3C8/z3nFePlBG6nX8xA6FAAp+ylU8hGSdE7qk1Fx4UxrBY7hgkumAoldyhL/DMKtyAGgitOeG1wrQoqtHlPFD+ZKpXL2oWbAhJMpqswsYkxZ0lj2X9iaVJkxHDflZITis2li3c/EGaIy3luAsiJcSLgr0K7qvGYu0hmhfAzFuHtWez59mwPOVfO9StXTQTOlMkGPoKv0eiNs3M3tK+dYOSXRNC8ksRZc8N8Aw7Nid6XCrDuHEPwtB9Zonie4ZTHOtFfmqypp+ZYKGoG/wArXlaneOW0NzLpR3Khds/YnhXGlDGaJeeOqUH3z5tBf3gz7P/3c1/nxDKVfmB8jNkICM9iLOZnWQzfrV2puQpePHsx7DL0nrL9COePTcLaz9pqiRhOxzHuLAJDi0KnpIriFGcxA+Hp6wFeKB+K3iVMbp9RnQ5TyGov1Rboh+DaXTf4JFqhG+DexcIqXRQxnnwQvMj3Y2Pn4C5N7JD9QXloGXz2DLY8HAmDDM/tOskArzfRauYm/UL1bKU6V4v5iP5d8ZlPIQWh306KC5xAMDTLSX01KsYZKL/OmVAGci4VpJuE25E0Q+3to4OPoaQGtibAVlFXWPJLqOBtu0PAvQX4OS+pDczf6y21pr1/8KRHjKPHG1zzmUfT3sOq60jYfCmDLzDm2sh5usi59z7kh1YajS20uR6ASKmU5Z11iC/aJ8z9SG/lGCieBXu0oqDxfm5tJpgt3qAQptZzhAuVc1A4xgqX+jP1qOvNQ96mDe2sC39oa5m7y3iNQg+5Klem5W3AXcAC4WmOFdWb/qEj79lcKw6hh0Wn5aA47SyG3NaGsJRFCvGprWzkgmaE5ph1CeFF5bFujnmgSwK+ohRn2gNjW/Gg4Ep0IWzeFTVRq7xLPvAkfJ3kalGOKoXJ9CxjNKsqcVUC3j14bxG8SUOej0+KwzHEbry7R5+9+K2ArYCtgK2AT5hjn7tyzFIxWB/98MLg2Cz4VKPH7zmHI+AzXyM+WIiub21QRGuatNwBPRO1tYF/fIptlfOSlfPsBXwS6x+pvI82ehwr3jYWDtz6mxZTd9X8TzKy+/JVo0BuqPym0lnvkg/trwUrRl0Hx/FIYQXmZxnp9Xl4iO4GfmyyLf7njf+JuDkssR4XLAOY35xuQXAHfRyN4x2zqQ+L95fFzcuS9pid+4h1YxeWbk25RIwnsrP4WH5vYr7oKC+r5bZdf29t+RCgNGq7xP13O/MpZ2403AEC95TIeqn3yyUiPMmo4p3FZwliwDnTrippkp1lXUaxNHupRQQppsy3aRZ6outgsp2EKJLAJiP9yOd8pc3WdHp+AUEn8xUkO5qd/J5V0CQxH1jpyAq/+1uHW3k888hf+Kgryvty/5g0tLZp05oLIKaJk9SK/WEcDRYtZxWfPUa1adYZ1aqbvmf81qofxyl1z+v97y0XcWiKVRgppOJpOGMk8kbXZ5P2Esk3NwuNBJTsdM1/KIac8blJbR3XJfuuAiwRzmmiE98tnttOWdXN6dWmry4dkou8bL60S9ckLDZoJ05olnyEGRipzz69vzCPYYUvBSarLdspKEGJbEDrlkrTYz0QMGE0maqAJt7QL7vaYlv3whpZUC3rRrG0+P6rP1CYZvX0xor8kusQowQz0/7ZqMW08BZ+THAbHLWXo5EJYxsaHlTGwyPEt6VtCSIdnrwQBGzDvkn8yMXwlXnxuaGSrmnJdmPVj7oKEoGDIOZBhtCJlgv6N4jm3VkcZGIDss+XveK25qgzwR8wH8JfBRWGY9/vv3G+FVCz5DvuXYnS7OYL2au/wvV97wMstCKVb+LXZijtc97AclckqFVWq6yDVtaqbKESo/JXptYqP8cq1b6iVXer7men7jbnHKJV2iBoVymHr6w2YxylVex20uGt9pNX9nimehebYzXVLNZtyi9q1FfCrGpQz9WGfb1QdiuFuh24nluD7J37WMdUlWMYF5TFncVAcHPUmXGJ0sSLaIzjBEZFnnOhAiel9vC8Ca27ygPHbvRB2w+EZpRBEtQCzSlbE2wPFFzsjesLFtSUHHx50HI9ysF3AZdVDHuomzkj8H9Ykam5azaHl85VCrtEUkHuu4ulPTFTwTkmU5pBGRz+tlFJntDMHhR2yuO55zvoZa6KNOYHsI1feq0N+BJKRW+J7Kl3milzKKVmxt4OsNIhmdk6bRiJsSlysiCoHKBOc5pqv4Hg6i4YKsaxSMxRjV6Wg+PJBYZWmCbQsxX2KoFYBNv/miG171MP/ecOCCxUXqgV/rXLznSwCFNYQ7b+bwpu2uXLo+RubO/4Db6VhNFO91b2GLXN6kYvyP3acOPzt7QTGviXKNPJoPNV/mv2+vfO751Xv3yVlJ6UPfOdstv8/9zYKA1oVgAA
+      Analytics: v2:deflate64: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
     Metadata:
       aws:cdk:path: SemanticLighthouseStack-v3/CDKMetadata/Default
     Condition: CDKMetadataAvailable
