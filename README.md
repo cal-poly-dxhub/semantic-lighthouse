@@ -1,4 +1,4 @@
-# Semantic-Lighthouse: Automated Board Meeting Minutes Generator
+  # Semantic-Lighthouse: Automated Board Meeting Minutes Generator
 
 ## Table of Contents
 
@@ -172,6 +172,6 @@ Common issues and solutions:
 
 For any queries or issues, please contact:
 
-- Darren Kraker - <dkraker@calpoly.edu>
+- Darren Kraker - <dkraker@amazon.com>
 - Swayam Chidrawar, Jr. SDE - <schidraw@calpoly.edu>
 - Gus Flusser, Jr. SDE - <gflusser@calpoly.edu>
