@@ -1,1 +1,22 @@
 creds.csv
+
+!jest.config.js
+*.d.ts
+node_modules
+*.lock
+.yarn
+
+# CDK asset staging directory
+.cdk.staging
+cdk.out
+
+deploy.sh
+synth.sh
+creds.csv
+.vscode
+*.js
+!frontend-rewrite.js
+*.zip
+cdk.context.json
+**/dist
+old

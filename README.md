@@ -1,4 +1,4 @@
-  # Semantic-Lighthouse: Automated Board Meeting Minutes Generator
+# Semantic-Lighthouse: Automated Board Meeting Minutes Generator
 
 ## Table of Contents
 
