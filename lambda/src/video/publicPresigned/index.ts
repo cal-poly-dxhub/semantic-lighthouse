@@ -42,7 +42,7 @@ export const handler = async (
     // TODO: make everything meetingId instead of meetingId
     // query dynamo for meetingId (meetingId)
     const queryCommand = new QueryCommand({
-      TableName: process.env.MEETINGS_TABLE_NAME,
+      TableName: process.env.TABLE_NAME,
       KeyConditionExpression: "meetingId = :meetingId",
       ExpressionAttributeValues: {
         ":meetingId": { S: meetingId },

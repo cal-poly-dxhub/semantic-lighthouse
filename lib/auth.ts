@@ -1,5 +1,6 @@
 import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
+import { createBundledLambdaCode } from "./helpers/lambda-bundling";
 
 export interface AuthStackProps {
   uniqueId: string;
@@ -65,14 +66,14 @@ export class AuthResources extends Construct {
       "PostConfirmationLambda",
       {
         description:
-          "lambda function handling post-confirmation with SNS topic creation",
-        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
-        code: cdk.aws_lambda.Code.fromAsset("dist/lambda/src/auth"),
-        handler: "post-confirmation.handler",
+          "lambda function handling postConfirmation with SNS topic creation",
+        runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
+        code: createBundledLambdaCode("src/auth/postConfirmation/index.ts"),
+        handler: "index.handler",
         timeout: cdk.Duration.seconds(30),
         environment: {
           ADMIN_GROUP_NAME: adminGroupName,
-          USERS_TABLE_NAME: props.usersTable.tableName,
+          TABLE_NAME: props.usersTable.tableName,
         },
         logGroup: new cdk.aws_logs.LogGroup(
           this,

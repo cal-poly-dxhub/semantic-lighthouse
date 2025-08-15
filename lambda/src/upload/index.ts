@@ -137,7 +137,7 @@ export const handler = async (
     // STORE MEETING METADATA WITH USER ASSOCIATION IN DYNAMODB
     // =================================================================
     const putCommand = new PutItemCommand({
-      TableName: process.env.MEETINGS_TABLE_NAME,
+      TableName: process.env.TABLE_NAME,
       Item: {
         // Enhanced schema with user associations
         meetingId: { S: meetingId },

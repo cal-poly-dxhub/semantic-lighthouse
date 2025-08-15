@@ -9,8 +9,8 @@
     "declaration": false,
     "sourceMap": false,
     "outDir": "../dist",
-    "rootDir": "..",
-    "baseUrl": "..",
+    "rootDir": ".",
+    "baseUrl": ".",
     "paths": {
       "@/*": ["./*"]
     }

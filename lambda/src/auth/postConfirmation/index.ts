@@ -1,4 +1,4 @@
-import { handleSubSNS } from "@/resources/layers/src/subSNS";
+import { handleSubscribeToSNS } from "@/src/shared/subscribeToSNS";
 import {
   AdminAddUserToGroupCommand,
   CognitoIdentityProviderClient,
@@ -6,11 +6,9 @@ import {
   UpdateUserPoolCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
-import { SNSClient } from "@aws-sdk/client-sns";
 import { PostConfirmationTriggerEvent } from "aws-lambda";
 
 const cognitoClient = new CognitoIdentityProviderClient({});
-const snsClient = new SNSClient({});
 const dynamoClient = new DynamoDBClient({});
 
 export const handler = async (event: PostConfirmationTriggerEvent) => {
@@ -21,18 +19,20 @@ export const handler = async (event: PostConfirmationTriggerEvent) => {
 
   try {
     // create sns topic for current user
-    const { topicArn, topicName } = await handleSubSNS(userName, userEmail);
+    const { topicArn, topicName } = await handleSubscribeToSNS(
+      userName,
+      userEmail
+    );
 
     // store user preferences in DynamoDB
     await dynamoClient.send(
       new PutItemCommand({
         TableName: process.env.TABLE_NAME,
         Item: {
-          userId: { S: userName },
-          userEmail: { S: userEmail },
+          pk: { S: `USER#${userName}` },
+          sk: { S: userEmail },
           snsTopicArn: { S: topicArn },
           snsTopicName: { S: topicName },
-          emailNotificationsEnabled: { BOOL: true },
           createdAt: { S: new Date().toISOString() },
           updatedAt: { S: new Date().toISOString() },
         },

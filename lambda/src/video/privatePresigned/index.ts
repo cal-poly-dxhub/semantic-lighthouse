@@ -104,7 +104,7 @@ export const handler = async (
     // VERIFY USER OWNS THIS MEETING
     // =================================================================
     const getItemCommand = new GetItemCommand({
-      TableName: process.env.MEETINGS_TABLE_NAME,
+      TableName: process.env.TABLE_NAME,
       Key: {
         meetingId: { S: meetingId },
         createdAt: { S: "temp" }, // We need to get the actual createdAt, or use a different approach
@@ -113,7 +113,7 @@ export const handler = async (
 
     // Since we have composite key, let's query by meetingId first
     const queryCommand = new QueryCommand({
-      TableName: process.env.MEETINGS_TABLE_NAME,
+      TableName: process.env.TABLE_NAME,
       KeyConditionExpression: "meetingId = :meetingId",
       ExpressionAttributeValues: {
         ":meetingId": { S: meetingId },

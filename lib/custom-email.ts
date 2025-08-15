@@ -1,5 +1,6 @@
 import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
+import { createBundledLambdaCode } from "./helpers/lambda-bundling";
 
 export interface CustomEmailResourcesProps {
   userPool: cdk.aws_cognito.UserPool;
@@ -15,10 +16,8 @@ export class CustomEmailResources extends Construct {
       "CustomMessageLambda",
       {
         description: "lambda function for custom email messages",
-        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
-        code: cdk.aws_lambda.Code.fromAsset(
-          "dist/lambda/src/auth/customMessage"
-        ),
+        runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
+        code: createBundledLambdaCode("src/auth/customMessage/index.ts"),
         handler: "index.handler",
         environment: {
           FRONTEND_URL: `https://${props.frontendDistribution.distributionDomainName}`,

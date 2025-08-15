@@ -1,12 +1,7 @@
-import { handleSubSNS } from "@/resources/layers/src/subSNS";
-import {
-  AdminAddUserToGroupCommand,
-  AdminCreateUserCommand,
-  CognitoIdentityProviderClient,
-} from "@aws-sdk/client-cognito-identity-provider";
+import { createUserInCognito } from "@/src/shared/cognitoUtils";
+import { handleSubscribeToSNS } from "@/src/shared/subscribeToSNS";
 import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
 
-const cognitoClient = new CognitoIdentityProviderClient({});
 const dynamoClient = new DynamoDBClient({});
 
 const corsHeaders = {
@@ -15,37 +10,6 @@ const corsHeaders = {
     "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
   "Access-Control-Allow-Methods": "OPTIONS,POST",
   "Content-Type": "application/json",
-};
-
-const createUserInCognito = async (username: string, email: string) => {
-  // create user with temp password - sends user the email
-  const createUserCommand = new AdminCreateUserCommand({
-    UserPoolId: process.env.USER_POOL_ID,
-    Username: username,
-    UserAttributes: [
-      {
-        Name: "email",
-        Value: email,
-      },
-      {
-        Name: "email_verified",
-        Value: "true",
-      },
-    ],
-  });
-
-  await cognitoClient.send(createUserCommand);
-  console.log(`INFO: User ${email} created successfully`);
-
-  // add user to group
-  const addUserToGroupCommand = new AdminAddUserToGroupCommand({
-    UserPoolId: process.env.USER_POOL_ID,
-    Username: username,
-    GroupName: process.env.GROUP_NAME,
-  });
-
-  await cognitoClient.send(addUserToGroupCommand);
-  console.log(`INFO: User ${email} added to group ${process.env.GROUP_NAME}`);
 };
 
 export const handler = async (event: any) => {
@@ -63,10 +27,15 @@ export const handler = async (event: any) => {
 
   try {
     // create cognito user
-    await createUserInCognito(username, email);
+    await createUserInCognito(
+      username,
+      email,
+      process.env.USER_POOL_ID!,
+      process.env.GROUP_NAME!
+    );
 
     // handle sns subscription
-    const { topicArn, topicName } = await handleSubSNS(username, email);
+    const { topicArn, topicName } = await handleSubscribeToSNS(username, email);
 
     // store everything in dynamo
     await dynamoClient.send(

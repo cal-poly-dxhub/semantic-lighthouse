@@ -1,5 +1,6 @@
 import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
+import { createBundledLambdaCode } from "./helpers/lambda-bundling";
 
 export interface ApiResourcesProps {
   uniqueId: string;
@@ -22,7 +23,7 @@ export class ApiResources extends Construct {
     const stack = cdk.Stack.of(this);
 
     // api
-    this.api = new cdk.aws_apigateway.RestApi(this, "AuthApi", {
+    this.api = new cdk.aws_apigateway.RestApi(this, "Api", {
       description: "API for video authentication",
       deployOptions: {
         stageName: "prod",
@@ -51,9 +52,9 @@ export class ApiResources extends Construct {
     // /:meetingId/upload
     const uploadResource = this.api.root.addResource("upload");
     const uploadLambda = new cdk.aws_lambda.Function(this, "UploadLambda", {
-      runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
-      handler: "upload.handler",
-      code: cdk.aws_lambda.Code.fromAsset("dist/lambda/src"),
+      runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
+      handler: "index.handler",
+      code: createBundledLambdaCode("src/upload/index.ts"),
       environment: {
         MEETINGS_BUCKET_NAME: props.meetingsBucket.bucketName,
         CLOUDFRONT_DOMAIN_NAME: props.videoDistribution.distributionDomainName,
@@ -84,9 +85,9 @@ export class ApiResources extends Construct {
       this,
       "PrivateVideoAuthLambda",
       {
-        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
-        handler: "private-presigned.handler",
-        code: cdk.aws_lambda.Code.fromAsset("dist/lambda/src/video"),
+        runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
+        handler: "index.handler",
+        code: createBundledLambdaCode("src/video/privatePresigned/index.ts"),
         environment: {
           MEETINGS_BUCKET_NAME: props.meetingsBucket.bucketName,
           TABLE_NAME: props.table.tableName,
@@ -123,9 +124,9 @@ export class ApiResources extends Construct {
       this,
       "PublicVideoAuthLambda",
       {
-        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
-        handler: "public-presigned.handler",
-        code: cdk.aws_lambda.Code.fromAsset("dist/lambda/src/video"),
+        runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
+        handler: "index.handler",
+        code: createBundledLambdaCode("src/video/publicPresigned/index.ts"),
         environment: {
           MEETINGS_BUCKET_NAME: props.meetingsBucket.bucketName,
           TABLE_NAME: props.table.tableName,
@@ -154,9 +155,9 @@ export class ApiResources extends Construct {
     // /:meetingId/minutes
     const minutesResource = meetingIdRoute.addResource("minutes");
     const minutesLambda = new cdk.aws_lambda.Function(this, "MinutesLambda", {
-      runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
-      handler: "minutes.handler",
-      code: cdk.aws_lambda.Code.fromAsset("dist/lambda/src/meetings"),
+      runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
+      handler: "index.handler",
+      code: createBundledLambdaCode("src/meetings/minutes/index.ts"),
       environment: {
         MEETINGS_BUCKET_NAME: props.meetingsBucket.bucketName,
         CLOUDFRONT_DOMAIN_NAME: props.videoDistribution.distributionDomainName,
@@ -182,9 +183,9 @@ export class ApiResources extends Construct {
       this,
       "AllMeetingsLambda",
       {
-        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
-        handler: "all.handler",
-        code: cdk.aws_lambda.Code.fromAsset("dist/lambda/src/meetings"),
+        runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
+        handler: "index.handler",
+        code: createBundledLambdaCode("src/meetings/all/index.ts"),
         environment: {
           MEETINGS_BUCKET_NAME: props.meetingsBucket.bucketName,
           CLOUDFRONT_DOMAIN_NAME:
@@ -207,27 +208,20 @@ export class ApiResources extends Construct {
     // /users
     const usersResource = this.api.root.addResource("users");
 
-    // create lambda layer for sns subscription function
-    const subSNSLayer = new cdk.aws_lambda.LayerVersion(this, "SubSNSLayer", {
-      code: cdk.aws_lambda.Code.fromAsset("dist/resources/layers"),
-      compatibleRuntimes: [cdk.aws_lambda.Runtime.NODEJS_LATEST],
-    });
-
     // /users/create
     const createUserResource = usersResource.addResource("create");
     const createUserLambda = new cdk.aws_lambda.Function(
       this,
       "CreateUserLambda",
       {
-        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
-        handler: "create-user.handler",
-        code: cdk.aws_lambda.Code.fromAsset("dist/lambda/src/auth"),
+        runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
+        handler: "index.handler",
+        code: createBundledLambdaCode("src/auth/user/create/index.ts"),
         environment: {
           USER_POOL_ID: props.userPool.userPoolId,
           GROUP_NAME: props.defaultUserGroupName,
           TABLE_NAME: props.table.tableName,
         },
-        layers: [subSNSLayer],
         logGroup: new cdk.aws_logs.LogGroup(this, "CreateUserLambdaLogGroup", {
           removalPolicy: cdk.RemovalPolicy.DESTROY,
           retention: cdk.aws_logs.RetentionDays.ONE_WEEK,
@@ -278,14 +272,13 @@ export class ApiResources extends Construct {
       this,
       "SetupUserLambda",
       {
-        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
-        handler: "setup-user.handler",
-        code: cdk.aws_lambda.Code.fromAsset("dist/lambda/src/auth"),
+        runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
+        handler: "index.handler",
+        code: createBundledLambdaCode("src/auth/user/setup/index.ts"),
         environment: {
           USER_POOL_ID: props.userPool.userPoolId,
           CLIENT_ID: props.userPoolClient.userPoolClientId,
         },
-        layers: [subSNSLayer],
         logGroup: new cdk.aws_logs.LogGroup(this, "SetupUserLambdaLogGroup", {
           removalPolicy: cdk.RemovalPolicy.DESTROY,
           retention: cdk.aws_logs.RetentionDays.ONE_WEEK,

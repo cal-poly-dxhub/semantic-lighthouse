@@ -100,7 +100,7 @@ export const handler = async (
     // VERIFY USER OWNS THIS MEETING AND CHECK PROCESSING STATUS
     // =================================================================
     const queryCommand = new QueryCommand({
-      TableName: process.env.MEETINGS_TABLE_NAME,
+      TableName: process.env.TABLE_NAME,
       KeyConditionExpression: "meetingId = :meetingId",
       ExpressionAttributeValues: {
         ":meetingId": { S: meetingId },

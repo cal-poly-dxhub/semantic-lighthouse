@@ -20,3 +20,6 @@ creds.csv
 cdk.context.json
 **/dist
 old
+
+# TODO: remove this from gitignore after implementing layers
+resources/

@@ -28,7 +28,7 @@ export class FrontendResources extends Construct {
       "RewriteFunction",
       {
         code: cdk.aws_cloudfront.FunctionCode.fromFile({
-          filePath: "dist/lambda/src/frontend-rewrite.js",
+          filePath: "lambda/src/frontend-rewrite.js",
         }),
       }
     );

@@ -71,7 +71,7 @@ async function processPdf(
     console.log(`INFO: Started Textract job: ${response.JobId}`);
 
     const dynamoUpdateParams = {
-      TableName: process.env.MEETINGS_TABLE_NAME,
+      TableName: process.env.TABLE_NAME,
       Key: {
         PK: { S: meetingId },
       },

@@ -95,7 +95,7 @@ export const handler = async (
     // Using GSI to query by userId since meetingId is the primary key
     const result = await dynamoClient.send(
       new QueryCommand({
-        TableName: process.env.MEETINGS_TABLE_NAME,
+        TableName: process.env.TABLE_NAME,
         IndexName: "UserMeetingsIndex", // GSI on userId
         KeyConditionExpression: "userId = :userId",
         ExpressionAttributeValues: {

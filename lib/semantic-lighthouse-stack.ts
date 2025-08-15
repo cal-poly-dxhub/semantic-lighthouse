@@ -25,20 +25,24 @@ export class SemanticLighthouseStack extends cdk.Stack {
 
     // ------------ datastore resources (s3, dynamo) ------------
 
-    const datastoreResources = new DatastoreResources(this, "Datastore", {
-      uniqueId,
-    });
+    const datastoreResources = new DatastoreResources(
+      this,
+      "DatastoreResources",
+      {
+        uniqueId,
+      }
+    );
 
     // ------------ AUTH AND ADMIN SETUP WITH SNS INTEGRATION ------------
 
-    const authResources = new AuthResources(this, "Auth", {
+    const authResources = new AuthResources(this, "AuthResources", {
       uniqueId,
       usersTable: datastoreResources.table,
     });
 
     // ------------ api ------------
 
-    const apiResources = new ApiResources(this, "Api", {
+    const apiResources = new ApiResources(this, "ApiResources", {
       uniqueId,
       userPool: authResources.userPool,
       userPoolClient: authResources.userPoolClient,
@@ -50,7 +54,7 @@ export class SemanticLighthouseStack extends cdk.Stack {
 
     // ------------ frontend ------------
 
-    const frontendResources = new FrontendResources(this, "Frontend", {
+    const frontendResources = new FrontendResources(this, "FrontendResources", {
       userPool: authResources.userPool,
       userPoolClient: authResources.userPoolClient,
       api: apiResources.api,
@@ -58,7 +62,7 @@ export class SemanticLighthouseStack extends cdk.Stack {
 
     // ------------ custom emails (needs frontend distribution) ------------
 
-    new CustomEmailResources(this, "CustomEmail", {
+    new CustomEmailResources(this, "CustomEmailResources", {
       userPool: authResources.userPool,
       frontendDistribution: frontendResources.distribution,
     });

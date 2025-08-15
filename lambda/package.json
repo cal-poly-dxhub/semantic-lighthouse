@@ -2,15 +2,12 @@
   "name": "lambda",
   "version": "1.0.0",
   "license": "MIT",
-  "scripts": {
-    "build": "tsc && cp src/frontend-rewrite.js ../dist/lambda/src/frontend-rewrite.js",
-    "clean": "rm -rf ../dist"
-  },
   "dependencies": {
     "aws-sdk": "^2.1692.0",
     "pdf-parse": "^1.1.1"
   },
   "devDependencies": {
+    "esbuild": "^0.19.0",
     "@aws-sdk/client-bedrock-agent": "^3.450.0",
     "@aws-sdk/client-bedrock-agent-runtime": "^3.830.0",
     "@aws-sdk/client-bedrock-runtime": "^3.840.0",
