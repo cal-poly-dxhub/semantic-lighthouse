@@ -16,8 +16,10 @@ export class CustomEmailResources extends Construct {
       {
         description: "lambda function for custom email messages",
         runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
-        code: cdk.aws_lambda.Code.fromAsset("dist/lambda/src/auth"),
-        handler: "custom-message.handler",
+        code: cdk.aws_lambda.Code.fromAsset(
+          "dist/lambda/src/auth/customMessage"
+        ),
+        handler: "index.handler",
         environment: {
           FRONTEND_URL: `https://${props.frontendDistribution.distributionDomainName}`,
         },
@@ -32,7 +34,13 @@ export class CustomEmailResources extends Construct {
       }
     );
 
-    // trigger when admin creates a user
+    // grant lambda permission to be invoked by cognito
+    customMessageLambda.addPermission("CognitoInvokePermission", {
+      principal: new cdk.aws_iam.ServicePrincipal("cognito-idp.amazonaws.com"),
+      sourceArn: props.userPool.userPoolArn,
+    });
+
+    // trigger for custom messages (signup verification and admin created user)
     props.userPool.addTrigger(
       cdk.aws_cognito.UserPoolOperation.CUSTOM_MESSAGE,
       customMessageLambda
