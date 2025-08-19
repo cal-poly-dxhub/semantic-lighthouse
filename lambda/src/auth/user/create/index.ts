@@ -1,8 +1,6 @@
-import { createUserInCognito } from "@/src/shared/cognitoUtils";
-import { handleSubscribeToSNS } from "@/src/shared/subscribeToSNS";
-import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
+import { createUser } from "@/src/shared/user";
 
-const dynamoClient = new DynamoDBClient({});
+const GROUP_NAME = process.env.GROUP_NAME!;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,33 +25,18 @@ export const handler = async (event: any) => {
 
   try {
     // create cognito user
-    await createUserInCognito(
+    const newUser = await createUser({
       username,
       email,
-      process.env.USER_POOL_ID!,
-      process.env.GROUP_NAME!
+      groupName: GROUP_NAME,
+      createdBy: event.requestContext.authorizer.claims["cognito:username"],
+    });
+
+    console.log(
+      `INFO: Stored user preferences for ${username} in DynamoDB: ${JSON.stringify(
+        newUser
+      )}`
     );
-
-    // handle sns subscription
-    const { topicArn, topicName } = await handleSubscribeToSNS(username, email);
-
-    // store everything in dynamo
-    await dynamoClient.send(
-      new PutItemCommand({
-        TableName: process.env.TABLE_NAME,
-        Item: {
-          pk: { S: `USER#${username}` },
-          sk: { S: email },
-          snsTopicArn: { S: topicArn },
-          snsTopicName: { S: topicName },
-          emailNotificationsEnabled: { BOOL: true },
-          createdAt: { S: new Date().toISOString() },
-          updatedAt: { S: new Date().toISOString() },
-        },
-      })
-    );
-
-    console.log(`INFO: Stored user preferences for ${username} in DynamoDB`);
 
     return {
       statusCode: 200,

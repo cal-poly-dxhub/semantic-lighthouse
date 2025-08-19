@@ -1,15 +1,14 @@
-import { handleSubscribeToSNS } from "@/src/shared/subscribeToSNS";
+import { createUser } from "@/src/shared/user";
 import {
-  AdminAddUserToGroupCommand,
   CognitoIdentityProviderClient,
   ListUsersCommand,
   UpdateUserPoolCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
-import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
 import { PostConfirmationTriggerEvent } from "aws-lambda";
 
+const ADMIN_GROUP_NAME = process.env.ADMIN_GROUP_NAME!;
+
 const cognitoClient = new CognitoIdentityProviderClient({});
-const dynamoClient = new DynamoDBClient({});
 
 export const handler = async (event: PostConfirmationTriggerEvent) => {
   console.log("INFO: received event:", JSON.stringify(event, null, 2));
@@ -18,28 +17,19 @@ export const handler = async (event: PostConfirmationTriggerEvent) => {
   const userEmail = event.request.userAttributes.email;
 
   try {
-    // create sns topic for current user
-    const { topicArn, topicName } = await handleSubscribeToSNS(
-      userName,
-      userEmail
-    );
+    // create user
+    const user = await createUser({
+      username: userName,
+      email: userEmail,
+      groupName: ADMIN_GROUP_NAME,
+      createdBy: userName, // created by self
+    });
 
-    // store user preferences in DynamoDB
-    await dynamoClient.send(
-      new PutItemCommand({
-        TableName: process.env.TABLE_NAME,
-        Item: {
-          pk: { S: `USER#${userName}` },
-          sk: { S: userEmail },
-          snsTopicArn: { S: topicArn },
-          snsTopicName: { S: topicName },
-          createdAt: { S: new Date().toISOString() },
-          updatedAt: { S: new Date().toISOString() },
-        },
-      })
+    console.log(
+      `INFO: Stored user preferences for ${userName} in DynamoDB: ${JSON.stringify(
+        user
+      )}`
     );
-
-    console.log(`INFO: Stored user preferences for ${userName} in DynamoDB`);
 
     // get > 1 user from user pool
     const listUsersCommand = new ListUsersCommand({
@@ -58,15 +48,6 @@ export const handler = async (event: PostConfirmationTriggerEvent) => {
       console.log(
         `INFO: only one user detected ${userName}. Adding to Admins group.`
       );
-
-      // add to admin group
-      const adminAddUserToGroupCommand = new AdminAddUserToGroupCommand({
-        UserPoolId: userPoolId,
-        Username: userName,
-        GroupName: process.env.ADMIN_GROUP_NAME,
-      });
-      await cognitoClient.send(adminAddUserToGroupCommand);
-      console.log(`INFO: User ${userName} added to Admins group.`);
 
       // disable self-signup
       const updateUserPoolCommand = new UpdateUserPoolCommand({
