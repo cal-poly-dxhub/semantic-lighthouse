@@ -1,9 +1,7 @@
 {
   "name": "semantic-lighthouse",
   "version": "0.1.0",
-  "bin": {
-    "semantic-lighthouse": "bin/semantic-lighthouse.js"
-  },
+  "bin": "bin/semantic-lighthouse.js",
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",

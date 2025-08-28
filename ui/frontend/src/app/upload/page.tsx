@@ -119,6 +119,14 @@ export default function UploadPage() {
         },
       });
 
+      if (error?.includes("409")) {
+        setLoading(false);
+        setError(
+          "You have already generated a meeting minutes document. Please contact dkraker@amazon.com to learn how to setup Semantic Lighthouse for your organization."
+        );
+        return;
+      }
+
       if (error !== null) {
         setLoading(false);
         setError(`Failed to get presigned URLs: ${error}`);

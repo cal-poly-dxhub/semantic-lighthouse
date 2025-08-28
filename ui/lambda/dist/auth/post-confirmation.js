@@ -52,37 +52,44 @@ const handler = async (event) => {
             },
         }));
         console.log(`INFO: Stored user preferences for ${userName} in DynamoDB`);
-        // =================================================================
-        // 4. EXISTING ADMIN LOGIC (FIRST USER SETUP)
-        // =================================================================
-        // get > 1 user from user pool
-        const listUsersCommand = new client_cognito_identity_provider_1.ListUsersCommand({
-            UserPoolId: userPoolId,
-            Limit: 2,
-        });
-        const { Users } = await cognitoClient.send(listUsersCommand);
-        console.log(`INFO: Found ${Users ? Users.length : 0} users in User Pool: ${userPoolId}`);
-        if (Users && Users.length === 1) {
-            console.log(`INFO: only one user detected ${userName}. Adding to Admins group.`);
-            // add to admin group
-            const adminAddUserToGroupCommand = new client_cognito_identity_provider_1.AdminAddUserToGroupCommand({
-                UserPoolId: userPoolId,
-                Username: userName,
-                GroupName: process.env.ADMIN_GROUP_NAME,
-            });
-            await cognitoClient.send(adminAddUserToGroupCommand);
-            console.log(`INFO: User ${userName} added to Admins group.`);
-            // disable self-signup
-            const updateUserPoolCommand = new client_cognito_identity_provider_1.UpdateUserPoolCommand({
-                UserPoolId: userPoolId,
-                AdminCreateUserConfig: { AllowAdminCreateUserOnly: true },
-            });
-            await cognitoClient.send(updateUserPoolCommand);
-            console.log("INFO: Disabled self-signup successfully.");
-        }
-        else {
-            console.warn(`WARN: Not the first user, no admin action needed in Post-Confirmation Lambda.`);
-        }
+        // // =================================================================
+        // // 4. EXISTING ADMIN LOGIC (FIRST USER SETUP)
+        // // =================================================================
+        // // get > 1 user from user pool
+        // const listUsersCommand = new ListUsersCommand({
+        //   UserPoolId: userPoolId,
+        //   Limit: 2,
+        // });
+        // const { Users } = await cognitoClient.send(listUsersCommand);
+        // console.log(
+        //   `INFO: Found ${
+        //     Users ? Users.length : 0
+        //   } users in User Pool: ${userPoolId}`
+        // );
+        // if (Users && Users.length === 1) {
+        //   console.log(
+        //     `INFO: only one user detected ${userName}. Adding to Admins group.`
+        //   );
+        //   // add to admin group
+        //   const adminAddUserToGroupCommand = new AdminAddUserToGroupCommand({
+        //     UserPoolId: userPoolId,
+        //     Username: userName,
+        //     GroupName: process.env.ADMIN_GROUP_NAME,
+        //   });
+        //   await cognitoClient.send(adminAddUserToGroupCommand);
+        //   console.log(`INFO: User ${userName} added to Admins group.`);
+        //   // disable self-signup
+        //   const updateUserPoolCommand = new UpdateUserPoolCommand({
+        //     UserPoolId: userPoolId,
+        //     AdminCreateUserConfig: { AllowAdminCreateUserOnly: true },
+        //   });
+        //   await cognitoClient.send(updateUserPoolCommand);
+        //   console.log("INFO: Disabled self-signup successfully.");
+        // } else {
+        //   console.warn(
+        //     `WARN: Not the first user, no admin action needed in Post-Confirmation Lambda.`
+        //   );
+        // }
     }
     catch (error) {
         console.error("ERROR: Error in Post-Confirmation Lambda:", error);

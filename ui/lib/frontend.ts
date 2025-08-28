@@ -74,7 +74,7 @@ export class FrontendResources extends Construct {
       source: cdk.aws_codebuild.Source.gitHub({
         owner: "cal-poly-dxhub",
         repo: "semantic-lighthouse",
-        branchOrRef: "main",
+        branchOrRef: "demo",
         cloneDepth: 1, // shallow clone for faster builds
       }),
       environment: {

@@ -66,7 +66,7 @@ export class MeetingApiResources extends Construct {
       }),
     });
 
-    props.meetingsTable.grantWriteData(uploadLambda);
+    props.meetingsTable.grantReadWriteData(uploadLambda);
     props.meetingsBucket.grantReadWrite(uploadLambda);
 
     uploadResource.addMethod(
