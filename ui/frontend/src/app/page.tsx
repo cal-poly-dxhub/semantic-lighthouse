@@ -15,7 +15,7 @@ export default function Home() {
       radius={theme.radius.lg}
     >
       <Title order={2} mb="md">
-        Welcome to Semantic Lighthouse
+        Welcome to Minute Maker
       </Title>
       <Text>
         AI-powered, template-driven, secure board meeting minutes generator.

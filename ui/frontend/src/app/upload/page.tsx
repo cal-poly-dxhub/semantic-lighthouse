@@ -122,7 +122,7 @@ export default function UploadPage() {
       if (error?.includes("409")) {
         setLoading(false);
         setError(
-          "You have already generated a meeting minutes document. Please contact dkraker@amazon.com to learn how to setup Semantic Lighthouse for your organization."
+          "You have already generated a meeting minutes document. Please contact wwps-cic@amazon.com to learn how to setup Minute Maker for your organization."
         );
         return;
       }

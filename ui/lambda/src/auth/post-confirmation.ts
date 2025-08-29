@@ -26,7 +26,7 @@ export const handler = async (event: PostConfirmationTriggerEvent) => {
     // =================================================================
     // 1. CREATE SNS TOPIC FOR THIS USER
     // =================================================================
-    const topicName = `semantic-lighthouse-user-${userName}`.replace(
+    const topicName = `minute-maker-user-${userName}`.replace(
       /[^a-zA-Z0-9_-]/g,
       "-"
     );
@@ -35,7 +35,7 @@ export const handler = async (event: PostConfirmationTriggerEvent) => {
       new CreateTopicCommand({
         Name: topicName,
         Attributes: {
-          DisplayName: `Semantic Lighthouse Notifications for ${userName}`,
+          DisplayName: `Minute Maker Notifications for ${userName}`,
         },
       })
     );

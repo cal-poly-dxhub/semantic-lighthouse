@@ -1,4 +1,4 @@
-// filepath: /Users/gusflusser/DxHub/semantic-lighthouse/frontend/src/app/login/page.tsx
+// filepath: /Users/gusflusser/DxHub/minute-maker/frontend/src/app/login/page.tsx
 "use client";
 
 import { theme } from "@/constants/theme";
@@ -82,7 +82,7 @@ function LoginPage() {
           fontWeight: 900,
         }}
       >
-        Login to Semantic Lighthouse
+        Login to Minute Maker
       </Title>
 
       <Paper withBorder shadow="md" p={30} mt={30} radius="md">

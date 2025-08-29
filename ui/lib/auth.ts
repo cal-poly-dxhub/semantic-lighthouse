@@ -18,8 +18,8 @@ export class AuthResources extends Construct {
     const stack = cdk.Stack.of(this);
 
     // cannot get dynamically from group creation - circular dependency
-    const adminGroupName = `SemanticLighthouseAdminsGroup-${props.uniqueId}`;
-    this.defaultUserGroupName = `SemanticLighthouseUsersGroup-${props.uniqueId}`;
+    const adminGroupName = `MinuteMakerAdminsGroup-${props.uniqueId}`;
+    this.defaultUserGroupName = `MinuteMakerUsersGroup-${props.uniqueId}`;
 
     this.userPool = new cdk.aws_cognito.UserPool(this, "UserPool", {
       signInAliases: {
@@ -105,7 +105,7 @@ export class AuthResources extends Construct {
       new cdk.aws_iam.PolicyStatement({
         actions: ["sns:CreateTopic", "sns:Subscribe", "sns:SetTopicAttributes"],
         resources: [
-          `arn:aws:sns:${stack.region}:${stack.account}:semantic-lighthouse-user-*`,
+          `arn:aws:sns:${stack.region}:${stack.account}:minute-maker-user-*`,
         ],
       })
     );

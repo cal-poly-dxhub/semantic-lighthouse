@@ -1,4 +1,4 @@
-  # Semantic-Lighthouse: Automated Board Meeting Minutes Generator
+# minute-maker: Automated Board Meeting Minutes Generator
 
 ## Table of Contents
 
@@ -48,7 +48,7 @@ Thanks for your interest in our solution. Having specific examples of replicatio
 
 ## Overview
 
-Semantic-Lighthouse is an automated solution that transforms board meeting videos and agenda documents into comprehensive meeting minutes. The system processes video recordings alongside agenda documents to generate structured PDF minutes with direct links back to the relevant video segments.
+minute-maker is an automated solution that transforms board meeting videos and agenda documents into comprehensive meeting minutes. The system processes video recordings alongside agenda documents to generate structured PDF minutes with direct links back to the relevant video segments.
 
 #### Key Features
 
@@ -71,7 +71,7 @@ Semantic-Lighthouse is an automated solution that transforms board meeting video
 
 ### Architecture Diagram
 
-![arch-diagram](semantic-lighthouse-v1-light.drawio.svg)
+![arch-diagram](minute-maker-v1-light.drawio.svg)
 
 The solution consists of several key components:
 
@@ -131,6 +131,7 @@ cd ..
 ### 2. Initial Setup
 
 1. **Enable Bedrock Model Access:**
+
    - Navigate to the AWS Bedrock console
    - Request access to all models from both Anthropic and Amazon
    - Ensure you're working in the correct AWS region/branch for your deployment

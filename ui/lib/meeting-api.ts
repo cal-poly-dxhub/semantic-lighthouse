@@ -243,7 +243,7 @@ export class MeetingApiResources extends Construct {
       new cdk.aws_iam.PolicyStatement({
         actions: ["sns:CreateTopic", "sns:Subscribe", "sns:SetTopicAttributes"],
         resources: [
-          `arn:aws:sns:${stack.region}:${stack.account}:semantic-lighthouse-user-*`,
+          `arn:aws:sns:${stack.region}:${stack.account}:minute-maker-user-*`,
         ],
       })
     );
