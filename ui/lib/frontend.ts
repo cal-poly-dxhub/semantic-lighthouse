@@ -1,5 +1,7 @@
 import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
+import * as fs from "fs";
+import * as path from "path";
 
 export interface FrontendResourcesProps {
   userPool: cdk.aws_cognito.UserPool;
@@ -69,124 +71,29 @@ export class FrontendResources extends Construct {
       }
     );
 
-    // codebuild project to build frontend from GitHub
-    const build = new cdk.aws_codebuild.Project(this, "FrontendBuild", {
-      source: cdk.aws_codebuild.Source.gitHub({
-        owner: "cal-poly-dxhub",
-        repo: "semantic-lighthouse",
-        branchOrRef: "demo",
-        cloneDepth: 1, // shallow clone for faster builds
-      }),
-      environment: {
-        buildImage: cdk.aws_codebuild.LinuxBuildImage.STANDARD_7_0, // Use latest standard image
-        computeType: cdk.aws_codebuild.ComputeType.SMALL,
-      },
-      artifacts: cdk.aws_codebuild.Artifacts.s3({
-        bucket: siteBucket,
-        includeBuildId: false,
-        packageZip: false,
-        name: "/",
-        encryption: false,
-      }),
-      environmentVariables: {
-        NEXT_PUBLIC_AWS_REGION: {
-          value: cdk.Aws.REGION,
-        },
-        NEXT_PUBLIC_AWS_USER_POOL_ID: {
-          value: props.userPool.userPoolId,
-        },
-        NEXT_PUBLIC_AWS_USER_POOL_WEB_CLIENT_ID: {
-          value: props.userPoolClient.userPoolClientId,
-        },
-        NEXT_PUBLIC_DISTRIBUTION_BASE_URL: {
-          value: `https://${this.distribution.distributionDomainName}`,
-        },
-        NEXT_PUBLIC_MEETING_API_URL: {
-          value: props.meetingApi.url,
-        },
-      },
-      buildSpec: cdk.aws_codebuild.BuildSpec.fromObject({
-        version: "0.2",
-        phases: {
-          install: {
-            "runtime-versions": {
-              nodejs: "20",
-            },
-            commands: [
-              "cd ui/frontend",
-              "echo installing dependencies...",
-              "yarn install",
-            ],
-          },
-          build: {
-            commands: ["echo building...", "yarn build"],
-          },
-        },
-        artifacts: {
-          "base-directory": "ui/frontend/out",
-          files: ["**/*"],
-        },
-      }),
-      logging: {
-        cloudWatch: {
-          logGroup: new cdk.aws_logs.LogGroup(this, "FrontendBuildLogGroup", {
-            removalPolicy: cdk.RemovalPolicy.DESTROY,
-            retention: cdk.aws_logs.RetentionDays.ONE_WEEK,
-          }),
-        },
-      },
+    // the site is built locally (deploy.sh runs `yarn build` in ui/frontend) and uploaded
+    // as-is. values that only exist after deploy go in /config.json, filled in by
+    // CloudFormation, and the app reads it at startup.
+    const siteDir = path.join(__dirname, "../frontend/out");
+    if (!fs.existsSync(path.join(siteDir, "index.html"))) {
+      throw new Error(
+        `No frontend build at ${siteDir}. Run \`yarn build\` in ui/frontend first (deploy.sh does this).`
+      );
+    }
+
+    new cdk.aws_s3_deployment.BucketDeployment(this, "DeploySite", {
+      sources: [
+        cdk.aws_s3_deployment.Source.asset(siteDir),
+        cdk.aws_s3_deployment.Source.jsonData("config.json", {
+          region: cdk.Stack.of(this).region,
+          userPoolId: props.userPool.userPoolId,
+          userPoolClientId: props.userPoolClient.userPoolClientId,
+          apiUrl: props.meetingApi.url,
+        }),
+      ],
+      destinationBucket: siteBucket,
+      distribution: this.distribution,
+      distributionPaths: ["/*"],
     });
-
-    // when codebuild updates, allow invalidation of cloudfront cache
-    this.distribution.grant(build.role!, "cloudfront:CreateInvalidation");
-
-    // needs s3 access
-    siteBucket.grantWrite(build);
-
-    // ensure the build runs after the source deployment and all env vars are ready
-    build.node.addDependency(this.distribution);
-    build.node.addDependency(props.userPool);
-    build.node.addDependency(props.userPoolClient);
-    build.node.addDependency(props.meetingApi);
-
-    // trigger codebuild project on stack creation and update
-    const triggerBuild = new cdk.custom_resources.AwsCustomResource(
-      this,
-      "TriggerCodeBuild",
-      {
-        onCreate: {
-          outputPaths: ["BuildId"],
-          service: "CodeBuild",
-          action: "startBuild",
-          parameters: {
-            projectName: build.projectName,
-          },
-          physicalResourceId: cdk.custom_resources.PhysicalResourceId.of(
-            `trigger-codebuild-${Date.now()}`
-          ),
-        },
-        onUpdate: {
-          outputPaths: ["BuildId"],
-          service: "CodeBuild",
-          action: "startBuild",
-          parameters: {
-            projectName: build.projectName,
-          },
-          physicalResourceId: cdk.custom_resources.PhysicalResourceId.of(
-            `trigger-codebuild-${Date.now()}`
-          ),
-        },
-        policy: cdk.custom_resources.AwsCustomResourcePolicy.fromStatements([
-          new cdk.aws_iam.PolicyStatement({
-            effect: cdk.aws_iam.Effect.ALLOW,
-            actions: ["codebuild:StartBuild"],
-            resources: [build.projectArn],
-          }),
-        ]),
-      }
-    );
-
-    // trigger build once it is ready
-    triggerBuild.node.addDependency(build);
   }
 }

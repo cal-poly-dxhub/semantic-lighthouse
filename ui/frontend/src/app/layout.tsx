@@ -2,6 +2,7 @@ import "@mantine/core/styles.css";
 
 import Header from "@/components/Header";
 import { AuthProvider } from "@/constants/AuthContext";
+import { ConfigProvider } from "@/constants/config";
 import { theme } from "@/constants/theme";
 import {
   ColorSchemeScript,
@@ -33,9 +34,11 @@ export default function RootLayout({
       </head>
       <body>
         <MantineProvider theme={theme} defaultColorScheme="light">
-          <AuthProvider>
-            <RootWrapper>{children}</RootWrapper>
-          </AuthProvider>
+          <ConfigProvider>
+            <AuthProvider>
+              <RootWrapper>{children}</RootWrapper>
+            </AuthProvider>
+          </ConfigProvider>
         </MantineProvider>
       </body>
     </html>

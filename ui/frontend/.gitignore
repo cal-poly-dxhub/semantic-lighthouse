@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# per-stack settings for next dev; the deploy writes the real one
+/public/config.json

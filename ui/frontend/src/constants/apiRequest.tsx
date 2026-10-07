@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { useAuth } from "./AuthContext";
+import { useConfig } from "./config";
 
 type ApiResponse<T> =
   | {
@@ -20,6 +21,7 @@ type ApiResponse<T> =
  */
 export const useApiRequest = () => {
   const { handleRefreshToken, token: authToken } = useAuth();
+  const { apiUrl } = useConfig();
 
   const apiRequest = useCallback(
     async <T,>(
@@ -49,9 +51,7 @@ export const useApiRequest = () => {
           }
         }
 
-        const urlWithParams = new URL(
-          process.env.NEXT_PUBLIC_MEETING_API_URL + url
-        );
+        const urlWithParams = new URL(apiUrl + url);
         if (params) {
           Object.entries(params).forEach(([key, value]) => {
             urlWithParams.searchParams.append(key, value);
@@ -106,7 +106,7 @@ export const useApiRequest = () => {
         };
       }
     },
-    [handleRefreshToken, authToken]
+    [handleRefreshToken, authToken, apiUrl]
   );
 
   return { apiRequest };
