@@ -8,5 +8,20 @@ AGENDA:
 TRANSCRIPT:
 {formatted_transcript}
 
-I want you to reference specific segments for topic transitions, segments where a vote takes place, which segments refer to which agenda item, etc. Please also mention what each agenda item is about and what the vote was about. Also include what discussions were had about each agenda item and other information. Be very thorough in the discussion of each agenda item and the vote. Be sure to include what things were discussed, debated etc in detail.
-Please be EXTREMELY comprehensive and specific in your analysis, always referencing segment IDs when discussing parts of the transcript. For the references i want you to use the format [seg_0] or [seg_0-55] if using a range of segments.
+I want you to reference specific segments for topic transitions, segments where a vote takes place, which segments refer to which agenda item, etc. Please also mention what each agenda item is about and what the vote was about. Also include what discussions were had about each agenda item and other information.
+Always reference segment IDs when discussing parts of the transcript. For the references i want you to use the format [seg_0] or [seg_0-55] if using a range of segments.
+
+Keep it concise, like minutes a board clerk would write: a few sentences per agenda item covering what it was about, what was decided, and the vote, not a record of everything that was said. A one-hour meeting should come to roughly a page or two. Don't add a speaker list, tables, themes or a closing summary.
+
+Example of the length and style to aim for (a made-up meeting: use only the names and facts from this transcript):
+
+## Consent Agenda (Items 4.01-4.06)
+The board approved the personnel report, two contract awards and the March vouchers as one item [seg_12].
+**Vote:** Motion by Ms. Lee, seconded by Mr. Ortiz; passed 5-0 [seg_14-15].
+
+## Superintendent's Report (Item 5.01)
+Dr. Patel recognized three teachers for district awards and previewed the spring testing schedule [seg_35-40].
+
+## 2026-27 Meeting Schedule (Item 6.02)
+Staff proposed moving meetings to the second and fourth Wednesdays. Board members asked about conflicts with school events; staff said none were found [seg_318-322].
+**Vote:** Motion by Mr. Ortiz, seconded by Ms. Lee; passed 4-1, Mr. Grant opposed [seg_323-325].
