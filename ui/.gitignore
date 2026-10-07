@@ -17,3 +17,6 @@ cdk.context.json
 .yarn
 # compiled Lambdas, built by deploy.sh
 lambda/dist
+
+# written by synth.sh
+template.yaml
