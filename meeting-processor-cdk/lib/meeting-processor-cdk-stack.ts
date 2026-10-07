@@ -22,14 +22,14 @@ export interface MeetingProcessorCdkStackProps extends cdk.StackProps {
   /**
    * Prefix for resource names to ensure uniqueness in customer environments.
    * Combined with account ID and region to create AWS-compliant unique names.
-   * @default 'semantic-lighthouse'
-   * @example 'semantic-lighthouse' becomes 'semantic-lighthouse-123456-uswest2'
+   * @default 'minute-maker'
+   * @example 'minute-maker' becomes 'minute-maker-123456-uswest2'
    */
   readonly resourcePrefix?: string;
 }
 
 /**
- * Semantic Lighthouse Meeting Processor CDK Stack
+ * Minute Maker Meeting Processor CDK Stack
  *
  * This stack deploys a complete serverless meeting processing pipeline that:
  * - Converts video recordings to audio and transcripts
@@ -53,7 +53,7 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
     super(scope, id, props);
 
     // Resource prefix for uniqueness - simplified to meet AWS naming constraints
-    const resourcePrefix = props.resourcePrefix || "semantic-lighthouse";
+    const resourcePrefix = props.resourcePrefix || "minute-maker";
     // Use stack ID for uniqueness instead of account/region tokens to avoid CDK token issues
     const stackSuffix = cdk.Names.uniqueId(this)
       .toLowerCase()
@@ -113,7 +113,7 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
       "EmailNotificationTopic",
       {
         topicName: `${uniquePrefix}-notifications`,
-        displayName: "Semantic Lighthouse Meeting Processor Notifications",
+        displayName: "Minute Maker Meeting Processor Notifications",
       }
     );
 
@@ -317,7 +317,7 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ["sns:Publish"],
-        resources: ["arn:aws:sns:*:*:semantic-lighthouse-user-*"], // User-specific topics
+        resources: ["arn:aws:sns:*:*:minute-maker-user-*"], // User-specific topics
       })
     );
 
@@ -474,7 +474,7 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
       roleName: `${uniquePrefix}-agenda-processor-role`,
       assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
       description:
-        "Role for Semantic Lighthouse Agenda Document Processor Lambda with full Amazon Bedrock access",
+        "Role for Minute Maker Agenda Document Processor Lambda with full Amazon Bedrock access",
       managedPolicies: [
         iam.ManagedPolicy.fromAwsManagedPolicyName(
           "service-role/AWSLambdaBasicExecutionRole"
@@ -621,23 +621,22 @@ export class MeetingProcessorCdkStack extends cdk.Stack {
 
     new cdk.CfnOutput(this, "S3BucketName", {
       value: this.s3Bucket.bucketName,
-      description: "Semantic Lighthouse S3 bucket for meeting files storage",
+      description: "Minute Maker S3 bucket for meeting files storage",
     });
 
     new cdk.CfnOutput(this, "StateMachineArn", {
       value: this.stateMachine.stateMachineArn,
-      description: "Semantic Lighthouse meeting processing workflow ARN",
+      description: "Minute Maker meeting processing workflow ARN",
     });
 
     new cdk.CfnOutput(this, "EmailNotificationTopicArn", {
       value: this.emailNotificationTopic.topicArn,
-      description: "Semantic Lighthouse SNS topic for email notifications",
+      description: "Minute Maker SNS topic for email notifications",
     });
 
     new cdk.CfnOutput(this, "AgendaDocumentProcessorArn", {
       value: agendaDocumentProcessor.functionArn,
-      description:
-        "Semantic Lighthouse agenda document processor Lambda function ARN",
+      description: "Minute Maker agenda document processor Lambda function ARN",
     });
   }
 }

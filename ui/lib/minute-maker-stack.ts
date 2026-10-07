@@ -1,6 +1,6 @@
 import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
-import { SemanticLighthouseStackProps } from "../bin/semantic-lighthouse";
+import { MinuteMakerStackProps } from "../bin/minute-maker";
 import { AuthResources } from "./auth";
 import { CustomEmailResources } from "./custom-email";
 import { FrontendResources } from "./frontend";
@@ -9,12 +9,8 @@ import { DataResources } from "./data-resources";
 import { MeetingProcessorIntegration } from "./meeting-processor-integration";
 import { ApiGatewayCloudWatchSetup } from "./api-gateway-cloudwatch-role";
 
-export class SemanticLighthouseStack extends cdk.Stack {
-  constructor(
-    scope: Construct,
-    id: string,
-    props: SemanticLighthouseStackProps
-  ) {
+export class MinuteMakerStack extends cdk.Stack {
+  constructor(scope: Construct, id: string, props: MinuteMakerStackProps) {
     super(scope, id, props);
 
     const { uniqueId } = props;

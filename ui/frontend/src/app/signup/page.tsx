@@ -105,7 +105,7 @@ export default function SignupPage() {
           fontWeight: 900,
         }}
       >
-        Join Semantic Lighthouse
+        Join Minute Maker
       </Title>
 
       <Paper withBorder shadow="md" p={30} mt={30} radius="md">

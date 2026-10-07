@@ -10,7 +10,7 @@ import {
 } from "@mantine/core";
 
 export const metadata = {
-  title: "Semantic Lighthouse",
+  title: "Minute Maker",
   description: "Create meeting minutes from a video and agenda.",
 };
 

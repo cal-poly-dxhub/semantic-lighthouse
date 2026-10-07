@@ -176,7 +176,7 @@ def send_notification_to_user_topic(sns_topic_arn, subject, message):
 
 def create_email_content(html_url, pdf_url, original_filename, user_email):
     """Create email content with download links."""
-    subject = "Your Semantic Lighthouse meeting transcript is ready"
+    subject = "Your Minute Maker meeting transcript is ready"
     
     # Create email body
     message_lines = [
@@ -207,7 +207,7 @@ def create_email_content(html_url, pdf_url, original_filename, user_email):
         f"",
         f"The interactive HTML version includes clickable timestamps that will take you directly to the relevant portions of your meeting video.",
         f"",
-        f"Thank you for using Semantic Lighthouse!",
+        f"Thank you for using Minute Maker!",
         f"",
         f"---",
         f"This notification was sent to: {user_email}",

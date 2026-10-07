@@ -28,7 +28,7 @@ export class MeetingProcessorIntegration extends Construct {
       .toString()
       .slice(-6);
     const uniquePrefix =
-      `semantic-lighthouse-${props.uniqueId}-${timestamp}`.toLowerCase();
+      `minute-maker-${props.uniqueId}-${timestamp}`.toLowerCase();
 
     // =================================================================
     // CONFIGURATION FILES - Read prompt templates at deployment time
@@ -294,7 +294,7 @@ export class MeetingProcessorIntegration extends Construct {
       new cdk.aws_iam.PolicyStatement({
         effect: cdk.aws_iam.Effect.ALLOW,
         actions: ["sns:Publish"],
-        resources: ["arn:aws:sns:*:*:semantic-lighthouse-user-*"],
+        resources: ["arn:aws:sns:*:*:minute-maker-user-*"],
       })
     );
 

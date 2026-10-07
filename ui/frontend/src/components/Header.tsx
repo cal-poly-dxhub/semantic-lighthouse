@@ -53,7 +53,7 @@ const Header = memo(function DefaultHeader() {
         <Group justify="space-between" h="100%">
           <Group h="100%" gap={0} visibleFrom="sm">
             <Title order={4} className={classes.title} mr={theme.spacing.md}>
-              Semantic Lighthouse
+              Minute Maker
             </Title>
             {user ? (
               <>

@@ -6,7 +6,7 @@ const app = new cdk.App();
 
 // Production stack (existing)
 new MeetingProcessorCdkStack(app, "MeetingProcessorCdkStack", {
-  resourcePrefix: "semantic-lighthouse",
+  resourcePrefix: "minute-maker",
   /* If you don't specify 'env', this stack will be environment-agnostic.
    * Account/Region-dependent features and context lookups will not work,
    * but a single synthesized template can be deployed anywhere. */
@@ -24,6 +24,6 @@ new MeetingProcessorCdkStack(app, "MeetingProcessorCdkStack", {
 
 // Test stack (new) - for testing from scratch
 new MeetingProcessorCdkStack(app, "MeetingProcessorCdkStack-Test", {
-  resourcePrefix: "semantic-lighthouse-test",
+  resourcePrefix: "minute-maker-test",
   // This will create completely separate resources with different names
 });

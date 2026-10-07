@@ -1,4 +1,8 @@
-import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
+import {
+  DynamoDBClient,
+  PutItemCommand,
+  ScanCommand,
+} from "@aws-sdk/client-dynamodb";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
@@ -63,6 +67,37 @@ function extractUserFromToken(
   }
 }
 
+async function checkForUserMeeting(userId: string): Promise<void> {
+  console.log(
+    `INFO: checking ${userId} in table ${process.env.MEETINGS_TABLE_NAME} for existing meetings`
+  );
+
+  try {
+    const scanCommand = new ScanCommand({
+      TableName: process.env.MEETINGS_TABLE_NAME,
+      FilterExpression: "userId = :userId AND attribute_exists(meetingId)",
+      ExpressionAttributeValues: {
+        ":userId": { S: userId },
+      },
+    });
+
+    const result = await dynamoClient.send(scanCommand);
+    console.log("INFO: DynamoDB scan result:", JSON.stringify(result.Items));
+
+    if (result.Items && result.Items.length > 0) {
+      console.error("ERROR: User already has a meeting in the system");
+      throw new Error(
+        "User already has a meeting in the system. Only one meeting per user is allowed for this trial service."
+      );
+    }
+
+    console.log("INFO: No existing meetings found for user");
+  } catch (error) {
+    console.error("ERROR: Failed to check for existing meetings:", error);
+    throw error;
+  }
+}
+
 /**
  * lambda to generate presigned url for uploading video.mp4 and agenda.pdf
  * @param event
@@ -86,7 +121,27 @@ export const handler = async (
   }
 
   const { userId, userEmail } = userInfo;
+
+  // Check if user already has a meeting
+  try {
+    await checkForUserMeeting(userId);
+  } catch (error) {
+    return {
+      statusCode: 409,
+      headers: corsHeaders,
+      body: JSON.stringify({
+        error: "Meeting limit exceeded",
+        details:
+          error instanceof Error ? error.message : "User already has a meeting",
+      }),
+    };
+  }
+
   const meetingId = randomUUID();
+
+  console.log(
+    `INFO: Generating presigned urls for meeting ${meetingId} for user ${userId}`
+  );
 
   const body = JSON.parse(event.body ?? "{}");
 

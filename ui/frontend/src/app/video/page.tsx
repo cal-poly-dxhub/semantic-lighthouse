@@ -130,7 +130,7 @@ const VideoPage = () => {
       radius={theme.radius.lg}
     >
       <Title order={2} mb="md" ta="center">
-        Semantic Lighthouse Video Player
+        Minute Maker Video Player
       </Title>
 
       <Paper

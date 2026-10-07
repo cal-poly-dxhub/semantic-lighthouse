@@ -1,9 +1,9 @@
 import { CustomMessageTriggerEvent } from "aws-lambda";
 
 const messageAdminCreatedUser = (event: CustomMessageTriggerEvent) => ({
-  emailSubject: "Welcome to Semantic Lighthouse!",
+  emailSubject: "Welcome to Minute Maker!",
   emailMessage: `
-    <h2>Welcome to Semantic Lighthouse!</h2>
+    <h2>Welcome to Minute Maker!</h2>
     <p>Your account has been created. Please use the following credentials to log in:</p>
     <p><strong>Username:</strong> ${event.request.usernameParameter}</p>
     <p><strong>Temporary Password:</strong> ${event.request.codeParameter}</p>
@@ -15,10 +15,10 @@ const messageAdminCreatedUser = (event: CustomMessageTriggerEvent) => ({
 });
 
 const firstUserEmailVerification = (event: CustomMessageTriggerEvent) => ({
-  emailSubject: "Welcome to Semantic Lighthouse",
+  emailSubject: "Welcome to Minute Maker",
   emailMessage: `
     <h2>Verify your email address</h2>
-    <p>Thank you for signing up for Semantic Lighthouse!</p>
+    <p>Thank you for signing up for Minute Maker!</p>
     <p>Please verify your email address by entering the following code:</p>
     <p><strong>Verification Code:</strong> ${
       event.request.codeParameter
@@ -31,10 +31,10 @@ const firstUserEmailVerification = (event: CustomMessageTriggerEvent) => ({
 });
 
 // const resendVerificationCode = (event: CustomMessageTriggerEvent) => ({
-//   emailSubject: "Semantic Lighthouse - Verification Code",
+//   emailSubject: "Minute Maker - Verification Code",
 //   emailMessage: `
 //     <h2>Your verification code</h2>
-//     <p>Here's your requested verification code for Semantic Lighthouse:</p>
+//     <p>Here's your requested verification code for Minute Maker:</p>
 //     <p><strong>Verification Code:</strong> ${event.request.codeParameter}</p>
 //     <p>Or <a href="${process.env.FRONTEND_URL}/verify?code=${event.request.codeParameter}&email=${event.request.userAttributes.email}">click here to verify</a></p>
 //     <p>This code will expire in 24 hours.</p>
@@ -43,10 +43,10 @@ const firstUserEmailVerification = (event: CustomMessageTriggerEvent) => ({
 // });
 
 // const forgotPassword = (event: CustomMessageTriggerEvent) => ({
-//   emailSubject: "Semantic Lighthouse - Password Reset",
+//   emailSubject: "Minute Maker - Password Reset",
 //   emailMessage: `
 //     <h2>Reset your password</h2>
-//     <p>You requested a password reset for your Semantic Lighthouse account.</p>
+//     <p>You requested a password reset for your Minute Maker account.</p>
 //     <p>Please use the following code to reset your password:</p>
 //     <p><strong>Reset Code:</strong> ${event.request.codeParameter}</p>
 //     <p>Or <a href="${process.env.FRONTEND_URL}/reset-password?code=${event.request.codeParameter}&email=${event.request.userAttributes.email}">click here to reset your password</a></p>
@@ -56,10 +56,10 @@ const firstUserEmailVerification = (event: CustomMessageTriggerEvent) => ({
 // });
 
 // const verifyEmailChange = (event: CustomMessageTriggerEvent) => ({
-//   emailSubject: "Semantic Lighthouse - Verify Email Change",
+//   emailSubject: "Minute Maker - Verify Email Change",
 //   emailMessage: `
 //     <h2>Verify your new email address</h2>
-//     <p>You requested to change your email address for Semantic Lighthouse.</p>
+//     <p>You requested to change your email address for Minute Maker.</p>
 //     <p>Please verify your new email address by entering the following code:</p>
 //     <p><strong>Verification Code:</strong> ${event.request.codeParameter}</p>
 //     <p>Or <a href="${process.env.FRONTEND_URL}/verify-email-change?code=${event.request.codeParameter}&email=${event.request.userAttributes.email}">click here to verify</a></p>
@@ -69,7 +69,7 @@ const firstUserEmailVerification = (event: CustomMessageTriggerEvent) => ({
 // });
 
 // const mfaSetup = (event: CustomMessageTriggerEvent) => ({
-//   emailSubject: "Semantic Lighthouse - MFA Setup",
+//   emailSubject: "Minute Maker - MFA Setup",
 //   emailMessage: `
 //     <h2>Multi-Factor Authentication Setup</h2>
 //     <p>Please use the following code to complete your MFA setup:</p>

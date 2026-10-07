@@ -73,8 +73,8 @@ export class FrontendResources extends Construct {
     const build = new cdk.aws_codebuild.Project(this, "FrontendBuild", {
       source: cdk.aws_codebuild.Source.gitHub({
         owner: "cal-poly-dxhub",
-        repo: "semantic-lighthouse",
-        branchOrRef: "main",
+        repo: "minute-maker",
+        branchOrRef: "demo",
         cloneDepth: 1, // shallow clone for faster builds
       }),
       environment: {
@@ -109,6 +109,9 @@ export class FrontendResources extends Construct {
         version: "0.2",
         phases: {
           install: {
+            "runtime-versions": {
+              nodejs: "20",
+            },
             commands: [
               "cd ui/frontend",
               "echo installing dependencies...",

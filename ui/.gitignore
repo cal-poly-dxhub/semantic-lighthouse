@@ -13,3 +13,5 @@ assets
 !frontend-rewrite.js
 *.zip
 cdk.context.json
+
+.yarn
