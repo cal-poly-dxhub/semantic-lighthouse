@@ -6,12 +6,29 @@ from urllib.parse import urlparse
 import datetime
 import re
 import markdown
+from anthropic import AnthropicBedrock
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 s3_client = boto3.client("s3")
-bedrock_runtime = boto3.client("bedrock-runtime", region_name="us-west-2")
+claude = AnthropicBedrock(aws_region=os.environ.get("AWS_REGION", "us-west-2"))
+
+
+def stream_claude(model_id, max_tokens, effort, messages):
+    """Stream one request and return the finished message (long minutes can take minutes)."""
+    with claude.messages.stream(
+        model=model_id,
+        max_tokens=max_tokens,
+        output_config={"effort": effort},
+        messages=messages,
+    ) as stream:
+        message = stream.get_final_message()
+    logger.info(
+        f"Model {message.model} stopped with {message.stop_reason}: "
+        f"{message.usage.input_tokens} input tokens, {message.usage.output_tokens} output tokens"
+    )
+    return message
 
 
 def convert_to_human_readable(transcript_data):
@@ -193,61 +210,48 @@ def analyze_transcript_with_bedrock(
 
         logger.info(f"Formatted prompt length: {len(formatted_prompt)} characters")
 
-        # Get model configuration from environment variables with defaults
-        model_id = os.environ.get(
-            "TRANSCRIPT_MODEL_ID", "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+        # Model settings come from the Lambda's environment (set in the CDK stack).
+        # Opus 5.5 always thinks and rejects temperature, so effort is the only tuning knob,
+        # and max_tokens has to leave room for the thinking as well as the minutes.
+        model_id = os.environ.get("TRANSCRIPT_MODEL_ID", "us.anthropic.claude-opus-5-5")
+        fallback_model_id = os.environ.get(
+            "TRANSCRIPT_FALLBACK_MODEL_ID", "us.anthropic.claude-opus-4-8"
         )
-        max_tokens = int(os.environ.get("TRANSCRIPT_MAX_TOKENS", "8000"))
-        temperature = float(os.environ.get("TRANSCRIPT_TEMPERATURE", "0.2"))
+        max_tokens = int(os.environ.get("TRANSCRIPT_MAX_TOKENS", "64000"))
+        effort = os.environ.get("TRANSCRIPT_EFFORT", "medium")
 
         logger.info(
-            f"Using model: {model_id}, max_tokens: {max_tokens}, temperature: {temperature}"
+            f"Using model: {model_id}, max_tokens: {max_tokens}, effort: {effort}"
         )
 
-        # Create the request payload for Claude
-        request_body = {
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            "messages": [{"role": "user", "content": formatted_prompt}],
-        }
-
-        logger.info("Invoking Claude via Bedrock...")
+        messages = [{"role": "user", "content": formatted_prompt}]
 
         # Log the complete message being sent to LLM
-        logger.info("=== MESSAGE BEING SENT TO LLM ===")
-        logger.info(f"Model ID: {model_id}")
-        logger.info(f"Request configuration: max_tokens={max_tokens}, temperature={temperature}")
-        logger.info(f"Full request body: {json.dumps(request_body, indent=2)}")
         logger.info("=== COMPLETE PROMPT TEXT ===")
         logger.info(formatted_prompt)
         logger.info("=== END OF PROMPT TEXT ===")
 
-        # Make the streaming API call
-        response = bedrock_runtime.invoke_model_with_response_stream(
-            modelId=model_id,
-            contentType="application/json",
-            accept="application/json",
-            body=json.dumps(request_body),
-        )
+        message = stream_claude(model_id, max_tokens, effort, messages)
 
-        # Process the streaming response
-        analysis_chunks = []
-        logger.info("Processing Claude's streaming response...")
+        # A safety decline is retried once on the fallback model, which can still decline.
+        if message.stop_reason == "refusal":
+            logger.warning(
+                f"{model_id} declined the transcript ({message.stop_details}); retrying on {fallback_model_id}"
+            )
+            message = stream_claude(fallback_model_id, max_tokens, effort, messages)
 
-        # Iterate through the streaming chunks
-        for event in response.get("body"):
-            if "chunk" in event:
-                chunk_data = json.loads(event["chunk"]["bytes"])
-                if chunk_data.get("type") == "content_block_delta" and chunk_data.get(
-                    "delta", {}
-                ).get("text"):
-                    text_chunk = chunk_data["delta"]["text"]
-                    analysis_chunks.append(text_chunk)
+        if message.stop_reason == "refusal":
+            raise RuntimeError(
+                f"Both {model_id} and {fallback_model_id} declined to analyze this transcript"
+            )
+        if message.stop_reason == "max_tokens":
+            raise RuntimeError(
+                f"The model ran out of tokens ({max_tokens}) before finishing, so the minutes would be cut off"
+            )
 
-        # Combine all chunks to return the complete analysis
-        analysis = "".join(analysis_chunks)
-        
+        # Thinking blocks are skipped; only the written minutes are kept.
+        analysis = "".join(block.text for block in message.content if block.type == "text")
+
         # Log the complete response from LLM
         logger.info("=== COMPLETE RESPONSE FROM LLM ===")
         logger.info(analysis)

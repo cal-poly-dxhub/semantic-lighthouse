@@ -4,8 +4,8 @@ import logging
 import os
 import time
 from urllib.parse import urlparse
-from botocore.config import Config
 import re
+from anthropic import AnthropicBedrock
 
 # Set up logging
 logger = logging.getLogger()
@@ -14,17 +14,13 @@ logger.setLevel(logging.INFO)
 # Initialize AWS clients
 s3_client = boto3.client("s3")
 textract_client = boto3.client("textract")
-bedrock_runtime = boto3.client(
-    "bedrock-runtime",
-    region_name=os.environ.get("AWS_REGION"),
-    # High timeout to handle increased response times for large payloads
-    config=Config(connect_timeout=30, read_timeout=300, retries={"max_attempts": 3}),
-)
+claude = AnthropicBedrock(aws_region=os.environ.get("AWS_REGION", "us-west-2"))
 
 
 # Configuration
-MODEL_ID = os.environ.get(
-    "AGENDA_MODEL_ID", "us.anthropic.claude-sonnet-4-20250514-v1:0"
+MODEL_ID = os.environ.get("AGENDA_MODEL_ID", "us.anthropic.claude-opus-5-5")
+FALLBACK_MODEL_ID = os.environ.get(
+    "AGENDA_FALLBACK_MODEL_ID", "us.anthropic.claude-opus-4-8"
 )
 MAX_TEXTRACT_WAIT_TIME = 15 * 60  # 15 minutes
 TEXTRACT_POLL_INTERVAL = 30  # Poll every 30 seconds
@@ -182,6 +178,22 @@ AGENDA DOCUMENT:
 Please analyze this agenda and provide a structured JSON summary with meeting metadata, participants, agenda items, key documents, action items expected, and background context."""
 
 
+def stream_claude(model_id, max_tokens, effort, messages):
+    """Stream one request and return the finished message."""
+    with claude.messages.stream(
+        model=model_id,
+        max_tokens=max_tokens,
+        output_config={"effort": effort},
+        messages=messages,
+    ) as stream:
+        message = stream.get_final_message()
+    logger.info(
+        f"Model {message.model} stopped with {message.stop_reason}: "
+        f"{message.usage.input_tokens} input tokens, {message.usage.output_tokens} output tokens"
+    )
+    return message
+
+
 def analyze_agenda(agenda_text):
     """Analyze agenda text and extract structured information"""
     logger.info(f"Starting agenda analysis using model {MODEL_ID}")
@@ -191,36 +203,40 @@ def analyze_agenda(agenda_text):
     prompt = prompt_template.format(agenda_text=agenda_text)
 
     try:
-        # Get model configuration from environment variables with defaults
-        max_tokens = int(os.environ.get("AGENDA_MAX_TOKENS", "65535"))
-        temperature = float(os.environ.get("AGENDA_TEMPERATURE", "0.1"))
+        # Opus 5.5 always thinks and rejects temperature and top_p, so effort is the
+        # only tuning knob, and max_tokens has to cover the thinking as well as the JSON.
+        max_tokens = int(os.environ.get("AGENDA_MAX_TOKENS", "64000"))
+        effort = os.environ.get("AGENDA_EFFORT", "medium")
 
-        logger.info(
-            f"Using model: {MODEL_ID}, max_tokens: {max_tokens}, temperature: {temperature}"
-        )
+        logger.info(f"Using model: {MODEL_ID}, max_tokens: {max_tokens}, effort: {effort}")
 
-        # Create conversation for the model
-        conversation = [
-            {
-                "role": "user",
-                "content": [{"text": prompt}],
-            }
-        ]
+        messages = [{"role": "user", "content": prompt}]
 
         logger.info(f"Sending {len(agenda_text)} characters to model {MODEL_ID}")
 
-        response = bedrock_runtime.converse(
-            modelId=MODEL_ID,
-            messages=conversation,
-            inferenceConfig={
-                "maxTokens": max_tokens,
-                "temperature": temperature,
-                "topP": 0.9,
-            },
-        )
+        message = stream_claude(MODEL_ID, max_tokens, effort, messages)
 
-        # Extract the response text
-        analysis_text = response["output"]["message"]["content"][0]["text"]
+        # A safety decline is retried once on the fallback model, which can still decline.
+        if message.stop_reason == "refusal":
+            logger.warning(
+                f"{MODEL_ID} declined the agenda ({message.stop_details}); retrying on {FALLBACK_MODEL_ID}"
+            )
+            message = stream_claude(FALLBACK_MODEL_ID, max_tokens, effort, messages)
+
+        if message.stop_reason == "refusal":
+            raise RuntimeError(
+                f"Both {MODEL_ID} and {FALLBACK_MODEL_ID} declined to analyze this agenda"
+            )
+        if message.stop_reason == "max_tokens":
+            raise RuntimeError(
+                f"The model ran out of tokens ({max_tokens}) before finishing the agenda analysis"
+            )
+
+        # The response starts with a thinking block, so join the text blocks instead of
+        # reading content[0].
+        analysis_text = "".join(
+            block.text for block in message.content if block.type == "text"
+        )
 
         logger.info(f"Agenda analysis completed using model {MODEL_ID}")
         logger.info(f"Analysis response length: {len(analysis_text)} characters")

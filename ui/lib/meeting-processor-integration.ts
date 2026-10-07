@@ -213,10 +213,11 @@ export class MeetingProcessorIntegration extends Construct {
             props.videoDistribution.distributionDomainName,
           FRONTEND_DOMAIN_NAME:
             props.frontendDistribution.distributionDomainName,
-          // AI model configuration
-          TRANSCRIPT_MODEL_ID: "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
-          TRANSCRIPT_MAX_TOKENS: "8000",
-          TRANSCRIPT_TEMPERATURE: "0.2",
+          // AI model configuration (Opus 5.5 rejects temperature; effort is the knob)
+          TRANSCRIPT_MODEL_ID: "us.anthropic.claude-opus-5-5",
+          TRANSCRIPT_FALLBACK_MODEL_ID: "us.anthropic.claude-opus-4-8",
+          TRANSCRIPT_MAX_TOKENS: "64000",
+          TRANSCRIPT_EFFORT: "medium",
           TRANSCRIPT_PROMPT_TEMPLATE: transcriptPromptTemplate,
           FALLBACK_AGENDA_TEXT: fallbackAgendaText,
         },
@@ -437,7 +438,17 @@ export class MeetingProcessorIntegration extends Construct {
         functionName: `${uniquePrefix}-agenda-document-processor`,
         runtime: cdk.aws_lambda.Runtime.PYTHON_3_12,
         code: cdk.aws_lambda.Code.fromAsset(
-          "../meeting-processor-cdk/lambda/src/agenda_processor"
+          "../meeting-processor-cdk/lambda/src/agenda_processor",
+          {
+            bundling: {
+              image: cdk.aws_lambda.Runtime.PYTHON_3_12.bundlingImage,
+              command: [
+                "bash",
+                "-c",
+                "pip install -r requirements.txt -t /asset-output && cp -au . /asset-output",
+              ],
+            },
+          }
         ),
         handler: "handler.lambda_handler",
         timeout: cdk.Duration.minutes(15),
@@ -446,6 +457,11 @@ export class MeetingProcessorIntegration extends Construct {
           BUCKET_NAME: props.bucket.bucketName,
           MEETINGS_TABLE_NAME: props.meetingsTable.tableName,
           SYSTEM_CONFIG_TABLE_NAME: props.systemConfigTable.tableName,
+          // AI model configuration (Opus 5.5 rejects temperature and top_p)
+          AGENDA_MODEL_ID: "us.anthropic.claude-opus-5-5",
+          AGENDA_FALLBACK_MODEL_ID: "us.anthropic.claude-opus-4-8",
+          AGENDA_MAX_TOKENS: "64000",
+          AGENDA_EFFORT: "medium",
         },
       }
     );

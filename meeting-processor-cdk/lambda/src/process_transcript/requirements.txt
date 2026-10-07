@@ -1,2 +1,3 @@
 # Dependencies for transcript processing (PDF generation moved to separate HtmlToPdfFunction)
-markdown==3.5.1 
+markdown==3.5.1
+anthropic[bedrock]==1.12.0
