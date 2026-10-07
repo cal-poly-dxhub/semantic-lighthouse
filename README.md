@@ -1,20 +1,6 @@
 # minute-maker: Automated Board Meeting Minutes Generator
 
-> **This is the v1 snapshot.** It is the project as it stood on 2026-10-07, matching the Minute Maker trial that ran from August 2025 (`MinuteMakerStack-demo-v2`). It stopped producing minutes in July 2026 because Amazon Bedrock retired Claude 3.7 Sonnet. Current work is on `main`.
->
-> The older branches were removed from the branch list but kept as tags, with full history:
->
-> | Tag | What it was |
-> |---|---|
-> | `archive/main` | `main` before the trial branch was merged in |
-> | `archive/demo` | The trial deployment (Minute Maker rename, one meeting per user, open sign-up) |
-> | `archive/v2` | Unmerged custom prompt templates (backend only, no UI) and a meetings dashboard |
-> | `archive/custom-prompt` | Merged into `v2`; its one extra commit only changed the deploy profile |
-> | `archive/standardize` | Unfinished move to a standard CDK layout; it removes the meeting processor and can't generate minutes |
-> | `archive/integreat` | Abandoned attempt at combining the two CDK apps, replaced by `cdk-integration` |
-> | `archive/cdk-integration`, `archive/cdk-integration-2`, `archive/media_processing`, `archive/media_processing-cdk` | Fully merged; kept for completeness |
->
-> To look at one: `git fetch --tags && git switch --detach archive/v2`
+> **v1 snapshot.** It is the project as it stood on 2026-10-07, which stopped producing minutes in July 2026 because Amazon Bedrock retired Claude 3.7 Sonnet. Current work is on `main`.
 
 ## Table of Contents
 
