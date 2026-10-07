@@ -51,7 +51,7 @@ export class MeetingApiResources extends Construct {
     // /:meetingId/upload
     const uploadResource = this.api.root.addResource("upload");
     const uploadLambda = new cdk.aws_lambda.Function(this, "UploadLambda", {
-      runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
+      runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
       handler: "upload.handler",
       code: cdk.aws_lambda.Code.fromAsset("lambda/dist"),
       environment: {
@@ -84,7 +84,7 @@ export class MeetingApiResources extends Construct {
       this,
       "PrivateVideoAuthLambda",
       {
-        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
+        runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
         handler: "private-presigned.handler",
         code: cdk.aws_lambda.Code.fromAsset("lambda/dist/video"),
         environment: {
@@ -123,7 +123,7 @@ export class MeetingApiResources extends Construct {
       this,
       "PublicVideoAuthLambda",
       {
-        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
+        runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
         handler: "public-presigned.handler",
         code: cdk.aws_lambda.Code.fromAsset("lambda/dist/video"),
         environment: {
@@ -154,7 +154,7 @@ export class MeetingApiResources extends Construct {
     // /:meetingId/minutes
     const minutesResource = meetingIdRoute.addResource("minutes");
     const minutesLambda = new cdk.aws_lambda.Function(this, "MinutesLambda", {
-      runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
+      runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
       handler: "minutes.handler",
       code: cdk.aws_lambda.Code.fromAsset("lambda/dist/meetings"),
       environment: {
@@ -179,7 +179,7 @@ export class MeetingApiResources extends Construct {
     // /meetings
     const meetingsResource = this.api.root.addResource("meetings");
     const meetingsLambda = new cdk.aws_lambda.Function(this, "MeetingsLambda", {
-      runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
+      runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
       handler: "meetings.handler",
       code: cdk.aws_lambda.Code.fromAsset("lambda/dist/meetings"),
       environment: {
@@ -208,7 +208,7 @@ export class MeetingApiResources extends Construct {
       this,
       "CreateUserLambda",
       {
-        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
+        runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
         handler: "create-user.handler",
         code: cdk.aws_lambda.Code.fromAsset("lambda/dist/auth"),
         environment: {
@@ -266,7 +266,7 @@ export class MeetingApiResources extends Construct {
       this,
       "SetupUserLambda",
       {
-        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
+        runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
         handler: "setup-user.handler",
         code: cdk.aws_lambda.Code.fromAsset("lambda/dist/auth"),
         environment: {

@@ -67,7 +67,7 @@ export class AuthResources extends Construct {
       {
         description:
           "lambda function handling post-confirmation with SNS topic creation",
-        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
+        runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
         code: cdk.aws_lambda.Code.fromAsset("lambda/dist/auth"),
         handler: "post-confirmation.handler",
         timeout: cdk.Duration.seconds(30),

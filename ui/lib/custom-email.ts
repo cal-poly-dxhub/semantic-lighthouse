@@ -15,7 +15,7 @@ export class CustomEmailResources extends Construct {
       "CustomMessageLambda",
       {
         description: "lambda function for custom email messages",
-        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
+        runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
         code: cdk.aws_lambda.Code.fromAsset("lambda/dist/auth"),
         handler: "custom-message.handler",
         environment: {
