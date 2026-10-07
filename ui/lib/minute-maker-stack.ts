@@ -65,7 +65,6 @@ export class MinuteMakerStack extends cdk.Stack {
         bucket: dataResources.bucket,
         meetingsTable: dataResources.meetingsTable,
         userPreferencesTable: dataResources.userPreferencesTable,
-        systemConfigTable: dataResources.systemConfigTable,
         videoDistribution: dataResources.distribution,
         frontendDistribution: frontendResources.distribution,
       }

@@ -8,7 +8,6 @@ export interface MeetingProcessorIntegrationProps {
   bucket: cdk.aws_s3.Bucket;
   meetingsTable: cdk.aws_dynamodb.Table;
   userPreferencesTable: cdk.aws_dynamodb.Table;
-  systemConfigTable: cdk.aws_dynamodb.Table;
   videoDistribution: cdk.aws_cloudfront.Distribution;
   frontendDistribution: cdk.aws_cloudfront.Distribution;
 }
@@ -49,11 +48,6 @@ export class MeetingProcessorIntegration extends Construct {
       ),
       "utf8"
     );
-
-    // =================================================================
-    // AI CONFIGURATION - Hardcoded in database via custom resource
-    // =================================================================
-    this.populateAIConfiguration(props.systemConfigTable);
 
     // =================================================================
     // LAMBDA LAYERS - Required for video processing and PDF generation
@@ -155,7 +149,6 @@ export class MeetingProcessorIntegration extends Construct {
           BUCKET_NAME: props.bucket.bucketName,
           OUTPUT_BUCKET: props.bucket.bucketName,
           MEETINGS_TABLE_NAME: props.meetingsTable.tableName,
-          SYSTEM_CONFIG_TABLE_NAME: props.systemConfigTable.tableName,
           MEDIACONVERT_ROLE_ARN: mediaConvertRole.roleArn,
           MEDIACONVERT_QUEUE_ARN: `arn:aws:mediaconvert:${cdk.Aws.REGION}:${cdk.Aws.ACCOUNT_ID}:queues/Default`,
         },
@@ -208,7 +201,6 @@ export class MeetingProcessorIntegration extends Construct {
         environment: {
           S3_BUCKET: props.bucket.bucketName,
           MEETINGS_TABLE_NAME: props.meetingsTable.tableName,
-          SYSTEM_CONFIG_TABLE_NAME: props.systemConfigTable.tableName,
           CLOUDFRONT_DOMAIN_NAME:
             props.videoDistribution.distributionDomainName,
           FRONTEND_DOMAIN_NAME:
@@ -284,9 +276,6 @@ export class MeetingProcessorIntegration extends Construct {
     props.meetingsTable.grantReadWriteData(aiMeetingAnalyzer);
     props.meetingsTable.grantReadWriteData(documentPdfGenerator);
     props.meetingsTable.grantReadData(notificationSender);
-
-    props.systemConfigTable.grantReadData(videoToAudioConverter);
-    props.systemConfigTable.grantReadData(aiMeetingAnalyzer);
 
     props.userPreferencesTable.grantReadData(notificationSender);
 
@@ -456,7 +445,6 @@ export class MeetingProcessorIntegration extends Construct {
         environment: {
           BUCKET_NAME: props.bucket.bucketName,
           MEETINGS_TABLE_NAME: props.meetingsTable.tableName,
-          SYSTEM_CONFIG_TABLE_NAME: props.systemConfigTable.tableName,
           // AI model configuration (Opus 5.5 rejects temperature and top_p)
           AGENDA_MODEL_ID: "us.anthropic.claude-opus-5-5",
           AGENDA_FALLBACK_MODEL_ID: "us.anthropic.claude-opus-4-8",
@@ -469,7 +457,6 @@ export class MeetingProcessorIntegration extends Construct {
     // Permissions for agenda processor
     props.bucket.grantReadWrite(this.agendaProcessor);
     props.meetingsTable.grantReadWriteData(this.agendaProcessor);
-    props.systemConfigTable.grantReadData(this.agendaProcessor);
 
     // Textract permissions for agenda processor - Full access for now
     this.agendaProcessor.addToRolePolicy(
@@ -500,186 +487,5 @@ export class MeetingProcessorIntegration extends Construct {
 
     // Note: Agenda processor no longer needs Step Functions permissions
     // It saves agenda data to S3 and lets the existing workflow find it
-  }
-
-  /**
-   * Populate AI configuration in database using a custom resource
-   */
-  private populateAIConfiguration(systemConfigTable: cdk.aws_dynamodb.Table) {
-    const populateConfigLambda = new cdk.aws_lambda.Function(
-      this,
-      "PopulateAIConfigLambda",
-      {
-        runtime: cdk.aws_lambda.Runtime.NODEJS_LATEST,
-        handler: "index.handler",
-        timeout: cdk.Duration.minutes(2),
-        code: cdk.aws_lambda.Code.fromInline(`
-        const { DynamoDBClient, BatchWriteItemCommand } = require('@aws-sdk/client-dynamodb');
-        const https = require('https');
-        const url = require('url');
-        
-        const sendResponse = async (event, context, responseStatus, responseData = {}) => {
-          const responseBody = JSON.stringify({
-            Status: responseStatus,
-            Reason: 'See CloudWatch Log Stream: ' + context.logStreamName,
-            PhysicalResourceId: 'populate-ai-config',
-            StackId: event.StackId,
-            RequestId: event.RequestId,
-            LogicalResourceId: event.LogicalResourceId,
-            Data: responseData
-          });
-          
-          const parsedUrl = url.parse(event.ResponseURL);
-          const options = {
-            hostname: parsedUrl.hostname,
-            port: 443,
-            path: parsedUrl.path,
-            method: 'PUT',
-            headers: {
-              'content-type': '',
-              'content-length': responseBody.length
-            }
-          };
-          
-          return new Promise((resolve, reject) => {
-            const request = https.request(options, (response) => {
-              console.log('Status code: ' + response.statusCode);
-              console.log('Status message: ' + response.statusMessage);
-              resolve();
-            });
-            
-            request.on('error', (error) => {
-              console.log('send(..) failed executing https.request(..): ' + error);
-              reject(error);
-            });
-            
-            request.write(responseBody);
-            request.end();
-          });
-        };
-        
-        exports.handler = async (event, context) => {
-          console.log('Event:', JSON.stringify(event));
-          
-          try {
-            if (event.RequestType === 'Delete') {
-              console.log('Delete request - no action needed');
-              await sendResponse(event, context, 'SUCCESS');
-              return;
-            }
-            
-            const dynamodb = new DynamoDBClient({});
-            const tableName = process.env.TABLE_NAME;
-            
-            const configItems = [
-              // Transcript Analysis Configuration
-              {
-                configKey: 'transcript_model_id',
-                configValue: 'us.anthropic.claude-3-7-sonnet-20250219-v1:0',
-                description: 'AI model for transcript analysis',
-                category: 'transcript_analysis'
-              },
-              {
-                configKey: 'transcript_max_tokens',
-                configValue: '8000',
-                description: 'Maximum tokens for transcript analysis',
-                category: 'transcript_analysis'
-              },
-              {
-                configKey: 'transcript_temperature',
-                configValue: '0.2',
-                description: 'Temperature for transcript analysis',
-                category: 'transcript_analysis'
-              },
-              
-              // Agenda Analysis Configuration
-              {
-                configKey: 'agenda_model_id',
-                configValue: 'us.anthropic.claude-sonnet-4-20250514-v1:0',
-                description: 'AI model for agenda analysis',
-                category: 'agenda_analysis'
-              },
-              {
-                configKey: 'agenda_max_tokens',
-                configValue: '65535',
-                description: 'Maximum tokens for agenda analysis',
-                category: 'agenda_analysis'
-              },
-              {
-                configKey: 'agenda_temperature',
-                configValue: '0.1',
-                description: 'Temperature for agenda analysis',
-                category: 'agenda_analysis'
-              },
-              
-              // Video Processing Configuration
-              {
-                configKey: 'video_chunk_duration_hours',
-                configValue: '4',
-                description: 'Duration threshold for video chunking',
-                category: 'video_processing'
-              },
-              {
-                configKey: 'mediaconvert_queue',
-                configValue: 'Default',
-                description: 'MediaConvert queue name',
-                category: 'video_processing'
-              },
-              
-              // Email Configuration
-              {
-                configKey: 'presigned_url_expiration_days',
-                configValue: '7',
-                description: 'Presigned URL expiration in days',
-                category: 'email_notifications'
-              }
-            ];
-            
-            // Create batch write items
-            const requests = configItems.map(item => ({
-              PutRequest: {
-                Item: {
-                  configKey: { S: item.configKey },
-                  configValue: { S: item.configValue },
-                  description: { S: item.description },
-                  category: { S: item.category },
-                  createdAt: { S: new Date().toISOString() },
-                  updatedAt: { S: new Date().toISOString() }
-                }
-              }
-            }));
-            
-            // Write items in batches of 25 (DynamoDB limit)
-            for (let i = 0; i < requests.length; i += 25) {
-              const batch = requests.slice(i, i + 25);
-              await dynamodb.send(new BatchWriteItemCommand({
-                RequestItems: {
-                  [tableName]: batch
-                }
-              }));
-            }
-            
-            console.log('AI configuration populated successfully');
-            await sendResponse(event, context, 'SUCCESS', { ItemsCreated: configItems.length });
-            
-          } catch (error) {
-            console.error('Error populating AI config:', error);
-            await sendResponse(event, context, 'FAILED', { Error: error.message });
-          }
-        };
-      `),
-        environment: {
-          TABLE_NAME: systemConfigTable.tableName,
-        },
-      }
-    );
-
-    // Grant DynamoDB permissions
-    systemConfigTable.grantWriteData(populateConfigLambda);
-
-    // Create custom resource
-    new cdk.CustomResource(this, "PopulateAIConfigResource", {
-      serviceToken: populateConfigLambda.functionArn,
-    });
   }
 }
