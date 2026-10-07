@@ -22,5 +22,6 @@
     "constructs": "^10.0.0",
     "jsonschema": "^1.4.1"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "packageManager": "yarn@4.10.3"
 }

@@ -33,5 +33,6 @@
     "postcss-simple-vars": "^7.0.1",
     "typescript": "^5"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "packageManager": "yarn@1.22.22"
 }
