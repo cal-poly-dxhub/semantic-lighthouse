@@ -4,7 +4,6 @@ import * as path from "path";
 import * as fs from "fs";
 
 export interface MeetingProcessorIntegrationProps {
-  uniqueId: string;
   bucket: cdk.aws_s3.Bucket;
   meetingsTable: cdk.aws_dynamodb.Table;
   userPreferencesTable: cdk.aws_dynamodb.Table;
@@ -22,12 +21,6 @@ export class MeetingProcessorIntegration extends Construct {
     props: MeetingProcessorIntegrationProps
   ) {
     super(scope, id);
-
-    const timestamp = Math.floor(Date.now() / 1000)
-      .toString()
-      .slice(-6);
-    const uniquePrefix =
-      `minute-maker-${props.uniqueId}-${timestamp}`.toLowerCase();
 
     // =================================================================
     // CONFIGURATION FILES - Read prompt templates at deployment time
@@ -58,7 +51,6 @@ export class MeetingProcessorIntegration extends Construct {
       this,
       "VideoAnalysisLayer",
       {
-        layerVersionName: `${uniquePrefix}-video-analysis`,
         code: cdk.aws_lambda.Code.fromAsset(
           path.join(
             __dirname,
@@ -76,7 +68,6 @@ export class MeetingProcessorIntegration extends Construct {
       this,
       "PdfGenerationLayer",
       {
-        layerVersionName: `${uniquePrefix}-pdf-generation-tools`,
         code: cdk.aws_lambda.Code.fromAsset(
           path.join(
             __dirname,
@@ -98,7 +89,6 @@ export class MeetingProcessorIntegration extends Construct {
       this,
       "MediaConvertServiceRole",
       {
-        roleName: `${uniquePrefix}-mediaconvert-service-role`,
         assumedBy: new cdk.aws_iam.ServicePrincipal(
           "mediaconvert.amazonaws.com"
         ),
@@ -136,7 +126,6 @@ export class MeetingProcessorIntegration extends Construct {
       this,
       "VideoToAudioConverter",
       {
-        functionName: `${uniquePrefix}-video-to-audio-converter`,
         runtime: cdk.aws_lambda.Runtime.PYTHON_3_12,
         code: cdk.aws_lambda.Code.fromAsset(
           "../meeting-processor-cdk/lambda/src/mediaconvert_trigger"
@@ -160,7 +149,6 @@ export class MeetingProcessorIntegration extends Construct {
       this,
       "ProcessingStatusMonitor",
       {
-        functionName: `${uniquePrefix}-processing-status-monitor`,
         runtime: cdk.aws_lambda.Runtime.PYTHON_3_12,
         code: cdk.aws_lambda.Code.fromAsset(
           "../meeting-processor-cdk/lambda/src/verify_s3_file"
@@ -180,7 +168,6 @@ export class MeetingProcessorIntegration extends Construct {
       this,
       "AiMeetingAnalyzer",
       {
-        functionName: `${uniquePrefix}-ai-meeting-analyzer`,
         runtime: cdk.aws_lambda.Runtime.PYTHON_3_12,
         code: cdk.aws_lambda.Code.fromAsset(
           "../meeting-processor-cdk/lambda/src/process_transcript",
@@ -221,7 +208,6 @@ export class MeetingProcessorIntegration extends Construct {
       this,
       "DocumentPdfGenerator",
       {
-        functionName: `${uniquePrefix}-document-pdf-generator`,
         runtime: cdk.aws_lambda.Runtime.PYTHON_3_12,
         code: cdk.aws_lambda.Code.fromAsset(
           "../meeting-processor-cdk/lambda/src/html_to_pdf"
@@ -244,7 +230,6 @@ export class MeetingProcessorIntegration extends Construct {
       this,
       "NotificationSender",
       {
-        functionName: `${uniquePrefix}-notification-sender`,
         runtime: cdk.aws_lambda.Runtime.PYTHON_3_12,
         code: cdk.aws_lambda.Code.fromAsset(
           "../meeting-processor-cdk/lambda/src/email_sender"
@@ -389,7 +374,6 @@ export class MeetingProcessorIntegration extends Construct {
       this,
       "MeetingProcessingWorkflow",
       {
-        stateMachineName: `${uniquePrefix}-processing-workflow`,
         definitionBody: stateMachineDefinition,
         timeout: cdk.Duration.hours(4),
       }
@@ -424,7 +408,6 @@ export class MeetingProcessorIntegration extends Construct {
       this,
       "AgendaDocumentProcessor",
       {
-        functionName: `${uniquePrefix}-agenda-document-processor`,
         runtime: cdk.aws_lambda.Runtime.PYTHON_3_12,
         code: cdk.aws_lambda.Code.fromAsset(
           "../meeting-processor-cdk/lambda/src/agenda_processor",

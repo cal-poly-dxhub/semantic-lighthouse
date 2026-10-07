@@ -21,7 +21,7 @@ export class ApiGatewayCloudWatchSetup extends Construct {
       this,
       "ApiGatewayCloudWatchRole",
       {
-        roleName: props?.roleName || "APIGatewayCloudWatchLogsRole",
+        roleName: props?.roleName,
         assumedBy: new cdk.aws_iam.ServicePrincipal("apigateway.amazonaws.com"),
         description: "Role for API Gateway to push logs to CloudWatch",
         managedPolicies: [

@@ -1,6 +1,5 @@
 import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
-import { MinuteMakerStackProps } from "../bin/minute-maker";
 import { AuthResources } from "./auth";
 import { CustomEmailResources } from "./custom-email";
 import { FrontendResources } from "./frontend";
@@ -10,34 +9,28 @@ import { MeetingProcessorIntegration } from "./meeting-processor-integration";
 import { ApiGatewayCloudWatchSetup } from "./api-gateway-cloudwatch-role";
 
 export class MinuteMakerStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props: MinuteMakerStackProps) {
+  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
-
-    const { uniqueId } = props;
 
     // TODO:
     // check flow for new user signup and user creation (already removed current user and enabled self signup)
     // integration
 
-    // TODO: change all .DESTROY to .RETAIN in production
+    // the meetings bucket, tables and user pool are RETAIN; everything else is rebuildable
 
     // ------------ ENHANCED DATA RESOURCES (DynamoDB + S3 + CloudFront) ------------
 
-    const dataResources = new DataResources(this, "DataResources", {
-      uniqueId,
-    });
+    const dataResources = new DataResources(this, "DataResources");
 
     // ------------ AUTH AND ADMIN SETUP WITH SNS INTEGRATION ------------
 
     const authResources = new AuthResources(this, "Auth", {
-      uniqueId,
       userPreferencesTable: dataResources.userPreferencesTable,
     });
 
     // ------------ MEETING API WITH ENHANCED DATA INTEGRATION ------------
 
     const meetingApi = new MeetingApiResources(this, "MeetingApi", {
-      uniqueId,
       userPool: authResources.userPool,
       userPoolClient: authResources.userPoolClient,
       meetingsBucket: dataResources.bucket,
@@ -61,7 +54,6 @@ export class MinuteMakerStack extends cdk.Stack {
       this,
       "MeetingProcessorIntegration",
       {
-        uniqueId,
         bucket: dataResources.bucket,
         meetingsTable: dataResources.meetingsTable,
         userPreferencesTable: dataResources.userPreferencesTable,
@@ -75,10 +67,7 @@ export class MinuteMakerStack extends cdk.Stack {
     // Automate API Gateway CloudWatch logging setup
     const apiGatewayCloudWatchSetup = new ApiGatewayCloudWatchSetup(
       this,
-      "ApiGatewayCloudWatchSetup",
-      {
-        roleName: `${uniqueId}-api-gateway-cloudwatch-role`,
-      }
+      "ApiGatewayCloudWatchSetup"
     );
 
     // ------------ CUSTOM EMAIL MESSAGING ------------

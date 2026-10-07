@@ -2,7 +2,6 @@ import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 
 export interface AuthStackProps {
-  uniqueId: string;
   userPreferencesTable: cdk.aws_dynamodb.Table;
 }
 
@@ -17,9 +16,10 @@ export class AuthResources extends Construct {
     // reference stack
     const stack = cdk.Stack.of(this);
 
-    // cannot get dynamically from group creation - circular dependency
-    const adminGroupName = `MinuteMakerAdminsGroup-${props.uniqueId}`;
-    this.defaultUserGroupName = `MinuteMakerUsersGroup-${props.uniqueId}`;
+    // fixed names (groups are scoped to this user pool); reading them from the
+    // group constructs would be a circular dependency
+    const adminGroupName = "MinuteMakerAdmins";
+    this.defaultUserGroupName = "MinuteMakerUsers";
 
     this.userPool = new cdk.aws_cognito.UserPool(this, "UserPool", {
       signInAliases: {
@@ -28,7 +28,8 @@ export class AuthResources extends Construct {
       },
       selfSignUpEnabled: true,
       autoVerify: { email: true },
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      // user accounts outlive the stack
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
     this.userPoolClient = new cdk.aws_cognito.UserPoolClient(

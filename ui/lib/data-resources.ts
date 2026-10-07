@@ -1,36 +1,22 @@
 import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 
-export interface DataResourcesProps {
-  uniqueId: string;
-}
-
 export class DataResources extends Construct {
   public readonly bucket: cdk.aws_s3.Bucket;
   public readonly distribution: cdk.aws_cloudfront.Distribution;
   public readonly meetingsTable: cdk.aws_dynamodb.Table;
   public readonly userPreferencesTable: cdk.aws_dynamodb.Table;
 
-  constructor(scope: Construct, id: string, props: DataResourcesProps) {
+  constructor(scope: Construct, id: string) {
     super(scope, id);
 
-    const timestamp = Math.floor(Date.now() / 1000)
-      .toString()
-      .slice(-6);
-
-    // Keep bucket name short and compliant with S3 naming rules (max 63 chars, lowercase, no special chars)
-    const bucketName = `sl-${props.uniqueId}-${timestamp}`
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, "-")
-      .slice(0, 50);
 
     // =================================================================
     // S3 BUCKET - Central storage for all meeting files
     // =================================================================
     this.bucket = new cdk.aws_s3.Bucket(this, "MeetingsBucket", {
-      bucketName,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-      autoDeleteObjects: true,
+      // meeting videos, agendas and minutes outlive the stack
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
       publicReadAccess: false,
       encryption: cdk.aws_s3.BucketEncryption.S3_MANAGED,
       blockPublicAccess: cdk.aws_s3.BlockPublicAccess.BLOCK_ALL,
@@ -95,7 +81,7 @@ export class DataResources extends Construct {
         name: "createdAt",
         type: cdk.aws_dynamodb.AttributeType.STRING,
       },
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
       billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST,
     });
 
@@ -123,7 +109,7 @@ export class DataResources extends Construct {
           name: "userId",
           type: cdk.aws_dynamodb.AttributeType.STRING,
         },
-        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        removalPolicy: cdk.RemovalPolicy.RETAIN,
         billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST,
       }
     );

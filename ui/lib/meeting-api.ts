@@ -2,7 +2,6 @@ import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 
 export interface MeetingApiResourcesProps {
-  uniqueId: string;
   userPool: cdk.aws_cognito.UserPool;
   meetingsBucket: cdk.aws_s3.Bucket;
   meetingsTable: cdk.aws_dynamodb.Table;
