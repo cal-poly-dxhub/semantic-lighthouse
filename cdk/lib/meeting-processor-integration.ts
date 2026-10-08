@@ -177,7 +177,8 @@ export class MeetingProcessorIntegration extends Construct {
               command: [
                 "bash",
                 "-c",
-                "pip install -r requirements.txt -t /asset-output && cp -au . /asset-output",
+                // x86_64 wheels to match the Lambda, whatever CPU builds this (Apple Silicon Docker is arm64)
+                "pip install -r requirements.txt -t /asset-output --platform manylinux2014_x86_64 --implementation cp --python-version 3.12 --only-binary=:all: && cp -au . /asset-output",
               ],
             },
           }
@@ -417,7 +418,8 @@ export class MeetingProcessorIntegration extends Construct {
               command: [
                 "bash",
                 "-c",
-                "pip install -r requirements.txt -t /asset-output && cp -au . /asset-output",
+                // x86_64 wheels to match the Lambda, whatever CPU builds this (Apple Silicon Docker is arm64)
+                "pip install -r requirements.txt -t /asset-output --platform manylinux2014_x86_64 --implementation cp --python-version 3.12 --only-binary=:all: && cp -au . /asset-output",
               ],
             },
           }
