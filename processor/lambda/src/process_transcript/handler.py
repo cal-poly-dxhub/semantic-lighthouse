@@ -376,13 +376,6 @@ def generate_html_from_analysis(analysis_text, job_name, bucket_name):
             color: #e74c3c;
             text-decoration: underline;
         }}
-        .metadata {{
-            background-color: #ecf0f1;
-            padding: 15px;
-            border-radius: 5px;
-            margin-bottom: 30px;
-            font-size: 14px;
-        }}
         .footer {{
             text-align: center;
             margin-top: 40px;
@@ -401,13 +394,6 @@ def generate_html_from_analysis(analysis_text, job_name, bucket_name):
 </head>
 <body>
     <div class="container">
-        <h1>Meeting Analysis Report</h1>
-        
-        <div class="metadata">
-            <strong>Generated:</strong> {datetime.datetime.now().strftime('%B %d, %Y at %H:%M UTC')}<br>
-            <strong>Job Name:</strong> {job_name}
-        </div>
-        
         {html_body}
         
         <div class="footer">
