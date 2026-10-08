@@ -259,7 +259,7 @@ Message includes:
 The saved meetings live outside this public repo in `../semantic-lighthouse-data/prompt-test/fixtures/`, one folder per meeting. Runs go to `prompt-test/runs/<timestamp>/` next to them, with a copy of the prompt used.
 
 ```bash
-cd meeting-processor-cdk
+cd processor
 python3 -m venv .venv && .venv/bin/pip install boto3 -r lambda/src/process_transcript/requirements.txt
 AWS_PROFILE=semlighthouse .venv/bin/python prompt-test.py                      # all saved meetings
 AWS_PROFILE=semlighthouse .venv/bin/python prompt-test.py 2-tempe-2026-04-01-1h14m --prompt draft.txt

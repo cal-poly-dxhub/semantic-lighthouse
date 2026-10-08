@@ -34,7 +34,7 @@ export class MeetingProcessorIntegration extends Construct {
         code: cdk.aws_lambda.Code.fromAsset(
           path.join(
             __dirname,
-            "../../meeting-processor-cdk/lambda/layers/pymediainfo_layer"
+            "../../processor/lambda/layers/pymediainfo_layer"
           )
         ),
         compatibleRuntimes: [cdk.aws_lambda.Runtime.PYTHON_3_12],
@@ -51,7 +51,7 @@ export class MeetingProcessorIntegration extends Construct {
         code: cdk.aws_lambda.Code.fromAsset(
           path.join(
             __dirname,
-            "../../meeting-processor-cdk/lambda/layers/weasyprint"
+            "../../processor/lambda/layers/weasyprint"
           )
         ),
         compatibleRuntimes: [cdk.aws_lambda.Runtime.PYTHON_3_12],
@@ -108,7 +108,7 @@ export class MeetingProcessorIntegration extends Construct {
       {
         runtime: cdk.aws_lambda.Runtime.PYTHON_3_12,
         code: cdk.aws_lambda.Code.fromAsset(
-          "../meeting-processor-cdk/lambda/src/mediaconvert_trigger"
+          "../processor/lambda/src/mediaconvert_trigger"
         ),
         handler: "handler.lambda_handler",
         timeout: cdk.Duration.minutes(15),
@@ -131,7 +131,7 @@ export class MeetingProcessorIntegration extends Construct {
       {
         runtime: cdk.aws_lambda.Runtime.PYTHON_3_12,
         code: cdk.aws_lambda.Code.fromAsset(
-          "../meeting-processor-cdk/lambda/src/verify_s3_file"
+          "../processor/lambda/src/verify_s3_file"
         ),
         handler: "handler.lambda_handler",
         timeout: cdk.Duration.minutes(5),
@@ -150,7 +150,7 @@ export class MeetingProcessorIntegration extends Construct {
       {
         runtime: cdk.aws_lambda.Runtime.PYTHON_3_12,
         code: cdk.aws_lambda.Code.fromAsset(
-          "../meeting-processor-cdk/lambda/src/process_transcript",
+          "../processor/lambda/src/process_transcript",
           {
             bundling: {
               image: cdk.aws_lambda.Runtime.PYTHON_3_12.bundlingImage,
@@ -191,7 +191,7 @@ export class MeetingProcessorIntegration extends Construct {
       {
         runtime: cdk.aws_lambda.Runtime.PYTHON_3_12,
         code: cdk.aws_lambda.Code.fromAsset(
-          "../meeting-processor-cdk/lambda/src/html_to_pdf"
+          "../processor/lambda/src/html_to_pdf"
         ),
         handler: "handler.lambda_handler",
         timeout: cdk.Duration.minutes(5),
@@ -213,7 +213,7 @@ export class MeetingProcessorIntegration extends Construct {
       {
         runtime: cdk.aws_lambda.Runtime.PYTHON_3_12,
         code: cdk.aws_lambda.Code.fromAsset(
-          "../meeting-processor-cdk/lambda/src/email_sender"
+          "../processor/lambda/src/email_sender"
         ),
         handler: "handler.lambda_handler",
         timeout: cdk.Duration.minutes(1),
@@ -323,7 +323,7 @@ export class MeetingProcessorIntegration extends Construct {
     let stateMachineDefinitionString = fs.readFileSync(
       path.join(
         __dirname,
-        "../../meeting-processor-cdk/statemachine/transcribe.asl.json"
+        "../../processor/statemachine/transcribe.asl.json"
       ),
       "utf8"
     );
@@ -391,7 +391,7 @@ export class MeetingProcessorIntegration extends Construct {
       {
         runtime: cdk.aws_lambda.Runtime.PYTHON_3_12,
         code: cdk.aws_lambda.Code.fromAsset(
-          "../meeting-processor-cdk/lambda/src/agenda_processor",
+          "../processor/lambda/src/agenda_processor",
           {
             bundling: {
               image: cdk.aws_lambda.Runtime.PYTHON_3_12.bundlingImage,
