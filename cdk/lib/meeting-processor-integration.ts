@@ -23,26 +23,6 @@ export class MeetingProcessorIntegration extends Construct {
     super(scope, id);
 
     // =================================================================
-    // CONFIGURATION FILES - Read prompt templates at deployment time
-    // =================================================================
-
-    // Read prompt templates from config files
-    const transcriptPromptTemplate = fs.readFileSync(
-      path.join(
-        __dirname,
-        "../../meeting-processor-cdk/config/prompts/transcript-analysis.txt"
-      ),
-      "utf8"
-    );
-    const fallbackAgendaText = fs.readFileSync(
-      path.join(
-        __dirname,
-        "../../meeting-processor-cdk/config/prompts/fallback-agenda.txt"
-      ),
-      "utf8"
-    );
-
-    // =================================================================
     // LAMBDA LAYERS - Required for video processing and PDF generation
     // =================================================================
 
@@ -198,8 +178,8 @@ export class MeetingProcessorIntegration extends Construct {
           TRANSCRIPT_FALLBACK_MODEL_ID: "us.anthropic.claude-opus-4-8",
           TRANSCRIPT_MAX_TOKENS: "64000",
           TRANSCRIPT_EFFORT: "medium",
-          TRANSCRIPT_PROMPT_TEMPLATE: transcriptPromptTemplate,
-          FALLBACK_AGENDA_TEXT: fallbackAgendaText,
+          // The prompt and fallback agenda ship as files in the Lambda bundle
+          // (lambda/src/process_transcript/*.txt): the prompt outgrew the 4 KB env var limit.
         },
       }
     );

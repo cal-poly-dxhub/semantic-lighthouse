@@ -15,6 +15,12 @@ s3_client = boto3.client("s3")
 claude = AnthropicBedrock(aws_region=os.environ.get("AWS_REGION", "us-west-2"))
 
 
+def read_prompt_file(name):
+    """Read a prompt file bundled next to this handler (too big for an env var)."""
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), name), encoding="utf-8") as f:
+        return f.read()
+
+
 def stream_claude(model_id, max_tokens, effort, messages):
     """Stream one request and return the finished message (long minutes can take minutes)."""
     with claude.messages.stream(
@@ -924,6 +930,13 @@ def replace_segment_citations_with_links(analysis_text, segment_mapping, bucket,
     The special markers will be converted to clean clickable links in the PDF.
     """
     try:
+        # Split "[seg_1-4, seg_9]" into "[seg_1-4], [seg_9]" so each part gets its own link
+        analysis_text = re.sub(
+            r"\[(seg_[^\]]*,[^\]]*)\]",
+            lambda m: ", ".join(f"[{part.strip()}]" for part in m.group(1).split(",")),
+            analysis_text,
+        )
+
         # Get all segment references in the text
         references = parse_segment_references(analysis_text)
 
@@ -1025,13 +1038,10 @@ def process_transcript_analysis(
 
     analysis_error = None
     try:
-        # Get prompt template from environment variable
-        logger.info("Reading prompt template from environment variable...")
-        prompt_template = os.environ.get(
-            "TRANSCRIPT_PROMPT_TEMPLATE", "Default prompt template not configured"
-        )
+        logger.info("Reading prompt template from transcript-analysis.txt...")
+        prompt_template = read_prompt_file("transcript-analysis.txt")
 
-        # Determine agenda source - use agenda data if available, otherwise fallback to environment variable
+        # Determine agenda source - use agenda data if available, otherwise the fallback agenda
         if (
             agenda_data
             and agenda_data.get("agenda_exists")
@@ -1076,11 +1086,9 @@ Participants:"""
             )
         else:
             logger.info(
-                "No agenda data available - using fallback agenda from environment variable..."
+                "No agenda data available - using fallback agenda from fallback-agenda.txt..."
             )
-            agenda_text = os.environ.get(
-                "FALLBACK_AGENDA_TEXT", "General meeting agenda not configured"
-            )
+            agenda_text = read_prompt_file("fallback-agenda.txt")
 
         # Perform Bedrock analysis with enhanced prompt for agenda integration
         logger.info("Performing Bedrock analysis with agenda context...")

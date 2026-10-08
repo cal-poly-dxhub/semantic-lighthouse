@@ -153,8 +153,7 @@ raw_text_key = f"processed/agenda/raw_text/{correlation_key}.txt"
 - `TRANSCRIPT_FALLBACK_MODEL_ID`: `"us.anthropic.claude-opus-4-8"`
 - `TRANSCRIPT_MAX_TOKENS`: `"64000"`
 - `TRANSCRIPT_EFFORT`: `"medium"`
-- `TRANSCRIPT_PROMPT_TEMPLATE`: Full prompt text from config file
-- `FALLBACK_AGENDA_TEXT`: Fallback agenda text from config file
+- The prompt (`transcript-analysis.txt`) and fallback agenda (`fallback-agenda.txt`) are not env vars: they ship as files next to the handler, because the prompt outgrew Lambda's 4 KB limit on environment variables
 
 **AI Model Configuration**:
 
@@ -238,30 +237,14 @@ Message includes:
 
 ### 5.1 AI Prompt Templates
 
-**Transcript Analysis Prompt** (`config/prompts/transcript-analysis.txt`):
+**Transcript Analysis Prompt** (`lambda/src/process_transcript/transcript-analysis.txt`):
 
-```
-Go through this transcript for a board meeting. The context of the board meeting should be clear from the agenda and the transcript.
-I want you to go through this and look for the segments where there is a vote taking place or where there is a topic transition.
-Refer to the agenda for more info:
+- Fills `{agenda}` and `{formatted_transcript}` and is sent as a single user message (there is no system prompt).
+- Contains a full minutes template (a made-up meeting) that the model copies: header with date, time, place and members present/absent, one heading per agenda item with its number, a `**Motion:**` line per motion, adjournment, and a closing "Draft ... not official until approved" note with an approval line.
+- Rules: names are spelled as the agenda writes them (Transcribe misspells names); unknown header fields say "Not recorded"; abstentions are not counted as no votes; unspoken times (adjournment) are counted from the call to order using the transcript timestamps; no notes about the transcript, opinions or quotes.
+- Avoid literal braces other than the two placeholders (the handler uses `str.format`), and avoid runs of underscores (Python-Markdown turns them into bold/italic).
 
-AGENDA:
-{agenda}
-
-TRANSCRIPT:
-{formatted_transcript}
-```
-
-**Fallback Agenda** (`config/prompts/fallback-agenda.txt`):
-
-```
-GENERAL MEETING AGENDA
-
-This is a standard school board meeting. Please analyze the transcript for:
-1. Opening remarks and introductions
-2. Review of previous meeting minutes
-...
-```
+**Fallback Agenda** (`lambda/src/process_transcript/fallback-agenda.txt`): a generic school board agenda used for `{agenda}` when no agenda was processed.
 
 **Agenda Analysis Prompt** (`lambda/src/agenda_processor/agenda_analysis_prompt.txt`):
 

@@ -9,19 +9,64 @@ TRANSCRIPT:
 {formatted_transcript}
 
 I want you to reference specific segments for topic transitions, segments where a vote takes place, which segments refer to which agenda item, etc. Please also mention what each agenda item is about and what the vote was about. Also include what discussions were had about each agenda item and other information.
-Always reference segment IDs when discussing parts of the transcript. For the references i want you to use the format [seg_0] or [seg_0-55] if using a range of segments.
+Always reference segment IDs when discussing parts of the transcript. For the references i want you to use the format [seg_0] or [seg_0-55] if using a range of segments. Put one segment or range in each bracket.
 
-Keep it concise, like minutes a board clerk would write: a few sentences per agenda item covering what it was about, what was decided, and the vote, not a record of everything that was said. A one-hour meeting should come to roughly a page or two. Don't add a speaker list, tables, themes or a closing summary.
+Write the minutes like a board clerk would: a few sentences per agenda item covering what it was about, what was decided, and the vote, not a record of everything that was said. A one-hour meeting should come to roughly a page or two.
 
-Example of the length and style to aim for (a made-up meeting: use only the names and facts from this transcript):
+Use exactly the format of the TEMPLATE below. It is a made-up meeting: copy its structure, headings, wording of motions and length, but use only names and facts from the agenda and transcript above.
 
-## Consent Agenda (Items 4.01-4.06)
-The board approved the personnel report, two contract awards and the March vouchers as one item [seg_12].
-**Vote:** Motion by Ms. Lee, seconded by Mr. Ortiz; passed 5-0 [seg_14-15].
+Rules for filling it in:
+- Header: take the district, meeting type, date, time and place from the agenda. List members present and absent from the roll call or the agenda. If something is in neither, write "Not recorded" instead of guessing.
+- Names: the transcript is machine-generated and often misspells names. Spell every name the way the agenda writes it (if the transcript says "Mr. Ortez" and the agenda lists Luis Ortiz, write Mr. Ortiz). Use the transcript's spelling only for people the agenda doesn't name.
+- Items: one heading per agenda item taken up, with the agenda's number and title, in the order they happened. Presentations and reports get one or two sentences on who presented what.
+- Motions: say who moved, who seconded and the result. Give the count if it was stated, and name anyone who voted no or abstained. If no count was stated, write "Carried" or "Failed". An abstention is not a no vote: write "Carried 4-0, Ms. Ruiz abstaining".
+- Times: the [HH:MM:SS] in each transcript line is time since the recording started. For a time nobody says aloud, such as adjournment, count from the call to order: if the meeting was called to order at 6:00 p.m. in a line stamped [00:00:05] and adjourned in a line stamped [01:42:10], that is 1 hour 42 minutes later, so 7:42 p.m. If the call-to-order time is unknown, write "Not recorded".
+- Closed session: list the topics only, plus any action announced afterwards.
+- End with the closing note and approval line from the template, word for word.
+- Leave out notes about the transcript itself, opinions, quotes, speaker lists, tables, themes and closing summaries.
 
-## Superintendent's Report (Item 5.01)
+TEMPLATE:
+
+# Example Valley School District Governing Board
+## Regular Meeting Minutes (Draft)
+
+**Date and time:** Wednesday, March 4, 2026, 6:00 p.m.
+
+**Place:** District Office Board Room, 100 Main Street, Example Valley
+
+**Members present:** Dana Lee (President), Luis Ortiz, Sam Grant, Ana Ruiz
+
+**Members absent:** Kim Shaw
+
+**Also present:** Dr. Raj Patel, Superintendent
+
+## 1.02 Call to Order
+President Lee called the meeting to order at 6:00 p.m. [seg_0].
+
+## 1.04 Approval of Agenda
+**Motion:** Moved by Mr. Ortiz, seconded by Ms. Ruiz. Carried 4-0 [seg_3-4].
+
+## 3.01 Public Comment
+Maria Gomez spoke about school bus routes and Tom Reed about the library budget [seg_5-12].
+
+## 4.01 Consent Agenda (Items 4.02-4.06)
+The Board approved the personnel report, two contract awards and the March vouchers as one item [seg_13].
+
+**Motion:** Moved by Ms. Lee, seconded by Mr. Ortiz. Carried 4-0 [seg_14-15].
+
+## 5.01 Superintendent's Report
 Dr. Patel recognized three teachers for district awards and previewed the spring testing schedule [seg_35-40].
 
-## 2026-27 Meeting Schedule (Item 6.02)
-Staff proposed moving meetings to the second and fourth Wednesdays. Board members asked about conflicts with school events; staff said none were found [seg_318-322].
-**Vote:** Motion by Mr. Ortiz, seconded by Ms. Lee; passed 4-1, Mr. Grant opposed [seg_323-325].
+## 6.02 2026-27 Meeting Schedule
+Staff proposed moving meetings to the second and fourth Wednesdays. Board members asked about conflicts with school events, and staff said none were found [seg_318-322].
+
+**Motion:** Moved by Mr. Ortiz, seconded by Ms. Lee. Carried 3-1, Mr. Grant opposed [seg_323-325].
+
+## 10.01 Adjournment
+**Motion:** Moved by Ms. Ruiz, seconded by Mr. Grant. Carried 4-0. The meeting adjourned at 7:42 p.m. [seg_410-411].
+
+---
+
+*Draft minutes prepared from the meeting recording. Not official until approved by the Board.*
+
+Approved by the Board President: ..............................  Date: ..................

@@ -25,7 +25,7 @@ import handler  # noqa: E402
 
 parser = argparse.ArgumentParser()
 parser.add_argument("meetings", nargs="*", help="saved meeting folder names (default: all)")
-parser.add_argument("--prompt", default=HERE / "config/prompts/transcript-analysis.txt")
+parser.add_argument("--prompt", default=HERE / "lambda/src/process_transcript/transcript-analysis.txt")
 parser.add_argument("--data", default=HERE.parent.parent / "semantic-lighthouse-data")
 args = parser.parse_args()
 
