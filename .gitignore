@@ -4,3 +4,6 @@ cdk.context.json
 # Python bytecode (the vendored Lambda layers keep theirs)
 __pycache__/
 *.pyc
+
+# Local Python environments
+.venv/

@@ -271,6 +271,20 @@ This is a standard school board meeting. Please analyze the transcript for:
 - Participant identification
 - Agenda item analysis
 
+### 5.2 Testing the minutes prompt without the pipeline
+
+`prompt-test.py` runs only the minutes call on saved meetings, so a prompt change can be checked in seconds or minutes instead of a full upload. It fills the prompt with each meeting's saved `transcript.txt` and `agenda.txt` (the exact texts the analyzer puts in), calls the real analyzer function, and writes the minutes plus a word count, timing and the old minutes' length for comparison.
+
+The saved meetings live outside this public repo in `../semantic-lighthouse-data/prompt-test/fixtures/`, one folder per meeting. Runs go to `prompt-test/runs/<timestamp>/` next to them, with a copy of the prompt used.
+
+```bash
+cd meeting-processor-cdk
+python3 -m venv .venv && .venv/bin/pip install boto3 -r lambda/src/process_transcript/requirements.txt
+AWS_PROFILE=semlighthouse .venv/bin/python prompt-test.py                      # all saved meetings
+AWS_PROFILE=semlighthouse .venv/bin/python prompt-test.py 2-tempe-2026-04-01-1h14m --prompt draft.txt
+TRANSCRIPT_MODEL_ID=us.anthropic.claude-sonnet-5-5 AWS_PROFILE=semlighthouse .venv/bin/python prompt-test.py   # another model
+```
+
 ## 6. CRITICAL INTEGRATION POINTS FOR STACK MERGING
 
 ### 6.1 Environment Variables That Need Database Integration
