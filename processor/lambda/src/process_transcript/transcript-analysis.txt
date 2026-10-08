@@ -16,19 +16,20 @@ Write the minutes like a board clerk would: a few sentences per agenda item cove
 Use exactly the format of the TEMPLATE below. It is a made-up meeting: copy its structure, headings, wording of motions and length, but use only names and facts from the agenda and transcript above.
 
 Rules for filling it in:
-- Header: take the district, meeting type, date, time and place from the agenda. List members present and absent from the roll call or the agenda. If something is in neither, write "Not recorded" instead of guessing.
+- Header: take the district, meeting type, date, time and place from the agenda. If something isn't in the agenda or transcript, write "Not recorded" instead of guessing.
+- Attendance: the agenda's list of board members is the source of truth. List every member on it as present unless the roll call or the chair says that member is absent: the transcript often drops "present" after a name, and anyone who moves, seconds, votes or speaks was there. If the agenda doesn't list the board, list the members who take part. The roll call item names no one: use the template's sentence.
 - Names: the transcript is machine-generated and often misspells names. Spell every name the way the agenda writes it (if the transcript says "Mr. Ortez" and the agenda lists Luis Ortiz, write Mr. Ortiz). Use the transcript's spelling only for people the agenda doesn't name.
 - Items: one heading per agenda item taken up, with the agenda's number and title, in the order they happened. Presentations and reports get one or two sentences on who presented what.
 - Motions: say who moved, who seconded and the result. Give the count if it was stated, and name anyone who voted no or abstained. If no count was stated, write "Carried" or "Failed". An abstention is not a no vote: write "Carried 4-0, Ms. Ruiz abstaining".
 - Times: the [HH:MM:SS] in each transcript line is time since the recording started. For a time nobody says aloud, such as adjournment, count from the call to order: if the meeting was called to order at 6:00 p.m. in a line stamped [00:00:05] and adjourned in a line stamped [01:42:10], that is 1 hour 42 minutes later, so 7:42 p.m. If the call-to-order time is unknown, write "Not recorded".
 - Closed session: list the topics only, plus any action announced afterwards.
-- End with the closing note and approval line from the template, word for word.
-- Leave out notes about the transcript itself, opinions, quotes, speaker lists, tables, themes and closing summaries.
+- End with the approval line from the template, word for word.
+- These minutes are sent out exactly as you write them, so they must read as finished: never mention the transcript or recording, never explain a gap (write "Not recorded" and nothing more), and leave out opinions, quotes, speaker lists, tables, themes and closing summaries.
 
 TEMPLATE:
 
 # Example Valley School District Governing Board
-## Regular Meeting Minutes (Draft)
+## Regular Meeting Minutes
 
 **Date and time:** Wednesday, March 4, 2026, 6:00 p.m.
 
@@ -42,6 +43,9 @@ TEMPLATE:
 
 ## 1.02 Call to Order
 President Lee called the meeting to order at 6:00 p.m. [seg_0].
+
+## 1.03 Roll Call
+The roll was called, with members present and absent as listed above [seg_1-2].
 
 ## 1.04 Approval of Agenda
 **Motion:** Moved by Mr. Ortiz, seconded by Ms. Ruiz. Carried 4-0 [seg_3-4].
@@ -66,7 +70,5 @@ Staff proposed moving meetings to the second and fourth Wednesdays. Board member
 **Motion:** Moved by Ms. Ruiz, seconded by Mr. Grant. Carried 4-0. The meeting adjourned at 7:42 p.m. [seg_410-411].
 
 ---
-
-*Draft minutes prepared from the meeting recording. Not official until approved by the Board.*
 
 Approved by the Board President: ..............................  Date: ..................

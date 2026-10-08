@@ -177,7 +177,7 @@ export class MeetingProcessorIntegration extends Construct {
           TRANSCRIPT_MODEL_ID: "us.anthropic.claude-sonnet-5",
           TRANSCRIPT_FALLBACK_MODEL_ID: "us.anthropic.claude-opus-4-8",
           TRANSCRIPT_MAX_TOKENS: "64000",
-          TRANSCRIPT_EFFORT: "medium",
+          TRANSCRIPT_EFFORT: "high",
           // The prompt and fallback agenda ship as files in the Lambda bundle
           // (lambda/src/process_transcript/*.txt): the prompt outgrew the 4 KB env var limit.
         },

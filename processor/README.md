@@ -152,7 +152,7 @@ raw_text_key = f"processed/agenda/raw_text/{correlation_key}.txt"
 - `TRANSCRIPT_MODEL_ID`: `"us.anthropic.claude-sonnet-5"`
 - `TRANSCRIPT_FALLBACK_MODEL_ID`: `"us.anthropic.claude-opus-4-8"`
 - `TRANSCRIPT_MAX_TOKENS`: `"64000"`
-- `TRANSCRIPT_EFFORT`: `"medium"`
+- `TRANSCRIPT_EFFORT`: `"high"` (medium was flaky on attendance: 1 in 3 runs marked a member absent who moved a motion; high took about 75 s and $0.17 for a 1-2 hour meeting)
 - The prompt (`transcript-analysis.txt`) and fallback agenda (`fallback-agenda.txt`) are not env vars: they ship as files next to the handler, because the prompt outgrew Lambda's 4 KB limit on environment variables
 
 **AI Model Configuration**:
@@ -240,8 +240,8 @@ Message includes:
 **Transcript Analysis Prompt** (`lambda/src/process_transcript/transcript-analysis.txt`):
 
 - Fills `{agenda}` and `{formatted_transcript}` and is sent as a single user message (there is no system prompt).
-- Contains a full minutes template (a made-up meeting) that the model copies: header with date, time, place and members present/absent, one heading per agenda item with its number, a `**Motion:**` line per motion, adjournment, and a closing "Draft ... not official until approved" note with an approval line.
-- Rules: names are spelled as the agenda writes them (Transcribe misspells names); unknown header fields say "Not recorded"; abstentions are not counted as no votes; unspoken times (adjournment) are counted from the call to order using the transcript timestamps; no notes about the transcript, opinions or quotes.
+- Contains a full minutes template (a made-up meeting) that the model copies: header with date, time, place and members present/absent, a roll call line, one heading per agenda item with its number, a `**Motion:**` line per motion, adjournment, and a blank approval/signature line. No "draft" wording: the output is meant to be sent as is, and the clerk's board software or stamp tracks draft/approved status.
+- Rules: names are spelled as the agenda writes them (Transcribe misspells names); the agenda's board list decides attendance, and a member is absent only if the roll call or chair says so (Transcribe often drops "present"); unknown header fields say "Not recorded" with no explanation; abstentions are not counted as no votes; unspoken times (adjournment) are counted from the call to order using the transcript timestamps; never mention the transcript or recording, no opinions or quotes.
 - Avoid literal braces other than the two placeholders (the handler uses `str.format`), and avoid runs of underscores (Python-Markdown turns them into bold/italic).
 
 **Fallback Agenda** (`lambda/src/process_transcript/fallback-agenda.txt`): a generic school board agenda used for `{agenda}` when no agenda was processed.

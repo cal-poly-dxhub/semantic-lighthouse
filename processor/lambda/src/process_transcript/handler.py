@@ -224,7 +224,7 @@ def analyze_transcript_with_bedrock(
             "TRANSCRIPT_FALLBACK_MODEL_ID", "us.anthropic.claude-opus-4-8"
         )
         max_tokens = int(os.environ.get("TRANSCRIPT_MAX_TOKENS", "64000"))
-        effort = os.environ.get("TRANSCRIPT_EFFORT", "medium")
+        effort = os.environ.get("TRANSCRIPT_EFFORT", "high")
 
         logger.info(
             f"Using model: {model_id}, max_tokens: {max_tokens}, effort: {effort}"
