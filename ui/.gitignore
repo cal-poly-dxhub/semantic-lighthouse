@@ -15,8 +15,6 @@ assets
 cdk.context.json
 
 .yarn
-# compiled Lambdas, built by deploy.sh
+# compiled Lambdas, built by the cdk.json build step
 lambda/dist
 
-# written by synth.sh
-template.yaml

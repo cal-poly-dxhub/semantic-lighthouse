@@ -1,5 +1,6 @@
 {
   "app": "npx ts-node --prefer-ts-exts bin/minute-maker.ts",
+  "build": "export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 && corepack yarn install --immutable && (cd lambda && corepack yarn install --immutable && corepack yarn build) && (cd frontend && corepack yarn install --frozen-lockfile && corepack yarn build)",
   "watch": {
     "include": ["**"],
     "exclude": [
