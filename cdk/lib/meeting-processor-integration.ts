@@ -193,8 +193,8 @@ export class MeetingProcessorIntegration extends Construct {
             props.videoDistribution.distributionDomainName,
           FRONTEND_DOMAIN_NAME:
             props.frontendDistribution.distributionDomainName,
-          // AI model configuration (Opus 5.5 rejects temperature; effort is the knob)
-          TRANSCRIPT_MODEL_ID: "us.anthropic.claude-opus-5-5",
+          // AI model configuration. The fallback takes over on refusals and Bedrock outages.
+          TRANSCRIPT_MODEL_ID: "us.anthropic.claude-sonnet-5",
           TRANSCRIPT_FALLBACK_MODEL_ID: "us.anthropic.claude-opus-4-8",
           TRANSCRIPT_MAX_TOKENS: "64000",
           TRANSCRIPT_EFFORT: "medium",
@@ -430,8 +430,8 @@ export class MeetingProcessorIntegration extends Construct {
         environment: {
           BUCKET_NAME: props.bucket.bucketName,
           MEETINGS_TABLE_NAME: props.meetingsTable.tableName,
-          // AI model configuration (Opus 5.5 rejects temperature and top_p)
-          AGENDA_MODEL_ID: "us.anthropic.claude-opus-5-5",
+          // AI model configuration. The fallback takes over on refusals and Bedrock outages.
+          AGENDA_MODEL_ID: "us.anthropic.claude-sonnet-5",
           AGENDA_FALLBACK_MODEL_ID: "us.anthropic.claude-opus-4-8",
           AGENDA_MAX_TOKENS: "64000",
           AGENDA_EFFORT: "medium",

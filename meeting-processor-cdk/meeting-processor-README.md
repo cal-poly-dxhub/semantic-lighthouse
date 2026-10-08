@@ -149,23 +149,20 @@ raw_text_key = f"processed/agenda/raw_text/{correlation_key}.txt"
 **Environment Variables** ⚠️ **KEY INTEGRATION POINTS**:
 
 - `S3_BUCKET`: Bucket name
-- `TRANSCRIPT_MODEL_ID`: `"us.anthropic.claude-3-7-sonnet-20250219-v1:0"`
-- `TRANSCRIPT_MAX_TOKENS`: `"8000"`
-- `TRANSCRIPT_TEMPERATURE`: `"0.2"`
+- `TRANSCRIPT_MODEL_ID`: `"us.anthropic.claude-sonnet-5"`
+- `TRANSCRIPT_FALLBACK_MODEL_ID`: `"us.anthropic.claude-opus-4-8"`
+- `TRANSCRIPT_MAX_TOKENS`: `"64000"`
+- `TRANSCRIPT_EFFORT`: `"medium"`
 - `TRANSCRIPT_PROMPT_TEMPLATE`: Full prompt text from config file
 - `FALLBACK_AGENDA_TEXT`: Fallback agenda text from config file
 
 **AI Model Configuration**:
 
-- **Primary Model**: Claude 3.7 Sonnet via Bedrock
-- **Region**: `us-west-2` (hardcoded in client)
-- **Bedrock ARNs** (hardcoded in CDK):
-  ```
-  arn:aws:bedrock:us-west-2:${account}:inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0
-  arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0
-  arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0
-  arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0
-  ```
+- **Primary Model**: Claude Sonnet 5 via Bedrock (US cross-region inference profile), called with the Anthropic Python SDK (`AnthropicBedrock`, streaming)
+- **Fallback Model**: Claude Opus 4.8. It takes over when Sonnet 5 refuses, or when Bedrock can't serve it (a 5xx or an error mid-stream). A 4xx is a bad request and fails straight away.
+- **Why Sonnet 5**: Claude 3.7 Sonnet was retired from Bedrock in mid-2026, which broke analysis. Opus 5.5 was tried next but returned 503s for every request on 2026-10-08; Sonnet 5 wrote the tersest, most clerk-like minutes of the two Sonnets at the same price (about $0.09 for a 1-hour meeting).
+- **Region**: the Lambda's own region (`AWS_REGION`)
+- **Permissions**: `bedrock:*` on `*`, so changing the model ID needs no IAM change
 
 **Key Processing Logic**:
 
@@ -216,9 +213,10 @@ Message includes:
 
 - `BUCKET_NAME`: S3 bucket name
 - `STATE_MACHINE_ARN`: Step Functions ARN for triggering combined processing
-- `AGENDA_MODEL_ID`: `"us.anthropic.claude-sonnet-4-20250514-v1:0"`
-- `AGENDA_MAX_TOKENS`: `"65535"`
-- `AGENDA_TEMPERATURE`: `"0.1"`
+- `AGENDA_MODEL_ID`: `"us.anthropic.claude-sonnet-5"`
+- `AGENDA_FALLBACK_MODEL_ID`: `"us.anthropic.claude-opus-4-8"` (same fallback rules as the analyzer)
+- `AGENDA_MAX_TOKENS`: `"64000"`
+- `AGENDA_EFFORT`: `"medium"`
 - `AWS_REGION`: For Bedrock client region
 
 **Hardcoded Configuration**:

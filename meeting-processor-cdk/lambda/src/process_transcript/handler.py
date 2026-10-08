@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 import datetime
 import re
 import markdown
-from anthropic import AnthropicBedrock
+from anthropic import AnthropicBedrock, APIStatusError
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -211,9 +211,9 @@ def analyze_transcript_with_bedrock(
         logger.info(f"Formatted prompt length: {len(formatted_prompt)} characters")
 
         # Model settings come from the Lambda's environment (set in the CDK stack).
-        # Opus 5.5 always thinks and rejects temperature, so effort is the only tuning knob,
-        # and max_tokens has to leave room for the thinking as well as the minutes.
-        model_id = os.environ.get("TRANSCRIPT_MODEL_ID", "us.anthropic.claude-opus-5-5")
+        # Effort is the tuning knob (no temperature), and max_tokens has to leave room for
+        # any thinking as well as the minutes.
+        model_id = os.environ.get("TRANSCRIPT_MODEL_ID", "us.anthropic.claude-sonnet-5")
         fallback_model_id = os.environ.get(
             "TRANSCRIPT_FALLBACK_MODEL_ID", "us.anthropic.claude-opus-4-8"
         )
@@ -231,7 +231,15 @@ def analyze_transcript_with_bedrock(
         logger.info(formatted_prompt)
         logger.info("=== END OF PROMPT TEXT ===")
 
-        message = stream_claude(model_id, max_tokens, effort, messages)
+        try:
+            message = stream_claude(model_id, max_tokens, effort, messages)
+        except APIStatusError as e:
+            # Bedrock outages and overloads (a 5xx, or an error event mid-stream) go to the
+            # fallback model too. A 4xx means the request itself is wrong, so it is raised.
+            if 400 <= e.status_code < 500:
+                raise
+            logger.warning(f"{model_id} unavailable ({e}); retrying on {fallback_model_id}")
+            message = stream_claude(fallback_model_id, max_tokens, effort, messages)
 
         # A safety decline is retried once on the fallback model, which can still decline.
         if message.stop_reason == "refusal":
@@ -249,7 +257,7 @@ def analyze_transcript_with_bedrock(
                 f"The model ran out of tokens ({max_tokens}) before finishing, so the minutes would be cut off"
             )
 
-        # Thinking blocks are skipped; only the written minutes are kept.
+        # Any thinking blocks are skipped; only the written minutes are kept.
         analysis = "".join(block.text for block in message.content if block.type == "text")
 
         # Log the complete response from LLM

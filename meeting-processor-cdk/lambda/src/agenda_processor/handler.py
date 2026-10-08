@@ -5,7 +5,7 @@ import os
 import time
 from urllib.parse import urlparse
 import re
-from anthropic import AnthropicBedrock
+from anthropic import AnthropicBedrock, APIStatusError
 
 # Set up logging
 logger = logging.getLogger()
@@ -18,7 +18,7 @@ claude = AnthropicBedrock(aws_region=os.environ.get("AWS_REGION", "us-west-2"))
 
 
 # Configuration
-MODEL_ID = os.environ.get("AGENDA_MODEL_ID", "us.anthropic.claude-opus-5-5")
+MODEL_ID = os.environ.get("AGENDA_MODEL_ID", "us.anthropic.claude-sonnet-5")
 FALLBACK_MODEL_ID = os.environ.get(
     "AGENDA_FALLBACK_MODEL_ID", "us.anthropic.claude-opus-4-8"
 )
@@ -203,8 +203,8 @@ def analyze_agenda(agenda_text):
     prompt = prompt_template.format(agenda_text=agenda_text)
 
     try:
-        # Opus 5.5 always thinks and rejects temperature and top_p, so effort is the
-        # only tuning knob, and max_tokens has to cover the thinking as well as the JSON.
+        # Effort is the tuning knob (no temperature or top_p), and max_tokens has to
+        # cover any thinking as well as the JSON.
         max_tokens = int(os.environ.get("AGENDA_MAX_TOKENS", "64000"))
         effort = os.environ.get("AGENDA_EFFORT", "medium")
 
@@ -214,7 +214,15 @@ def analyze_agenda(agenda_text):
 
         logger.info(f"Sending {len(agenda_text)} characters to model {MODEL_ID}")
 
-        message = stream_claude(MODEL_ID, max_tokens, effort, messages)
+        try:
+            message = stream_claude(MODEL_ID, max_tokens, effort, messages)
+        except APIStatusError as e:
+            # Bedrock outages and overloads (a 5xx, or an error event mid-stream) go to the
+            # fallback model too. A 4xx means the request itself is wrong, so it is raised.
+            if 400 <= e.status_code < 500:
+                raise
+            logger.warning(f"{MODEL_ID} unavailable ({e}); retrying on {FALLBACK_MODEL_ID}")
+            message = stream_claude(FALLBACK_MODEL_ID, max_tokens, effort, messages)
 
         # A safety decline is retried once on the fallback model, which can still decline.
         if message.stop_reason == "refusal":
@@ -232,8 +240,8 @@ def analyze_agenda(agenda_text):
                 f"The model ran out of tokens ({max_tokens}) before finishing the agenda analysis"
             )
 
-        # The response starts with a thinking block, so join the text blocks instead of
-        # reading content[0].
+        # The response can start with a thinking block, so join the text blocks instead
+        # of reading content[0].
         analysis_text = "".join(
             block.text for block in message.content if block.type == "text"
         )
