@@ -114,7 +114,7 @@ Additionally other AWS services are used for additional functionality
 1. Bootstrap your AWS account:
 
 ```bash
-cd ui
+cd cdk
 cdk bootstrap
 cd ..
 ```
@@ -122,7 +122,7 @@ cd ..
 2. Deploy the stack
 
 ```bash
-cd ui
+cd cdk
 cdk deploy
 cd ..
 ```

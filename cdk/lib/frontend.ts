@@ -71,13 +71,13 @@ export class FrontendResources extends Construct {
       }
     );
 
-    // the site is built locally (cdk.json's build step runs `yarn build` in ui/frontend) and uploaded
+    // the site is built locally (cdk.json's build step runs `yarn build` in cdk/frontend) and uploaded
     // as-is. values that only exist after deploy go in /config.json, filled in by
     // CloudFormation, and the app reads it at startup.
     const siteDir = path.join(__dirname, "../frontend/out");
     if (!fs.existsSync(path.join(siteDir, "index.html"))) {
       throw new Error(
-        `No frontend build at ${siteDir}. Run \`yarn build\` in ui/frontend first (cdk synth and cdk deploy do this).`
+        `No frontend build at ${siteDir}. Run \`yarn build\` in cdk/frontend first (cdk synth and cdk deploy do this).`
       );
     }
 
