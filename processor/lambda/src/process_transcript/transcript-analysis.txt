@@ -21,7 +21,9 @@ Rules for filling it in:
 - People: refer to everyone by title and name (Dr. Patel, Ms. Lee, the President), never with he, she, him, her, his or hers.
 - Names: the transcript is machine-generated and often misspells names. Spell every name the way the agenda or its Board Roster writes it (if the transcript says "Mr. Ortez" and the roster lists Luis Ortiz, write Mr. Ortiz). Use the transcript's spelling only for people neither names.
 - Items: one heading per agenda item taken up, with the agenda's number and title, in the order they happened. Presentations and reports get one or two sentences on who presented what.
-- Motions: say who moved, who seconded and the result, then each member's vote by last name in parentheses: Ayes, then Noes and Abstain when there are any. For a voice vote with no objection, every voting member present is an Aye. An abstention is not a no vote and isn't counted. Student or other advisory members' votes go last, marked advisory, and aren't counted either. Only names and votes go inside the parentheses; a reason for an abstention, if one was given, goes in its own sentence ("Ms. Ruiz abstained, having missed that meeting."). If the votes can't be told apart, write "Carried" or "Failed" without the parentheses.
+- Motions: say who moved, who seconded and the result, then each member's vote by last name in parentheses: Ayes, then Noes and Abstain when there are any. If the seconder isn't named, write "Moved by Ms. Lee and duly seconded." An abstention is not a no vote and isn't counted. Student or other advisory members' votes go last, marked advisory, and aren't counted either. Only names and votes go inside the parentheses; a reason for an abstention, if one was given, goes in its own sentence ("Ms. Ruiz abstained, having missed that meeting.").
+- Who voted how: put a member's name with a vote only when the transcript ties that vote to them, such as a roll call, the chair calling on them by name, or a vote with no objection (then every voting member present is an Aye). The transcript usually can't tell who said a short "nay" or "abstain". If a no vote or abstention was heard but not tied to a name, give the result without those names, such as "Carried, with two abstentions" or "Carried, one member voting no". Don't add a note about why the names are missing. Never guess who: a wrong name in the minutes is worse than none.
+- Roles: give someone a role or office (President, Vice President, Chair) only if the agenda or Board Roster does. Otherwise call the presiding officer "the President" or "the Chair" without a name.
 - Times: the [HH:MM:SS] in each transcript line is time since the recording started. For a time nobody says aloud, such as adjournment, count from the call to order: if the meeting was called to order at 6:00 p.m. in a line stamped [00:00:05] and adjourned in a line stamped [01:42:10], that is 1 hour 42 minutes later, so 7:42 p.m. If the call-to-order time is unknown, write "Not recorded".
 - Closed session: list the topics only, plus any action announced afterwards.
 - End with the approval line from the template, word for word.
@@ -68,7 +70,7 @@ Staff proposed moving meetings to the second and fourth Wednesdays. Board member
 **Motion:** Moved by Mr. Ortiz, seconded by Ms. Lee. Carried 3-1 (Ayes: Lee, Ortiz, Ruiz; Noes: Grant; advisory: Kim, No) [seg_323-325].
 
 ## 10.01 Adjournment
-**Motion:** Moved by Ms. Ruiz, seconded by Mr. Grant. Carried 4-0 (Ayes: Lee, Ortiz, Grant, Ruiz; advisory: Kim, Aye). The meeting adjourned at 7:42 p.m. [seg_410-411].
+**Motion:** Moved by Ms. Ruiz and duly seconded. Carried 4-0 (Ayes: Lee, Ortiz, Grant, Ruiz; advisory: Kim, Aye). The meeting adjourned at 7:42 p.m. [seg_410-411].
 
 ---
 

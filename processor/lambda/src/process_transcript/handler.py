@@ -16,6 +16,41 @@ dynamodb_client = boto3.client("dynamodb")
 claude = AnthropicBedrock(aws_region=os.environ.get("AWS_REGION", "us-west-2"))
 
 
+def format_agenda_text(agenda_analysis):
+    """Turn the agenda step's JSON analysis into the agenda text the minutes prompt gets."""
+    agenda_text = f"""AGENDA ANALYSIS FROM UPLOADED DOCUMENT:
+
+Meeting Information:
+- Title: {agenda_analysis.get('meeting_metadata', {}).get('meeting_title', 'Not specified')}
+- Date: {agenda_analysis.get('meeting_metadata', {}).get('meeting_date', 'Not specified')}
+- Time: {agenda_analysis.get('meeting_metadata', {}).get('meeting_time', 'Not specified')}
+- Location: {agenda_analysis.get('meeting_metadata', {}).get('meeting_location', 'Not specified')}
+- Type: {agenda_analysis.get('meeting_metadata', {}).get('meeting_type', 'Not specified')}
+
+Participants:"""
+
+    for participant in agenda_analysis.get("participants", []):
+        agenda_text += f"\n- {participant.get('name', 'Unknown')} ({participant.get('role', 'No role specified')}) - {participant.get('attendance_status', 'Unknown status')}"
+
+    agenda_text += "\n\nAgenda Items:"
+    for item in agenda_analysis.get("agenda_items", []):
+        agenda_text += f"\n- {item.get('item_number', '')}: {item.get('title', 'Untitled')} - {item.get('description', 'No description')}"
+        if item.get("presenter"):
+            agenda_text += f" (Presenter: {item['presenter']})"
+
+    if agenda_analysis.get("background_context"):
+        agenda_text += (
+            f"\n\nBackground Context:\n{agenda_analysis['background_context']}"
+        )
+
+    if agenda_analysis.get("action_items_expected"):
+        agenda_text += "\n\nExpected Action Items:"
+        for action in agenda_analysis["action_items_expected"]:
+            agenda_text += f"\n- {action}"
+
+    return agenda_text
+
+
 def get_board_roster(video_key):
     """The board roster the clerk entered at upload (stored on the meeting record), or ""."""
     if "/meeting_recordings/" not in (video_key or ""):
@@ -373,6 +408,13 @@ def generate_html_from_analysis(analysis_text, job_name, bucket_name, for_print=
         # Convert markdown to HTML
         html_body = markdown.markdown(html_content)
 
+        # Box every motion ("**Motion:**", "**Motion to adjourn:**", ...) so actions stand out when scanning
+        html_body = re.sub(
+            r"<p><strong>(Motion[^<]*:)</strong>",
+            r'<p class="motion"><strong>\1</strong>',
+            html_body,
+        )
+
         # Create full HTML document with styling
         html_document = f"""
 <!DOCTYPE html>
@@ -427,6 +469,17 @@ def generate_html_from_analysis(analysis_text, job_name, bucket_name, for_print=
         a:hover {{
             color: #e74c3c;
             text-decoration: underline;
+        }}
+        .motion {{
+            /* Like the vote blocks in BoardDocs minutes: a soft filled box with a gavel, no border */
+            background-color: #edf1f7;
+            background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjM2Q0YjVjIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTEzIDEwbDcuMzgzIDcuNDE4Yy44MjMgLjgyIC44MjMgMi4xNDggMCAyLjk2N2EyLjExIDIuMTEgMCAwIDEgLTIuOTc2IDBsLTcuNDA3IC03LjM4NSIvPjxwYXRoIGQ9Ik02IDlsNCA0Ii8+PHBhdGggZD0iTTEzIDEwbC00IC00Ii8+PHBhdGggZD0iTTMgMjFoNyIvPjxwYXRoIGQ9Ik02Ljc5MyAxNS43OTNsLTMuNTg2IC0zLjU4NmExIDEgMCAwIDEgMCAtMS40MTRsMi4yOTMgLTIuMjkzbC41IC41bDMgLTNsLS41IC0uNWwyLjI5MyAtMi4yOTNhMSAxIDAgMCAxIDEuNDE0IDBsMy41ODYgMy41ODZhMSAxIDAgMCAxIDAgMS40MTRsLTIuMjkzIDIuMjkzbC0uNSAtLjVsLTMgM2wuNSAuNWwtMi4yOTMgMi4yOTNhMSAxIDAgMCAxIC0xLjQxNCAwIi8+PC9zdmc+");
+            background-repeat: no-repeat;
+            background-position: 16px center;
+            background-size: 18px 18px;
+            border-radius: 8px;
+            padding: 14px 18px 14px 48px;
+            margin: 12px 0 18px;
         }}
         .footer {{
             text-align: center;
@@ -1085,36 +1138,7 @@ def process_transcript_analysis(
             logger.info("Using agenda data from uploaded PDF document")
             agenda_analysis = agenda_data["analysis_data"]
 
-            # Convert agenda analysis to text format for the prompt
-            agenda_text = f"""AGENDA ANALYSIS FROM UPLOADED DOCUMENT:
-
-Meeting Information:
-- Title: {agenda_analysis.get('meeting_metadata', {}).get('meeting_title', 'Not specified')}
-- Date: {agenda_analysis.get('meeting_metadata', {}).get('meeting_date', 'Not specified')}
-- Time: {agenda_analysis.get('meeting_metadata', {}).get('meeting_time', 'Not specified')}
-- Location: {agenda_analysis.get('meeting_metadata', {}).get('meeting_location', 'Not specified')}
-- Type: {agenda_analysis.get('meeting_metadata', {}).get('meeting_type', 'Not specified')}
-
-Participants:"""
-
-            for participant in agenda_analysis.get("participants", []):
-                agenda_text += f"\n- {participant.get('name', 'Unknown')} ({participant.get('role', 'No role specified')}) - {participant.get('attendance_status', 'Unknown status')}"
-
-            agenda_text += "\n\nAgenda Items:"
-            for item in agenda_analysis.get("agenda_items", []):
-                agenda_text += f"\n- {item.get('item_number', '')}: {item.get('title', 'Untitled')} - {item.get('description', 'No description')}"
-                if item.get("presenter"):
-                    agenda_text += f" (Presenter: {item['presenter']})"
-
-            if agenda_analysis.get("background_context"):
-                agenda_text += (
-                    f"\n\nBackground Context:\n{agenda_analysis['background_context']}"
-                )
-
-            if agenda_analysis.get("action_items_expected"):
-                agenda_text += "\n\nExpected Action Items:"
-                for action in agenda_analysis["action_items_expected"]:
-                    agenda_text += f"\n- {action}"
+            agenda_text = format_agenda_text(agenda_analysis)
 
             logger.info(
                 f"Using enhanced agenda data with {len(agenda_analysis.get('agenda_items', []))} agenda items"
