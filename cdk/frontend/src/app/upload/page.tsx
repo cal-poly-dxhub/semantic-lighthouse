@@ -6,18 +6,26 @@ import {
   Alert,
   Button,
   Container,
+  Group,
   Paper,
   Progress,
   Select,
   Text,
+  Textarea,
   TextInput,
   Title,
+  Tooltip,
   useMantineTheme,
 } from "@mantine/core";
 import { Dropzone, FileWithPath } from "@mantine/dropzone";
 import { useForm } from "@mantine/form";
-import { IconCloudUpload, IconFile, IconVideo } from "@tabler/icons-react";
-import { useState } from "react";
+import {
+  IconCloudUpload,
+  IconFile,
+  IconInfoCircle,
+  IconVideo,
+} from "@tabler/icons-react";
+import { useEffect, useRef, useState } from "react";
 
 export default function UploadPage() {
   const theme = useMantineTheme();
@@ -38,6 +46,7 @@ export default function UploadPage() {
       meetingDate: "",
       description: "",
       visibility: "",
+      boardRoster: "",
     },
     validate: {
       meetingTitle: (value: string) =>
@@ -47,8 +56,27 @@ export default function UploadPage() {
       description: (value: string) =>
         value.length > 500 ? "Description cannot exceed 500 characters" : null,
       visibility: (value: string) => (!value ? "Visibility is required" : null),
+      boardRoster: (value: string) =>
+        value.length > 3000 ? "Board members cannot exceed 3000 characters" : null,
     },
   });
+
+  // Prefill the board roster saved on the account, once per sign-in
+  const rosterLoaded = useRef(false);
+  useEffect(() => {
+    if (!user || rosterLoaded.current) return;
+    rosterLoaded.current = true;
+    (async () => {
+      const { data, error } = await apiRequest<{ boardRoster: string }>(
+        "GET",
+        "users/roster"
+      );
+      if (error === null && data.boardRoster) {
+        form.setFieldValue("boardRoster", data.boardRoster);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- form is stable for this
+  }, [apiRequest, user]);
 
   const handleVideoUpload = (files: FileWithPath[]) => {
     if (files.length > 0 && files.length <= 1) {
@@ -83,6 +111,7 @@ export default function UploadPage() {
     meetingDate: string;
     description: string;
     visibility: string;
+    boardRoster: string;
   }) => {
     if (!user) {
       setError("You must be logged in to upload files");
@@ -116,6 +145,7 @@ export default function UploadPage() {
           meetingDate: values.meetingDate,
           meetingDescription: values.description,
           videoVisibility: values.visibility,
+          boardRoster: values.boardRoster,
         },
       });
 
@@ -179,8 +209,9 @@ export default function UploadPage() {
         `Meeting "${values.meetingTitle}" uploaded successfully! Processing will begin shortly.`
       );
 
-      // reset
+      // reset (the board roster stays, it's saved on the account)
       form.reset();
+      form.setFieldValue("boardRoster", values.boardRoster);
       setVideoFile(null);
       setAgendaFile(null);
       setUploadProgress(0);
@@ -371,6 +402,28 @@ export default function UploadPage() {
               )}
             </div>
           </Dropzone>
+
+          <Textarea
+            label={
+              <Group gap={4} component="span" display="inline-flex">
+                Board members (optional)
+                <Tooltip
+                  multiline
+                  w={300}
+                  withArrow
+                  label="One name per line, with a role if you like (for example: Jane Doe, President). The minutes use these exact spellings and list each member's vote by name. Saved to your account, so you only enter it once."
+                >
+                  <IconInfoCircle size={15} style={{ cursor: "help" }} />
+                </Tooltip>
+              </Group>
+            }
+            placeholder={"Jane Doe, President\nSam Lee, Student Trustee"}
+            autosize
+            minRows={2}
+            maxRows={8}
+            mt="md"
+            {...form.getInputProps("boardRoster")}
+          />
 
           {loading && (
             <div style={{ marginTop: "1rem" }}>

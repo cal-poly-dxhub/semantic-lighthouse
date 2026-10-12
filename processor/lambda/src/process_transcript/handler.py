@@ -12,7 +12,39 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 s3_client = boto3.client("s3")
+dynamodb_client = boto3.client("dynamodb")
 claude = AnthropicBedrock(aws_region=os.environ.get("AWS_REGION", "us-west-2"))
+
+
+def get_board_roster(video_key):
+    """The board roster the clerk entered at upload (stored on the meeting record), or ""."""
+    if "/meeting_recordings/" not in (video_key or ""):
+        return ""
+    meeting_id = video_key.split("/meeting_recordings/")[1].rsplit(".", 1)[0]
+    try:
+        items = dynamodb_client.query(
+            TableName=os.environ["MEETINGS_TABLE_NAME"],
+            KeyConditionExpression="meetingId = :meetingId",
+            ExpressionAttributeValues={":meetingId": {"S": meeting_id}},
+            Limit=1,
+        )["Items"]
+    except Exception as e:
+        # Minutes without a roster beat no minutes
+        logger.warning(f"Could not read the board roster for meeting {meeting_id}: {e}")
+        return ""
+    return items[0].get("boardRoster", {}).get("S", "") if items else ""
+
+
+def add_board_roster(agenda_text, roster):
+    """Append the clerk's board roster to the agenda text the prompt gets."""
+    names = [line.strip() for line in (roster or "").splitlines() if line.strip()]
+    if not names:
+        return agenda_text
+    return (
+        agenda_text
+        + "\n\nBoard Roster (entered by the clerk, use these spellings and roles):\n"
+        + "\n".join(f"- {name}" for name in names)
+    )
 
 
 def read_prompt_file(name):
@@ -1092,6 +1124,11 @@ Participants:"""
                 "No agenda data available - using fallback agenda from fallback-agenda.txt..."
             )
             agenda_text = read_prompt_file("fallback-agenda.txt")
+
+        roster = get_board_roster((video_info or {}).get("key"))
+        if roster:
+            logger.info("Adding the board roster entered at upload to the agenda")
+        agenda_text = add_board_roster(agenda_text, roster)
 
         # Perform Bedrock analysis with enhanced prompt for agenda integration
         logger.info("Performing Bedrock analysis with agenda context...")

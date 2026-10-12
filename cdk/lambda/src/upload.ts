@@ -1,4 +1,8 @@
-import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
+import {
+  DynamoDBClient,
+  PutItemCommand,
+  UpdateItemCommand,
+} from "@aws-sdk/client-dynamodb";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
@@ -100,7 +104,9 @@ export const handler = async (
     !body.meetingTitle ||
     !body.meetingDate ||
     !body.videoVisibility ||
-    body.meetingDescription.length > 500
+    body.meetingDescription.length > 500 ||
+    (body.boardRoster !== undefined &&
+      (typeof body.boardRoster !== "string" || body.boardRoster.length > 3000))
   ) {
     console.error("ERROR: Invalid request body:", body);
 
@@ -110,10 +116,13 @@ export const handler = async (
       body: JSON.stringify({
         error: "Invalid request body",
         details:
-          "Please provide meetingTitle, meetingDate, visibility and a description (max 500 characters).",
+          "Please provide meetingTitle, meetingDate, visibility, a description (max 500 characters) and an optional board roster (max 3000 characters).",
       }),
     };
   }
+
+  const boardRoster =
+    typeof body.boardRoster === "string" ? body.boardRoster.trim() : "";
 
   try {
     const videoKey = `uploads/meeting_recordings/${meetingId}.mp4`;
@@ -167,10 +176,29 @@ export const handler = async (
 
         // Timestamps
         updatedAt: { S: new Date().toISOString() },
+
+        // Optional board roster: the minutes spell names and list votes from it
+        ...(boardRoster ? { boardRoster: { S: boardRoster } } : {}),
       },
     });
 
     await dynamoClient.send(putCommand);
+
+    // Remember the roster on the account so the upload form can prefill it next time
+    if (body.boardRoster !== undefined) {
+      await dynamoClient.send(
+        new UpdateItemCommand({
+          TableName: process.env.USER_PREFERENCES_TABLE_NAME,
+          Key: { userId: { S: userId } },
+          UpdateExpression: boardRoster
+            ? "SET boardRoster = :roster"
+            : "REMOVE boardRoster",
+          ...(boardRoster
+            ? { ExpressionAttributeValues: { ":roster": { S: boardRoster } } }
+            : {}),
+        })
+      );
+    }
 
     console.log(
       `INFO: Meeting ${meetingId} associated with user ${userId} (${userEmail})`

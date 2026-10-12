@@ -17,11 +17,11 @@ Use exactly the format of the TEMPLATE below. It is a made-up meeting: copy its 
 
 Rules for filling it in:
 - Header: take the district, meeting type, date, time and place from the agenda. If something isn't in the agenda or transcript, write "Not recorded" instead of guessing.
-- Attendance: the agenda's list of board members is the source of truth. List every member on it as present unless the roll call or the chair says that member is absent: the transcript often drops "present" after a name, and anyone who moves, seconds, votes or speaks was there. If the agenda doesn't list the board, list the members who take part. The roll call item names no one: use the template's sentence.
+- Attendance: the agenda's list of board members, or the Board Roster at the end of the agenda when there is one, is the source of truth. List every member on it as present unless the roll call or the chair says that member is absent: the transcript often drops "present" after a name, and anyone who moves, seconds, votes or speaks was there. If neither lists the board, list the members who take part. Student or other advisory members go on the present line, marked as such. The roll call item names no one: use the template's sentence.
 - People: refer to everyone by title and name (Dr. Patel, Ms. Lee, the President), never with he, she, him, her, his or hers.
-- Names: the transcript is machine-generated and often misspells names. Spell every name the way the agenda writes it (if the transcript says "Mr. Ortez" and the agenda lists Luis Ortiz, write Mr. Ortiz). Use the transcript's spelling only for people the agenda doesn't name.
+- Names: the transcript is machine-generated and often misspells names. Spell every name the way the agenda or its Board Roster writes it (if the transcript says "Mr. Ortez" and the roster lists Luis Ortiz, write Mr. Ortiz). Use the transcript's spelling only for people neither names.
 - Items: one heading per agenda item taken up, with the agenda's number and title, in the order they happened. Presentations and reports get one or two sentences on who presented what.
-- Motions: say who moved, who seconded and the result. Give the count if it was stated, and name anyone who voted no or abstained. If no count was stated, write "Carried" or "Failed". An abstention is not a no vote: write "Carried 4-0, Ms. Ruiz abstaining".
+- Motions: say who moved, who seconded and the result, then each member's vote by last name in parentheses: Ayes, then Noes and Abstain when there are any. For a voice vote with no objection, every voting member present is an Aye. An abstention is not a no vote and isn't counted. Student or other advisory members' votes go last, marked advisory, and aren't counted either. Only names and votes go inside the parentheses; a reason for an abstention, if one was given, goes in its own sentence ("Ms. Ruiz abstained, having missed that meeting."). If the votes can't be told apart, write "Carried" or "Failed" without the parentheses.
 - Times: the [HH:MM:SS] in each transcript line is time since the recording started. For a time nobody says aloud, such as adjournment, count from the call to order: if the meeting was called to order at 6:00 p.m. in a line stamped [00:00:05] and adjourned in a line stamped [01:42:10], that is 1 hour 42 minutes later, so 7:42 p.m. If the call-to-order time is unknown, write "Not recorded".
 - Closed session: list the topics only, plus any action announced afterwards.
 - End with the approval line from the template, word for word.
@@ -36,7 +36,7 @@ TEMPLATE:
 
 **Place:** District Office Board Room, 100 Main Street, Example Valley
 
-**Members present:** Dana Lee (President), Luis Ortiz, Sam Grant, Ana Ruiz
+**Members present:** Dana Lee (President), Luis Ortiz, Sam Grant, Ana Ruiz; Jordan Kim (student member, advisory vote)
 
 **Members absent:** Kim Shaw
 
@@ -49,7 +49,7 @@ President Lee called the meeting to order at 6:00 p.m. [seg_0].
 The roll was called, with members present and absent as listed above [seg_1-2].
 
 ## 1.04 Approval of Agenda
-**Motion:** Moved by Mr. Ortiz, seconded by Ms. Ruiz. Carried 4-0 [seg_3-4].
+**Motion:** Moved by Mr. Ortiz, seconded by Ms. Ruiz. Carried 4-0 (Ayes: Lee, Ortiz, Grant, Ruiz; advisory: Kim, Aye) [seg_3-4].
 
 ## 3.01 Public Comment
 Maria Gomez spoke about school bus routes and Tom Reed about the library budget [seg_5-12].
@@ -57,7 +57,7 @@ Maria Gomez spoke about school bus routes and Tom Reed about the library budget 
 ## 4.01 Consent Agenda (Items 4.02-4.06)
 The Board approved the personnel report, two contract awards and the March vouchers as one item [seg_13].
 
-**Motion:** Moved by Ms. Lee, seconded by Mr. Ortiz. Carried 4-0 [seg_14-15].
+**Motion:** Moved by Ms. Lee, seconded by Mr. Ortiz. Carried 3-0 (Ayes: Lee, Ortiz, Grant; Abstain: Ruiz; advisory: Kim, Aye) [seg_14-15].
 
 ## 5.01 Superintendent's Report
 Dr. Patel recognized three teachers for district awards and previewed the spring testing schedule [seg_35-40].
@@ -65,10 +65,10 @@ Dr. Patel recognized three teachers for district awards and previewed the spring
 ## 6.02 2026-27 Meeting Schedule
 Staff proposed moving meetings to the second and fourth Wednesdays. Board members asked about conflicts with school events, and staff said none were found [seg_318-322].
 
-**Motion:** Moved by Mr. Ortiz, seconded by Ms. Lee. Carried 3-1, Mr. Grant opposed [seg_323-325].
+**Motion:** Moved by Mr. Ortiz, seconded by Ms. Lee. Carried 3-1 (Ayes: Lee, Ortiz, Ruiz; Noes: Grant; advisory: Kim, No) [seg_323-325].
 
 ## 10.01 Adjournment
-**Motion:** Moved by Ms. Ruiz, seconded by Mr. Grant. Carried 4-0. The meeting adjourned at 7:42 p.m. [seg_410-411].
+**Motion:** Moved by Ms. Ruiz, seconded by Mr. Grant. Carried 4-0 (Ayes: Lee, Ortiz, Grant, Ruiz; advisory: Kim, Aye). The meeting adjourned at 7:42 p.m. [seg_410-411].
 
 ---
 

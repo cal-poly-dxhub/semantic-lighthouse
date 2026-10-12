@@ -1,7 +1,8 @@
 """Run only the minutes AI call on saved meetings, so the prompt can be tuned without the pipeline.
 
 Each saved meeting is a folder holding transcript.txt and agenda.txt (the two texts the analyzer
-fills into the prompt) and optionally baseline.md (older minutes to compare with). They live in
+fills into the prompt), optionally roster.txt (the board roster a clerk would enter at upload,
+one name per line) and baseline.md (older minutes to compare with). They live in
 the private data folder next to the repo, at semantic-lighthouse-data/prompt-test/fixtures.
 
     python prompt-test.py                                   # every saved meeting
@@ -46,8 +47,12 @@ def run(name):
     folder = fixtures / name
     start = time.time()
     try:
+        agenda = (folder / "agenda.txt").read_text()
+        roster = folder / "roster.txt"
+        if roster.exists():
+            agenda = handler.add_board_roster(agenda, roster.read_text())
         minutes = handler.analyze_transcript_with_bedrock(
-            (folder / "transcript.txt").read_text(), prompt, (folder / "agenda.txt").read_text()
+            (folder / "transcript.txt").read_text(), prompt, agenda
         )
     except Exception as e:
         return f"{name}: FAILED after {time.time() - start:.0f}s: {e}"

@@ -142,7 +142,7 @@ cd ..
 
 ### 3. Using the System
 
-1. Upload meeting video (MP4) and agenda (PDF)
+1. Upload meeting video (MP4) and agenda (PDF). Optionally list the board members (one per line, with roles such as "student trustee") so the minutes spell names right and list each member's vote; it's saved to your account
 2. System will automatically begin processing
 3. Progress can be monitored in the dashboard
 4. When processing completes you get an email with a link to the minutes page (sign in to open it). It has the PDF, ready to send, and an interactive version that links each item to that moment in the video

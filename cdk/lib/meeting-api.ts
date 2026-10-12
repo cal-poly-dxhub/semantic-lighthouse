@@ -58,6 +58,7 @@ export class MeetingApiResources extends Construct {
         MEETINGS_BUCKET_NAME: props.meetingsBucket.bucketName,
         CLOUDFRONT_DOMAIN_NAME: props.videoDistribution.distributionDomainName,
         MEETINGS_TABLE_NAME: props.meetingsTable.tableName,
+        USER_PREFERENCES_TABLE_NAME: props.userPreferencesTable.tableName,
       },
       logGroup: new cdk.aws_logs.LogGroup(this, "UploadLambdaLogGroup", {
         removalPolicy: cdk.RemovalPolicy.DESTROY,
@@ -67,6 +68,8 @@ export class MeetingApiResources extends Construct {
 
     props.meetingsTable.grantReadWriteData(uploadLambda);
     props.meetingsBucket.grantReadWrite(uploadLambda);
+    // saves the optional board roster to the account
+    props.userPreferencesTable.grantReadWriteData(uploadLambda);
 
     uploadResource.addMethod(
       "POST",
@@ -294,6 +297,31 @@ export class MeetingApiResources extends Construct {
     setupUserResource.addMethod(
       "POST",
       new cdk.aws_apigateway.LambdaIntegration(setupUserLambda),
+      {
+        authorizationType: cdk.aws_apigateway.AuthorizationType.COGNITO,
+        authorizer: this.authorizer,
+      }
+    );
+
+    // /users/roster - the board roster saved on the account, to prefill the upload form
+    const rosterResource = usersResource.addResource("roster");
+    const rosterLambda = new cdk.aws_lambda.Function(this, "RosterLambda", {
+      runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
+      handler: "roster.handler",
+      code: cdk.aws_lambda.Code.fromAsset("lambda/dist/auth"),
+      environment: {
+        USER_PREFERENCES_TABLE_NAME: props.userPreferencesTable.tableName,
+      },
+      logGroup: new cdk.aws_logs.LogGroup(this, "RosterLambdaLogGroup", {
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        retention: cdk.aws_logs.RetentionDays.ONE_WEEK,
+      }),
+    });
+
+    props.userPreferencesTable.grantReadData(rosterLambda);
+    rosterResource.addMethod(
+      "GET",
+      new cdk.aws_apigateway.LambdaIntegration(rosterLambda),
       {
         authorizationType: cdk.aws_apigateway.AuthorizationType.COGNITO,
         authorizer: this.authorizer,
