@@ -183,26 +183,22 @@ raw_text_key = f"processed/agenda/raw_text/{correlation_key}.txt"
 
 ### 4.5 Email Notification Sender (`lambda/src/email_sender/handler.py`)
 
-**Purpose**: Sends completion notifications via SNS
+**Purpose**: Records where the finished minutes are and emails the user a link to them via their SNS topic
 
-**Environment Variables** ⚠️ **CRITICAL INTEGRATION POINT**:
+**Environment Variables**:
 
-- `SNS_TOPIC_ARN`: SNS topic ARN
-- `NOTIFICATION_EMAIL`: `"user@example.com"` ⚠️ **HARDCODED DEFAULT EMAIL**
+- `MEETINGS_TABLE_NAME`, `USER_PREFERENCES_TABLE_NAME`: find the meeting's owner and their SNS topic
+- `FRONTEND_DOMAIN_NAME`: the site the email links to
 
-**Presigned URL Configuration**:
+**What it does**:
 
-- `PRESIGNED_URL_EXPIRATION = 7 * 24 * 60 * 60`: 7 days (hardcoded)
+1. Gets the meetingId from the uploaded video's name and looks up the owner's SNS topic.
+2. Writes `htmlS3Key`, `pdfS3Key` and `status = "processing-complete"` onto the meeting record.
+3. Emails one link, `https://<frontend>/minutes?id=<meetingId>`. That page asks the user to sign in, then calls `GET /{meetingId}/minutes` (Cognito-protected), which returns fresh one-hour links to the PDF (downloaded as "<meeting title> - Minutes.pdf") and the interactive HTML.
 
-**Email Template** (hardcoded in function):
+Links are not put in the email itself: a presigned URL signed inside a Lambda only lasts as long as the Lambda's temporary credentials (hours), whatever expiry it asks for, so the old "7 days" links died the same day.
 
-```
-Subject: "Your meeting transcript is ready"
-Message includes:
-- HTML download link (interactive)
-- PDF download link (printable)
-- 7-day expiration notice
-```
+**Outputs per meeting**: `analysis/<job>_analysis.html` (interactive, every `[seg_N]` links to the video, linked from the minutes page), `analysis/print/<job>_analysis.html` (no segment references or footer), and `analysis/<job>_analysis.pdf`, made from the print copy.
 
 ### 4.6 Agenda Document Processor (`lambda/src/agenda_processor/handler.py`)
 

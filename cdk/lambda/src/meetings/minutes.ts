@@ -5,7 +5,10 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 
 interface ResponseBody {
   meetingId: string;
-  presignedUrl: string;
+  meetingTitle: string;
+  meetingDate: string;
+  pdfUrl: string;
+  htmlUrl: string;
 }
 
 const corsHeaders = {
@@ -61,7 +64,8 @@ function extractUserFromToken(
 }
 
 /**
- * lambda to generate presigned url for minutes.pdf with user ownership verification
+ * lambda to generate fresh presigned urls for a meeting's minutes (PDF and interactive HTML),
+ * with user ownership verification. The email links to the minutes page, which calls this.
  * @param event
  */
 export const handler = async (
@@ -151,24 +155,46 @@ export const handler = async (
     // =================================================================
     // GENERATE PRESIGNED URL FOR USER'S MEETING MINUTES
     // =================================================================
-    const key = `${meetingId}/minutes.pdf`;
+    // The email step records where the minutes are when it marks the meeting complete
+    const pdfKey = meeting.pdfS3Key?.S;
+    const htmlKey = meeting.htmlS3Key?.S;
+    if (!pdfKey || !htmlKey) {
+      return {
+        statusCode: 404,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: "Minutes not found for this meeting." }),
+      };
+    }
 
-    const command = new GetObjectCommand({
-      Bucket: process.env.MEETINGS_BUCKET_NAME,
-      Key: key,
-    });
+    const meetingTitle = meeting.meetingTitle?.S || "Meeting";
+    // Download the PDF under the meeting's name instead of the job id
+    const pdfFileName = `${meetingTitle.replace(/[^A-Za-z0-9 ._-]/g, "").trim() || "Meeting"} - Minutes.pdf`;
 
-    const presignedUrl = await getSignedUrl(s3Client, command, {
-      expiresIn: 3600, // 1 hour
-    });
+    const pdfUrl = await getSignedUrl(
+      s3Client,
+      new GetObjectCommand({
+        Bucket: process.env.MEETINGS_BUCKET_NAME,
+        Key: pdfKey,
+        ResponseContentDisposition: `attachment; filename="${pdfFileName}"`,
+      }),
+      { expiresIn: 3600 } // 1 hour; the page asks for new links on every visit
+    );
+    const htmlUrl = await getSignedUrl(
+      s3Client,
+      new GetObjectCommand({ Bucket: process.env.MEETINGS_BUCKET_NAME, Key: htmlKey }),
+      { expiresIn: 3600 }
+    );
 
     console.log(
-      `INFO: Generated minutes presigned URL for user ${userId}, meeting ${meetingId}`
+      `INFO: Generated minutes links for user ${userId}, meeting ${meetingId}`
     );
 
     const responseBody: ResponseBody = {
       meetingId,
-      presignedUrl,
+      meetingTitle,
+      meetingDate: meeting.meetingDate?.S || "",
+      pdfUrl,
+      htmlUrl,
     };
 
     return {

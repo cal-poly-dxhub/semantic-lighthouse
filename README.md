@@ -145,7 +145,7 @@ cd ..
 1. Upload meeting video (MP4) and agenda (PDF)
 2. System will automatically begin processing
 3. Progress can be monitored in the dashboard
-4. Download generated minutes when processing completes
+4. When processing completes you get an email with a link to the minutes page (sign in to open it). It has the PDF, ready to send, and an interactive version that links each item to that moment in the video
 
 ## Troubleshooting
 

@@ -35,6 +35,11 @@ function LoginPage() {
 
   const searchParams = useSearchParams();
   const urlEmail = searchParams.get("email");
+  // Where to go after signing in (e.g. the minutes page an email linked to).
+  // Only same-site paths, so the parameter can't send people elsewhere.
+  const next = searchParams.get("next");
+  const afterLogin =
+    next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
 
   const form = useForm({
     initialValues: {
@@ -56,7 +61,7 @@ function LoginPage() {
       values.password,
       () => {
         setLoading(false);
-        router.push("/");
+        router.push(afterLogin);
       },
       (err: unknown) => {
         setLoading(false);

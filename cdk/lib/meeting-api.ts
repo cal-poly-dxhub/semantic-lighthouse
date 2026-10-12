@@ -150,8 +150,8 @@ export class MeetingApiResources extends Construct {
       new cdk.aws_apigateway.LambdaIntegration(publicVideoAuthLambda)
     );
 
-    // TODO: meeting minutes pdf download presigned url route
-    // /:meetingId/minutes
+    // /:meetingId/minutes - fresh download links for a finished meeting's minutes
+    // (the minutes page calls this; the email links to that page)
     const minutesResource = meetingIdRoute.addResource("minutes");
     const minutesLambda = new cdk.aws_lambda.Function(this, "MinutesLambda", {
       runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
@@ -159,6 +159,7 @@ export class MeetingApiResources extends Construct {
       code: cdk.aws_lambda.Code.fromAsset("lambda/dist/meetings"),
       environment: {
         MEETINGS_BUCKET_NAME: props.meetingsBucket.bucketName,
+        MEETINGS_TABLE_NAME: props.meetingsTable.tableName,
         CLOUDFRONT_DOMAIN_NAME: props.videoDistribution.distributionDomainName,
       },
       logGroup: new cdk.aws_logs.LogGroup(this, "MinutesLambdaLogGroup", {
@@ -171,7 +172,12 @@ export class MeetingApiResources extends Construct {
     props.meetingsBucket.grantRead(minutesLambda);
     minutesResource.addMethod(
       "GET",
-      new cdk.aws_apigateway.LambdaIntegration(minutesLambda)
+      new cdk.aws_apigateway.LambdaIntegration(minutesLambda),
+      {
+        // The Lambda only decodes the token, so API Gateway has to verify it
+        authorizationType: cdk.aws_apigateway.AuthorizationType.COGNITO,
+        authorizer: this.authorizer,
+      }
     );
 
     // TODO: fetch all meetings route

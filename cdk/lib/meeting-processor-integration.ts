@@ -221,6 +221,8 @@ export class MeetingProcessorIntegration extends Construct {
         environment: {
           MEETINGS_TABLE_NAME: props.meetingsTable.tableName,
           USER_PREFERENCES_TABLE_NAME: props.userPreferencesTable.tableName,
+          // The email links to <frontend>/minutes?id=..., which fetches fresh download links
+          FRONTEND_DOMAIN_NAME: props.frontendDistribution.distributionDomainName,
         },
       }
     );
@@ -241,7 +243,8 @@ export class MeetingProcessorIntegration extends Construct {
     props.meetingsTable.grantReadWriteData(processingStatusMonitor);
     props.meetingsTable.grantReadWriteData(aiMeetingAnalyzer);
     props.meetingsTable.grantReadWriteData(documentPdfGenerator);
-    props.meetingsTable.grantReadData(notificationSender);
+    // Writes the minutes' locations and the completed status onto the meeting
+    props.meetingsTable.grantReadWriteData(notificationSender);
 
     props.userPreferencesTable.grantReadData(notificationSender);
 

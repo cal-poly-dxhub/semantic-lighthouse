@@ -2,6 +2,7 @@ import json
 import boto3
 import logging
 import os
+from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 # Set up logging
@@ -14,7 +15,9 @@ sns_client = boto3.client("sns")
 dynamodb_client = boto3.client("dynamodb")
 
 # Configuration
-PRESIGNED_URL_EXPIRATION = 7 * 24 * 60 * 60  # 7 days
+# The email links to this page; it fetches fresh download links after sign-in.
+# (Links signed here died within hours: they only live as long as this Lambda's credentials.)
+FRONTEND_DOMAIN_NAME = os.environ.get("FRONTEND_DOMAIN_NAME")
 
 
 def get_meeting_info_from_s3_uri(s3_uri):
@@ -130,28 +133,33 @@ def get_user_sns_topic_for_meeting(meeting_id):
         return None
 
 
-def generate_presigned_url(s3_uri):
-    """Generate a presigned URL for S3 object access."""
-    try:
-        parsed_uri = urlparse(s3_uri)
-        bucket_name = parsed_uri.netloc
-        object_key = parsed_uri.path.lstrip('/')
+def record_minutes_on_meeting(meeting_id, html_s3_uri, pdf_s3_uri):
+    """Store where the minutes are on the meeting record and mark it complete.
 
-        logger.info(f"Generating presigned URL for s3://{bucket_name}/{object_key}")
-
-        # Generate presigned URL
-        presigned_url = s3_client.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": bucket_name, "Key": object_key},
-            ExpiresIn=PRESIGNED_URL_EXPIRATION,
-        )
-
-        logger.info("Presigned URL generated successfully")
-        return presigned_url
-
-    except Exception as e:
-        logger.error(f"Failed to generate presigned URL for {s3_uri}: {e}")
-        raise
+    The minutes page reads these keys to hand out fresh download links.
+    Returns the meeting title for the email.
+    """
+    meetings_table = os.environ["MEETINGS_TABLE_NAME"]
+    meeting = dynamodb_client.query(
+        TableName=meetings_table,
+        KeyConditionExpression="meetingId = :meetingId",
+        ExpressionAttributeValues={":meetingId": {"S": meeting_id}},
+        Limit=1,
+    )["Items"][0]
+    dynamodb_client.update_item(
+        TableName=meetings_table,
+        Key={"meetingId": meeting["meetingId"], "createdAt": meeting["createdAt"]},
+        UpdateExpression="SET #status = :status, htmlS3Key = :html, pdfS3Key = :pdf, updatedAt = :now",
+        ExpressionAttributeNames={"#status": "status"},
+        ExpressionAttributeValues={
+            ":status": {"S": "processing-complete"},
+            ":html": {"S": urlparse(html_s3_uri).path.lstrip("/")},
+            ":pdf": {"S": urlparse(pdf_s3_uri).path.lstrip("/")},
+            ":now": {"S": datetime.now(timezone.utc).isoformat()},
+        },
+    )
+    logger.info(f"Recorded minutes on meeting {meeting_id}: {html_s3_uri}, {pdf_s3_uri}")
+    return meeting.get("meetingTitle", {}).get("S", "your meeting")
 
 
 def send_notification_to_user_topic(sns_topic_arn, subject, message):
@@ -174,47 +182,27 @@ def send_notification_to_user_topic(sns_topic_arn, subject, message):
         raise
 
 
-def create_email_content(html_url, pdf_url, original_filename, user_email):
-    """Create email content with download links."""
-    subject = "Your Minute Maker meeting transcript is ready"
-    
-    # Create email body
-    message_lines = [
-        f"Hello,",
-        f"",
-        f"Your meeting transcript for '{original_filename}' has been processed successfully.",
-        f"",
-        f"You can download your meeting minutes in the following formats:",
-        f"",
-    ]
-    
-    if html_url:
-        message_lines.extend([
-            f"📄 Interactive HTML Version (with video links):",
-            f"{html_url}",
-            f"",
-        ])
-    
-    if pdf_url:
-        message_lines.extend([
-            f"📑 PDF Version (for printing):",
-            f"{pdf_url}",
-            f"",
-        ])
-    
-    message_lines.extend([
-        f"⚠️  Note: These download links will expire in 7 days for security.",
-        f"",
-        f"The interactive HTML version includes clickable timestamps that will take you directly to the relevant portions of your meeting video.",
-        f"",
-        f"Thank you for using Minute Maker!",
-        f"",
-        f"---",
+def create_email_content(minutes_url, meeting_title, user_email):
+    """Create the email: one link to the minutes page, which works for as long as the account does."""
+    # SNS email subjects must be under 100 characters and on one line
+    subject = " ".join(f"Minutes ready: {meeting_title}".split())[:99]
+    message = "\n".join([
+        "Hello,",
+        "",
+        f"The minutes for \"{meeting_title}\" are ready.",
+        "",
+        "View and download them here (sign in with your Minute Maker account):",
+        minutes_url,
+        "",
+        "The page has the PDF, ready to send, and an interactive version that links each item to that moment in the video.",
+        "",
+        "Thank you for using Minute Maker!",
+        "",
+        "---",
         f"This notification was sent to: {user_email}",
-        f"If you no longer wish to receive these notifications, you can update your preferences in your account settings.",
+        "If you no longer wish to receive these notifications, you can update your preferences in your account settings.",
     ])
-    
-    return subject, "\n".join(message_lines)
+    return subject, message
 
 
 def lambda_handler(event, context):
@@ -282,28 +270,18 @@ def lambda_handler(event, context):
         logger.info(f"Sending notification to user {user_id} ({user_email}) via topic {sns_topic_arn}")
 
         # =================================================================
-        # GENERATE PRESIGNED URLS FOR DOWNLOAD LINKS
+        # RECORD THE MINUTES ON THE MEETING AND EMAIL A LINK TO THE MINUTES PAGE
         # =================================================================
-        
-        html_download_url = None
-        pdf_download_url = None
 
-        if html_s3_uri:
-            html_download_url = generate_presigned_url(html_s3_uri)
-            logger.info("HTML presigned URL generated successfully")
+        if not html_s3_uri or not pdf_s3_uri:
+            raise ValueError("Both htmlS3Uri and pdfS3Uri are required to record the minutes")
+        if not FRONTEND_DOMAIN_NAME:
+            raise ValueError("FRONTEND_DOMAIN_NAME environment variable is required")
 
-        if pdf_s3_uri:
-            pdf_download_url = generate_presigned_url(pdf_s3_uri)
-            logger.info("PDF presigned URL generated successfully")
+        meeting_title = record_minutes_on_meeting(meeting_id, html_s3_uri, pdf_s3_uri)
+        minutes_url = f"https://{FRONTEND_DOMAIN_NAME}/minutes?id={meeting_id}"
 
-        # =================================================================
-        # CREATE AND SEND EMAIL NOTIFICATION
-        # =================================================================
-        
-        # Create email content
-        subject, message = create_email_content(
-            html_download_url, pdf_download_url, original_filename, user_email
-        )
+        subject, message = create_email_content(minutes_url, meeting_title, user_email)
 
         # Send notification to user's SNS topic
         message_id = send_notification_to_user_topic(sns_topic_arn, subject, message)
