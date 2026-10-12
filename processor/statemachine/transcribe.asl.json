@@ -193,7 +193,7 @@
               "OutputKey": "transcripts/",
               "Settings": {
                 "ShowSpeakerLabels": true,
-                "MaxSpeakerLabels": 10
+                "MaxSpeakerLabels": 30
               }
             },
             "Next": "WaitForSingleTranscription",
