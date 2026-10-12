@@ -300,9 +300,20 @@ def process_video_links_for_html(text):
     return re.sub(pattern, replace_link, text)
 
 
-def generate_html_from_analysis(analysis_text, job_name, bucket_name):
+def strip_segment_citations(text):
+    """Remove [seg_N] references (and their video link markers) for the printable minutes."""
+    text = re.sub(r"[ \t]*\[seg_[^\]]*\](?:VIDEOLINK\[[^\]]*\]ENDLINK)?", "", text)
+    text = re.sub(r"(?:, )+(?=[.;,)])", "", text)  # separators left between removed citations
+    return re.sub(r"\b([ap])\.m\.\.", r"\1.m.", text)  # "7:00 p.m. [seg_0]." -> "7:00 p.m."
+
+
+def generate_html_from_analysis(analysis_text, job_name, bucket_name, for_print=False):
     """
     Generate an HTML file from the Bedrock analysis text and save it to S3.
+
+    The interactive version links each [seg_N] to the video. The print version
+    (for_print=True, the one the PDF is made from) has no segment references
+    and no footer, so the PDF reads as finished minutes.
 
     Args:
         analysis_text (str): The analysis text from Bedrock with video link markers
@@ -315,8 +326,17 @@ def generate_html_from_analysis(analysis_text, job_name, bucket_name):
     try:
         logger.info("Starting HTML generation from analysis text...")
 
-        # Process video links for HTML
-        html_content = process_video_links_for_html(analysis_text)
+        if for_print:
+            html_content = strip_segment_citations(analysis_text)
+            footer = ""
+        else:
+            # Process video links for HTML
+            html_content = process_video_links_for_html(analysis_text)
+            footer = f"""
+        <div class="footer">
+            <p>© {datetime.datetime.now().year} Meeting Minutes</p>
+            <p><em>Click any segment reference (like [seg_0]) to jump to that moment in the video</em></p>
+        </div>"""
 
         # Convert markdown to HTML
         html_body = markdown.markdown(html_content)
@@ -395,18 +415,15 @@ def generate_html_from_analysis(analysis_text, job_name, bucket_name):
 <body>
     <div class="container">
         {html_body}
-        
-        <div class="footer">
-            <p>© {datetime.datetime.now().year} Meeting Minutes</p>
-            <p><em>Click any segment reference (like [seg_0]) to jump to that moment in the video</em></p>
-        </div>
+        {footer}
     </div>
 </body>
 </html>
 """
 
         # Save HTML to S3
-        html_key = f"analysis/{job_name}_analysis.html"
+        # The PDF step names its output after this file, so the print copy keeps the same name in print/
+        html_key = f"analysis/{'print/' if for_print else ''}{job_name}_analysis.html"
         logger.info(f"Saving HTML to s3://{bucket_name}/{html_key}")
 
         s3_client.put_object(
@@ -1126,7 +1143,10 @@ Participants:"""
             html_key = generate_html_from_analysis(
                 analysis_result, job_name, bucket_name
             )
-            logger.info(f"=== HTML Generation Completed Successfully: {html_key} ===")
+            print_html_key = generate_html_from_analysis(
+                analysis_result, job_name, bucket_name, for_print=True
+            )
+            logger.info(f"=== HTML Generation Completed Successfully: {html_key}, {print_html_key} ===")
             html_success = True
             html_error = None
         except Exception as html_e:
@@ -1182,6 +1202,7 @@ Participants:"""
         if html_success:
             result["htmlKey"] = html_key
             result["htmlS3Uri"] = f"s3://{bucket_name}/{html_key}"
+            result["printHtmlS3Uri"] = f"s3://{bucket_name}/{print_html_key}"
             logger.info(f"HTML saved to: s3://{bucket_name}/{html_key}")
         else:
             result["htmlError"] = str(html_error)

@@ -533,7 +533,7 @@
       "Parameters": {
         "FunctionName": "${HtmlToPdfFunctionArn}",
         "Payload": {
-          "htmlS3Uri.$": "$.processResult.Payload.htmlS3Uri",
+          "htmlS3Uri.$": "$.processResult.Payload.printHtmlS3Uri",
           "outputFileName.$": "$.detail.object.key"
         }
       },
