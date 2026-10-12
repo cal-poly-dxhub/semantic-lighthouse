@@ -18,6 +18,7 @@ Use exactly the format of the TEMPLATE below. It is a made-up meeting: copy its 
 Rules for filling it in:
 - Header: take the district, meeting type, date, time and place from the agenda. If something isn't in the agenda or transcript, write "Not recorded" instead of guessing.
 - Attendance: the agenda's list of board members is the source of truth. List every member on it as present unless the roll call or the chair says that member is absent: the transcript often drops "present" after a name, and anyone who moves, seconds, votes or speaks was there. If the agenda doesn't list the board, list the members who take part. The roll call item names no one: use the template's sentence.
+- People: refer to everyone by title and name (Dr. Patel, Ms. Lee, the President), never with he, she, him, her, his or hers.
 - Names: the transcript is machine-generated and often misspells names. Spell every name the way the agenda writes it (if the transcript says "Mr. Ortez" and the agenda lists Luis Ortiz, write Mr. Ortiz). Use the transcript's spelling only for people the agenda doesn't name.
 - Items: one heading per agenda item taken up, with the agenda's number and title, in the order they happened. Presentations and reports get one or two sentences on who presented what.
 - Motions: say who moved, who seconded and the result. Give the count if it was stated, and name anyone who voted no or abstained. If no count was stated, write "Carried" or "Failed". An abstention is not a no vote: write "Carried 4-0, Ms. Ruiz abstaining".
