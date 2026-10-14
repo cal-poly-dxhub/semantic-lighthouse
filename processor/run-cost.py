@@ -22,7 +22,7 @@ BEDROCK_PER_MILLION = {  # (input, output), US cross-region inference profiles
     "claude-opus-4-8": (5.50, 27.50),
 }
 TRANSCRIBE_PER_SECOND = 0.0001
-MEDIACONVERT_PER_MINUTE = 0.0075  # audio-only, basic tier
+MEDIACONVERT_PER_MINUTE = 0.003  # audio-only output bills 0.4 normalized minutes at $0.0075 (basic tier)
 TEXTRACT_PER_PAGE = 0.0015  # DetectDocumentText
 LAMBDA_PER_GB_SECOND = 0.0000166667
 LAMBDA_PER_REQUEST = 0.0000002
