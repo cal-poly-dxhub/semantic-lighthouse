@@ -70,7 +70,7 @@ minute-maker is an automated solution that transforms board meeting videos and a
 
 ### Architecture Diagram
 
-![arch-diagram](minute-maker-v1-light.drawio.svg)
+![arch-diagram](minute-maker-v2-light.drawio.svg)
 
 The solution consists of several key components:
 
@@ -136,7 +136,7 @@ cd ..
    - Ensure you're working in the correct AWS region/branch for your deployment
 
 2. **Application Configuration:** (After Deployment)
-   - Access the provided application URL (if you get an AccessDenied screen, wait a few minutes for the website build to complete)
+   - Access the provided application URL (the website is built and uploaded during `cdk deploy`, so it's live when the deploy finishes)
    - Create the initial admin user (first user to sign up)
    - Additional users can be created through the admin interface
 
