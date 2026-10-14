@@ -166,7 +166,7 @@ raw_text_key = f"processed/agenda/raw_text/{correlation_key}.txt"
 **Key Processing Logic**:
 
 1. **Transcript Format**: `[seg_X][speaker_label][HH:MM:SS] spoken text`
-2. **Video Links**: Generates timestamped S3 presigned URLs
+2. **Video Links**: In the interactive minutes, each segment reference links to the site's video page at that moment (`/video?id=<meetingId>&time=<seconds>`). Every meeting video is public, so anyone with the link can watch without signing in; the minutes themselves stay owner-only.
 3. **Agenda Integration**: Uses agenda data if available, otherwise fallback text
 
 ### 4.4 Document PDF Generator (`lambda/src/html_to_pdf/handler.py`)

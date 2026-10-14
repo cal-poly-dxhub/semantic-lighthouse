@@ -103,7 +103,6 @@ export const handler = async (
     !body ||
     !body.meetingTitle ||
     !body.meetingDate ||
-    !body.videoVisibility ||
     body.meetingDescription.length > 500 ||
     (body.boardRoster !== undefined &&
       (typeof body.boardRoster !== "string" || body.boardRoster.length > 3000))
@@ -116,7 +115,7 @@ export const handler = async (
       body: JSON.stringify({
         error: "Invalid request body",
         details:
-          "Please provide meetingTitle, meetingDate, visibility, a description (max 500 characters) and an optional board roster (max 3000 characters).",
+          "Please provide meetingTitle, meetingDate, a description (max 500 characters) and an optional board roster (max 3000 characters).",
       }),
     };
   }
@@ -165,7 +164,6 @@ export const handler = async (
         meetingTitle: { S: body.meetingTitle },
         meetingDate: { S: body.meetingDate },
         meetingDescription: { S: body.meetingDescription },
-        videoVisibility: { S: body.videoVisibility },
 
         // Processing status
         status: { S: "uploading" },

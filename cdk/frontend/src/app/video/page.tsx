@@ -1,7 +1,6 @@
 "use client";
 
 import { useApiRequest } from "@/constants/apiRequest";
-import { useAuth } from "@/constants/AuthContext";
 import { Alert, Paper, Title, useMantineTheme } from "@mantine/core";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
@@ -26,28 +25,24 @@ const VideoPage = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const theme = useMantineTheme();
 
-  const { token } = useAuth();
   const { apiRequest } = useApiRequest();
 
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * fetch presigned url from video id
-   * @param route - "public-presigned" | "private-presigned"
+   * fetch the video url from video id (every meeting video is public, so no sign-in needed)
    * @returns Promise<VideoRequestResponse>
    * @throws Error if no video ID is provided or if the fetch fails
    */
-  const fetchVideoUrl: (
-    route: "public-presigned" | "private-presigned"
-  ) => Promise<VideoRequestResponse> = useCallback(
-    async (route: "public-presigned" | "private-presigned") => {
+  const fetchVideoUrl: () => Promise<VideoRequestResponse> = useCallback(
+    async () => {
       if (!id) {
         throw new Error("No video ID provided.");
       }
 
       try {
-        const apiUrl = `${id}/${route}`;
+        const apiUrl = `${id}/public-presigned`;
         const { data, error, status } = await apiRequest<VideoRequestResponse>(
           "GET",
           apiUrl
@@ -79,14 +74,13 @@ const VideoPage = () => {
       }
 
       try {
-        const apiRoute = token ? "private-presigned" : "public-presigned";
-        const response = await fetchVideoUrl(apiRoute);
+        const response = await fetchVideoUrl();
         setVideoUrl(response.presignedUrl || null);
       } catch (error) {
         setError(error instanceof Error ? error.message : "Unknown error");
       }
     })();
-  }, [fetchVideoUrl, id, token]);
+  }, [fetchVideoUrl, id]);
 
   useEffect(() => {
     if (videoUrl && videoRef.current) {

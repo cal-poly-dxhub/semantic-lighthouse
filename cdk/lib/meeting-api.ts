@@ -80,45 +80,6 @@ export class MeetingApiResources extends Construct {
       }
     );
 
-    // /:meetingId/private-presigned
-    const privateVideoAuthResource =
-      meetingIdRoute.addResource("private-presigned");
-    const privateVideoAuthLambda = new cdk.aws_lambda.Function(
-      this,
-      "PrivateVideoAuthLambda",
-      {
-        runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
-        handler: "private-presigned.handler",
-        code: cdk.aws_lambda.Code.fromAsset("lambda/dist/video"),
-        environment: {
-          MEETINGS_BUCKET_NAME: props.meetingsBucket.bucketName,
-          MEETINGS_TABLE_NAME: props.meetingsTable.tableName,
-          CLOUDFRONT_DOMAIN_NAME:
-            props.videoDistribution.distributionDomainName,
-        },
-        logGroup: new cdk.aws_logs.LogGroup(
-          this,
-          "PrivateVideoAuthLambdaLogGroup",
-          {
-            removalPolicy: cdk.RemovalPolicy.DESTROY,
-            retention: cdk.aws_logs.RetentionDays.ONE_WEEK,
-          }
-        ),
-      }
-    );
-
-    // Grant DynamoDB read permissions for private video authentication
-    props.meetingsTable.grantReadData(privateVideoAuthLambda);
-    props.meetingsBucket.grantRead(privateVideoAuthLambda);
-    privateVideoAuthResource.addMethod(
-      "GET",
-      new cdk.aws_apigateway.LambdaIntegration(privateVideoAuthLambda),
-      {
-        authorizationType: cdk.aws_apigateway.AuthorizationType.COGNITO,
-        authorizer: this.authorizer,
-      }
-    );
-
     // /:meetingId/public-presigned
     const publicVideoAuthResource =
       meetingIdRoute.addResource("public-presigned");

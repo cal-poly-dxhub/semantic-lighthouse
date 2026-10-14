@@ -9,7 +9,6 @@ import {
   Group,
   Paper,
   Progress,
-  Select,
   Text,
   Textarea,
   TextInput,
@@ -45,7 +44,6 @@ export default function UploadPage() {
       meetingTitle: "",
       meetingDate: "",
       description: "",
-      visibility: "",
       boardRoster: "",
     },
     validate: {
@@ -55,7 +53,6 @@ export default function UploadPage() {
         !value ? "Meeting date is required" : null,
       description: (value: string) =>
         value.length > 500 ? "Description cannot exceed 500 characters" : null,
-      visibility: (value: string) => (!value ? "Visibility is required" : null),
       boardRoster: (value: string) =>
         value.length > 3000 ? "Board members cannot exceed 3000 characters" : null,
     },
@@ -110,7 +107,6 @@ export default function UploadPage() {
     meetingTitle: string;
     meetingDate: string;
     description: string;
-    visibility: string;
     boardRoster: string;
   }) => {
     if (!user) {
@@ -144,7 +140,6 @@ export default function UploadPage() {
           meetingTitle: values.meetingTitle,
           meetingDate: values.meetingDate,
           meetingDescription: values.description,
-          videoVisibility: values.visibility,
           boardRoster: values.boardRoster,
         },
       });
@@ -291,24 +286,6 @@ export default function UploadPage() {
             placeholder="Brief description of the meeting (optional)"
             mt="md"
             {...form.getInputProps("description")}
-          />
-
-          <Select
-            label="Visibility"
-            placeholder="Select visibility"
-            required
-            mt="md"
-            data={[
-              {
-                value: "private",
-                label: "Private - Only you can see this meeting",
-              },
-              {
-                value: "public",
-                label: "Public - Anyone can view this meeting",
-              },
-            ]}
-            {...form.getInputProps("visibility")}
           />
 
           <Text size="sm" fw={500} mt="md" mb="xs">

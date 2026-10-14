@@ -7,7 +7,6 @@ interface Response {
   meetingTitle: string;
   meetingDescription: string;
   meetingDate: string;
-  videoVisibility: string;
   status: string;
 }
 
@@ -126,7 +125,6 @@ export const handler = async (
         meetingTitle: item.meetingTitle?.S || "n/a",
         meetingDescription: item.meetingDescription?.S || "n/a",
         meetingDate: item.meetingDate?.S || "n/a",
-        videoVisibility: item.videoVisibility?.S || "n/a",
         status: item.status?.S || "n/a",
       })),
     };

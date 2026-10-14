@@ -66,19 +66,8 @@ export const handler = async (
       };
     }
 
-    // get first item (there should only be one with the same meetingId)
-    const [item] = result.Items;
-
-    if (item.videoVisibility?.S !== "public") {
-      return {
-        statusCode: 403,
-        headers: corsHeaders,
-        body: JSON.stringify({
-          error: "Video is not public.",
-        }),
-      };
-    }
-
+    // Every meeting video is public: board meetings are public records, and the
+    // interactive minutes' segment links open this player for anyone.
     const key = `uploads/meeting_recordings/${meetingId}.mp4`;
 
     // Use CloudFront for better performance and CDN delivery
