@@ -1,0 +1,46 @@
+import "@mantine/core/styles.css";
+
+import Header from "@/components/Header";
+import { AuthProvider } from "@/constants/AuthContext";
+import { ConfigProvider } from "@/constants/config";
+import { theme } from "@/constants/theme";
+import {
+  ColorSchemeScript,
+  MantineProvider,
+  mantineHtmlProps,
+} from "@mantine/core";
+
+export const metadata = {
+  title: "Minute Maker",
+  description: "Create meeting minutes from a video and agenda.",
+};
+
+const RootWrapper = ({ children }: { children: React.ReactNode }) => (
+  <>
+    <Header />
+    {children}
+  </>
+);
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en" {...mantineHtmlProps}>
+      <head>
+        <ColorSchemeScript />
+      </head>
+      <body>
+        <MantineProvider theme={theme} defaultColorScheme="light">
+          <ConfigProvider>
+            <AuthProvider>
+              <RootWrapper>{children}</RootWrapper>
+            </AuthProvider>
+          </ConfigProvider>
+        </MantineProvider>
+      </body>
+    </html>
+  );
+}

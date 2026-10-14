@@ -1,0 +1,232 @@
+import {
+  DynamoDBClient,
+  PutItemCommand,
+  UpdateItemCommand,
+} from "@aws-sdk/client-dynamodb";
+import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+import { randomUUID } from "crypto";
+
+interface ResponseBody {
+  meetingId: string;
+  videoPresignedUrl: string;
+  agendaPresignedUrl: string;
+}
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+  "Access-Control-Allow-Methods": "OPTIONS,POST",
+  "Content-Type": "application/json",
+};
+
+const s3Client = new S3Client({});
+const dynamoClient = new DynamoDBClient({});
+
+/**
+ * Extract user information from JWT token in Authorization header
+ */
+function extractUserFromToken(
+  event: APIGatewayProxyEvent
+): { userId: string; userEmail: string } | null {
+  try {
+    // Get the authorization header
+    const authHeader =
+      event.headers.Authorization || event.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      console.error("ERROR: No valid authorization header found");
+      return null;
+    }
+
+    // Extract JWT token (Bearer <token>)
+    const token = authHeader.split(" ")[1];
+
+    // Decode JWT payload (middle section between dots)
+    // Note: In production, you should verify the JWT signature, but for now we'll just decode
+    const payload = JSON.parse(
+      Buffer.from(token.split(".")[1], "base64").toString()
+    );
+
+    const userId = payload["cognito:username"] || payload.sub;
+    const userEmail = payload.email;
+
+    if (!userId || !userEmail) {
+      console.error(
+        "ERROR: Missing userId or userEmail in JWT payload",
+        payload
+      );
+      return null;
+    }
+
+    return { userId, userEmail };
+  } catch (error) {
+    console.error("ERROR: Failed to extract user from token:", error);
+    return null;
+  }
+}
+
+/**
+ * lambda to generate presigned url for uploading video.mp4 and agenda.pdf
+ * @param event
+ */
+export const handler = async (
+  event: APIGatewayProxyEvent
+): Promise<APIGatewayProxyResult> => {
+  console.log("INFO: Received event:", JSON.stringify(event, null, 2));
+
+  // Extract user information from JWT token
+  const userInfo = extractUserFromToken(event);
+  if (!userInfo) {
+    return {
+      statusCode: 401,
+      headers: corsHeaders,
+      body: JSON.stringify({
+        error: "Unauthorized",
+        details: "Valid authentication token required",
+      }),
+    };
+  }
+
+  const { userId, userEmail } = userInfo;
+
+  const meetingId = randomUUID();
+
+  console.log(
+    `INFO: Generating presigned urls for meeting ${meetingId} for user ${userId}`
+  );
+
+  const body = JSON.parse(event.body ?? "{}");
+
+  if (
+    !body ||
+    !body.meetingTitle ||
+    !body.meetingDate ||
+    body.meetingDescription.length > 500 ||
+    (body.boardRoster !== undefined &&
+      (typeof body.boardRoster !== "string" || body.boardRoster.length > 3000))
+  ) {
+    console.error("ERROR: Invalid request body:", body);
+
+    return {
+      statusCode: 400,
+      headers: corsHeaders,
+      body: JSON.stringify({
+        error: "Invalid request body",
+        details:
+          "Please provide meetingTitle, meetingDate, a description (max 500 characters) and an optional board roster (max 3000 characters).",
+      }),
+    };
+  }
+
+  const boardRoster =
+    typeof body.boardRoster === "string" ? body.boardRoster.trim() : "";
+
+  try {
+    const videoKey = `uploads/meeting_recordings/${meetingId}.mp4`;
+    const command = new PutObjectCommand({
+      Bucket: process.env.MEETINGS_BUCKET_NAME,
+      Key: videoKey,
+      ContentType: "video/mp4",
+    });
+
+    const agendaKey = `uploads/agenda_documents/${meetingId}.pdf`;
+    const agendaCommand = new PutObjectCommand({
+      Bucket: process.env.MEETINGS_BUCKET_NAME,
+      Key: agendaKey,
+      ContentType: "application/pdf",
+    });
+
+    const videoPresignedUrl = await getSignedUrl(s3Client, command, {
+      expiresIn: 3600, // 60 min
+    });
+
+    const agendaPresignedUrl = await getSignedUrl(s3Client, agendaCommand, {
+      expiresIn: 3600, // 60 min
+    });
+
+    // =================================================================
+    // STORE MEETING METADATA WITH USER ASSOCIATION IN DYNAMODB
+    // =================================================================
+    const putCommand = new PutItemCommand({
+      TableName: process.env.MEETINGS_TABLE_NAME,
+      Item: {
+        // Enhanced schema with user associations
+        meetingId: { S: meetingId },
+        createdAt: { S: new Date().toISOString() },
+
+        // User association
+        userId: { S: userId },
+        userEmail: { S: userEmail },
+
+        // Meeting metadata
+        meetingTitle: { S: body.meetingTitle },
+        meetingDate: { S: body.meetingDate },
+        meetingDescription: { S: body.meetingDescription },
+
+        // Processing status
+        status: { S: "uploading" },
+
+        // File paths
+        videoS3Key: { S: videoKey },
+        agendaS3Key: { S: agendaKey },
+
+        // Timestamps
+        updatedAt: { S: new Date().toISOString() },
+
+        // Optional board roster: the minutes spell names and list votes from it
+        ...(boardRoster ? { boardRoster: { S: boardRoster } } : {}),
+      },
+    });
+
+    await dynamoClient.send(putCommand);
+
+    // Remember the roster on the account so the upload form can prefill it next time
+    if (body.boardRoster !== undefined) {
+      await dynamoClient.send(
+        new UpdateItemCommand({
+          TableName: process.env.USER_PREFERENCES_TABLE_NAME,
+          Key: { userId: { S: userId } },
+          UpdateExpression: boardRoster
+            ? "SET boardRoster = :roster"
+            : "REMOVE boardRoster",
+          ...(boardRoster
+            ? { ExpressionAttributeValues: { ":roster": { S: boardRoster } } }
+            : {}),
+        })
+      );
+    }
+
+    console.log(
+      `INFO: Meeting ${meetingId} associated with user ${userId} (${userEmail})`
+    );
+    console.log(
+      "INFO: Generated presigned URLs for uploading:",
+      videoPresignedUrl,
+      agendaPresignedUrl
+    );
+
+    const responseBody: ResponseBody = {
+      meetingId,
+      videoPresignedUrl,
+      agendaPresignedUrl,
+    };
+
+    return {
+      statusCode: 200,
+      headers: corsHeaders,
+      body: JSON.stringify(responseBody),
+    };
+  } catch (error) {
+    console.error("ERROR: Failed to generate presigned URLs:", error);
+    return {
+      statusCode: 500,
+      headers: corsHeaders,
+      body: JSON.stringify({
+        error: "Failed to process request",
+        details: error instanceof Error ? error.message : "Unknown error",
+      }),
+    };
+  }
+};

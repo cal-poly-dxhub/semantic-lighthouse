@@ -1,0 +1,432 @@
+# Minute Maker Meeting Processor - Comprehensive Technical Documentation
+
+## 1. APPLICATION OVERVIEW
+
+**Purpose**: A serverless meeting processing pipeline that converts video recordings to audio, generates transcripts, uses AI to analyze transcripts with agenda context, and produces interactive HTML and PDF meeting minutes.
+
+**Architecture**: Event-driven serverless system using AWS CDK with 6 Lambda functions, Step Functions orchestration, S3 storage, and AI services.
+
+## 2. DETAILED WORKFLOW & DATA FLOW
+
+### 2.1 Overall Workflow Triggers
+
+The system has **two entry points**:
+
+#### Entry Point 1: Video Upload Trigger
+
+- **S3 Path**: `uploads/meeting_recordings/`
+- **EventBridge Rule**: Monitors `Object Created` events
+- **Action**: Triggers Step Functions state machine (`MeetingProcessingWorkflow`)
+
+#### Entry Point 2: Agenda Upload Trigger
+
+- **S3 Path**: `uploads/agenda_documents/`
+- **EventBridge Rule**: Monitors `Object Created` events
+- **Action**: Triggers `AgendaDocumentProcessor` Lambda directly
+
+### 2.2 Step Functions State Machine Workflow (`transcribe.asl.json`)
+
+The main workflow processes video files through these states:
+
+```mermaid
+graph TD
+    A[ProcessWithMediaConvert] --> B[CheckJobCount]
+    B --> C[WaitForMediaConvert]
+    C --> D[CheckAllMediaConvertJobsWithLambda]
+    D --> E{EvaluateMediaConvertResults}
+    E -->|Complete| F[VerifyAllAudioFiles]
+    E -->|Failed| G[MediaConvertFailed]
+    E -->|In Progress| H[WaitLongerForMediaConvert]
+    H --> D
+    F --> I[StartAllTranscriptionJobs]
+    I --> J[CheckForAgenda]
+    J --> K{HasAgenda}
+    K -->|Found| L[ProcessAllTranscripts]
+    K -->|Not Found| M[WaitForAgenda]
+    M --> N[CheckForAgendaRetry1]
+    N --> O{AgendaFoundAfterWait1}
+    O -->|Found| L
+    O -->|Not Found| P[WaitForAgenda2]
+    P --> Q[CheckForAgendaRetry2]
+    Q --> R{AgendaFoundAfterWait2}
+    R -->|Found| L
+    R -->|Not Found| S[WaitForAgenda3]
+    S --> T[CheckForAgendaRetry3]
+    T --> U{AgendaFoundAfterWait3}
+    U -->|Found| L
+    U -->|Not Found| V[WaitForAgenda4]
+    V --> W[CheckForAgendaRetry4]
+    W --> X{AgendaFoundAfterWait4}
+    X -->|Found| L
+    X -->|Not Found| Y[WaitForAgenda5]
+    Y --> Z[CheckForAgendaFinal]
+    Z --> L
+    L --> AA[ConvertHtmlToPdf]
+    AA --> BB[SendEmailNotification]
+    BB --> CC[End]
+```
+
+**Critical Integration Point**: The system waits for agenda documents for up to 5 minutes (5 x 60-second waits) before proceeding with a fallback agenda.
+
+## 3. S3 BUCKET STRUCTURE & DATA PATHS
+
+### 3.1 Input Paths
+
+- **Video Uploads**: `uploads/meeting_recordings/{filename}.mp4`
+- **Agenda Uploads**: `uploads/agenda_documents/{filename}.pdf`
+
+### 3.2 Processing Paths
+
+- **Audio Conversion**: `audio/{filename}_converted.mp3` or `audio/{filename}_part{N:02d}.mp3` (for chunked videos)
+- **Transcripts**: `transcripts/{transcription_job_name}.json`
+- **Agenda Raw Text**: `processed/agenda/raw_text/{correlation_key}.txt`
+- **Agenda Analysis**: `processed/agenda/analysis/{correlation_key}.json`
+
+### 3.3 Output Paths
+
+- **HTML Results**: `analysis/{job_name}_analysis.html`
+- **PDF Results**: `analysis/{job_name}_analysis.pdf`
+
+### 3.4 Correlation Key System
+
+**Critical for Integration**: Files are correlated using base filename without extension:
+
+- Video: `uploads/meeting_recordings/board_meeting_2024_01_15.mp4`
+- Agenda: `uploads/agenda_documents/board_meeting_2024_01_15.pdf`
+- **Correlation Key**: `board_meeting_2024_01_15`
+
+## 4. LAMBDA FUNCTIONS DETAILED ANALYSIS
+
+### 4.1 MediaConvert Trigger (`lambda/src/mediaconvert_trigger/handler.py`)
+
+**Purpose**: Converts video to audio, handles chunking for long videos
+
+**Environment Variables**:
+
+- `BUCKET_NAME`: S3 bucket name (from CDK)
+- `OUTPUT_BUCKET`: Target bucket (from CDK)
+
+**Hardcoded Values**:
+
+- `CHUNK_DURATION_HOURS = 4`: Videos longer than 4 hours are split
+- `DURATION_THRESHOLD_HOURS = 4`: Threshold for splitting decision
+- `SIGNED_URL_EXPIRATION = 300`: 5 minutes for MediaInfo analysis
+- **MediaConvert Role ARN**: `"arn:aws:iam::412072465402:role/MediaConvertServiceRole"` ⚠️ **HARDCODED ACCOUNT ID**
+- **MediaConvert Queue**: `"arn:aws:mediaconvert:us-west-2:412072465402:queues/Default"` ⚠️ **HARDCODED ACCOUNT/REGION**
+
+**Input/Output**:
+
+- **Input**: S3 event or Step Functions payload
+- **Output**: List of MediaConvert job IDs and audio output URIs
+
+**Dependencies**: pymediainfo layer for video analysis
+
+### 4.2 Processing Status Monitor (`lambda/src/verify_s3_file/handler.py`)
+
+**Purpose**: Multi-function verification (S3 files, MediaConvert jobs, agenda checking)
+
+**Environment Variables**:
+
+- `BUCKET_NAME`: S3 bucket name
+
+**Key Functions**:
+
+1. **S3 File Verification**: Checks if files exist
+2. **MediaConvert Job Status**: Batch checking of job completion
+3. **Agenda Checking**: Looks for processed agenda by correlation key
+
+**Agenda Check Logic**:
+
+```python
+analysis_key = f"processed/agenda/analysis/{correlation_key}.json"
+raw_text_key = f"processed/agenda/raw_text/{correlation_key}.txt"
+```
+
+### 4.3 AI Meeting Analyzer (`lambda/src/process_transcript/handler.py`)
+
+**Purpose**: Core AI processing - analyzes transcripts with agenda context
+
+**Environment Variables** ⚠️ **KEY INTEGRATION POINTS**:
+
+- `S3_BUCKET`: Bucket name
+- `TRANSCRIPT_MODEL_ID`: `"us.anthropic.claude-sonnet-5"`
+- `TRANSCRIPT_FALLBACK_MODEL_ID`: `"us.anthropic.claude-opus-4-8"`
+- `TRANSCRIPT_MAX_TOKENS`: `"64000"`
+- `TRANSCRIPT_EFFORT`: `"high"` (medium was flaky on attendance: 1 in 3 runs marked a member absent who moved a motion; high took about 75 s and $0.17 for a 1-2 hour meeting)
+- The prompt (`transcript-analysis.txt`) and fallback agenda (`fallback-agenda.txt`) are not env vars: they ship as files next to the handler, because the prompt outgrew Lambda's 4 KB limit on environment variables
+
+**AI Model Configuration**:
+
+- **Primary Model**: Claude Sonnet 5 via Bedrock (US cross-region inference profile), called with the Anthropic Python SDK (`AnthropicBedrock`, streaming)
+- **Fallback Model**: Claude Opus 4.8. It takes over when Sonnet 5 refuses, or when Bedrock can't serve it (a 5xx or an error mid-stream). A 4xx is a bad request and fails straight away.
+- **Why Sonnet 5**: Claude 3.7 Sonnet was retired from Bedrock in mid-2026, which broke analysis. Opus 5.5 was tried next but returned 503s for every request on 2026-10-08; Sonnet 5 wrote the tersest, most clerk-like minutes of the two Sonnets at the same price (about $0.09 for a 1-hour meeting).
+- **Region**: the Lambda's own region (`AWS_REGION`)
+- **Permissions**: `bedrock:*` on `*`, so changing the model ID needs no IAM change
+
+**Key Processing Logic**:
+
+1. **Transcript Format**: `[seg_X][speaker_label][HH:MM:SS] spoken text`
+2. **Video Links**: In the interactive minutes, each segment reference links to the site's video page at that moment (`/video?id=<meetingId>&time=<seconds>`). Every meeting video is public, so anyone with the link can watch without signing in; the minutes themselves stay owner-only.
+3. **Agenda Integration**: Uses agenda data if available, otherwise fallback text
+
+### 4.4 Document PDF Generator (`lambda/src/html_to_pdf/handler.py`)
+
+**Purpose**: Converts HTML meeting minutes to PDF
+
+**Environment Variables**:
+
+- `BUCKET_NAME`: S3 bucket name
+- `LD_LIBRARY_PATH`: `"/opt/lib"` (for weasyprint layer)
+- `FONTCONFIG_PATH`: `"/opt/fonts"` (for weasyprint layer)
+
+**Dependencies**: WeasyPrint layer with fonts and libraries
+
+### 4.5 Email Notification Sender (`lambda/src/email_sender/handler.py`)
+
+**Purpose**: Records where the finished minutes are and emails the user a link to them via their SNS topic
+
+**Environment Variables**:
+
+- `MEETINGS_TABLE_NAME`, `USER_PREFERENCES_TABLE_NAME`: find the meeting's owner and their SNS topic
+- `FRONTEND_DOMAIN_NAME`: the site the email links to
+
+**What it does**:
+
+1. Gets the meetingId from the uploaded video's name and looks up the owner's SNS topic.
+2. Writes `htmlS3Key`, `pdfS3Key` and `status = "processing-complete"` onto the meeting record.
+3. Emails one link, `https://<frontend>/minutes?id=<meetingId>`. That page asks the user to sign in, then calls `GET /{meetingId}/minutes` (Cognito-protected), which returns fresh one-hour links to the PDF (downloaded as "<meeting title> - Minutes.pdf") and the interactive HTML.
+
+Links are not put in the email itself: a presigned URL signed inside a Lambda only lasts as long as the Lambda's temporary credentials (hours), whatever expiry it asks for, so the old "7 days" links died the same day.
+
+**Outputs per meeting**: `analysis/<job>_analysis.html` (interactive, every `[seg_N]` links to the video, linked from the minutes page), `analysis/print/<job>_analysis.html` (no segment references or footer), and `analysis/<job>_analysis.pdf`, made from the print copy.
+
+### 4.6 Agenda Document Processor (`lambda/src/agenda_processor/handler.py`)
+
+**Purpose**: Processes uploaded agenda PDFs using Textract and AI analysis
+
+**Environment Variables**:
+
+- `BUCKET_NAME`: S3 bucket name
+- `STATE_MACHINE_ARN`: Step Functions ARN for triggering combined processing
+- `AGENDA_MODEL_ID`: `"us.anthropic.claude-sonnet-5"`
+- `AGENDA_FALLBACK_MODEL_ID`: `"us.anthropic.claude-opus-4-8"` (same fallback rules as the analyzer)
+- `AGENDA_MAX_TOKENS`: `"64000"`
+- `AGENDA_EFFORT`: `"medium"`
+- `AWS_REGION`: For Bedrock client region
+
+**Hardcoded Configuration**:
+
+- `MAX_TEXTRACT_WAIT_TIME = 15 * 60`: 15 minutes max wait
+- `TEXTRACT_POLL_INTERVAL = 30`: 30-second polling
+
+**AI Model**: Nova Premier (different from transcript analysis)
+
+- **Bedrock ARNs**:
+  ```
+  arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-premier-v1:0
+  arn:aws:bedrock:us-west-2::foundation-model/amazon.nova-premier-v1:0
+  ```
+
+**Output Structure**: JSON with meeting metadata, participants, agenda items, etc.
+
+## 5. CONFIGURATION FILES & TEMPLATES
+
+### 5.1 AI Prompt Templates
+
+**Transcript Analysis Prompt** (`lambda/src/process_transcript/transcript-analysis.txt`):
+
+- Fills `{agenda}` and `{formatted_transcript}` and is sent as a single user message (there is no system prompt).
+- Layout: the agenda and transcript first in `<agenda>` and `<transcript>` tags, then the instructions: the model is the board's clerk; what the minutes are for (the legal record, sent unedited, recording what was done rather than said, each member's vote, a wrong name worse than a missing one); what the transcript is (speaker labels don't tell people apart because the dais shares microphones, names are misspelled, "present" gets lost); one short line per part of the minutes; and a made-up example meeting in `<example>` tags.
+- It explains why rather than stacking rules, per Anthropic's prompting guide. Sonnet 5 follows the prompt and example very literally, so a rule or example added for one symptom tends to change output everywhere (an example motion with no Ayes made some runs drop the Ayes from every motion). Check any change with `prompt-test.py` over several runs, scoring FHDA with `score-fhda.py`.
+- The example meeting shows the format the model copies: header with date, time, place and members present/absent, a roll call line, one heading per agenda item with its number, a `**Motion:**` line per motion, adjournment, and a blank approval/signature line. No "draft" wording: the output is meant to be sent as is, and the clerk's board software or stamp tracks draft/approved status.
+- Board roster: if the clerk filled in the optional "Board members" box at upload, the analyzer appends it to the agenda text as a "Board Roster" section (`get_board_roster` reads it from the meeting record). It's saved on the account (UserPreferences `boardRoster`) and prefilled next time via `GET /users/roster`. Agendas often name no board members (Tempe, Foothill-De Anza), and without it names come out as Transcribe heard them.
+- Votes: every motion lists each member's vote by last name, e.g. `Carried 4-0 (Ayes: Lee, Ortiz, Grant, Ruiz; advisory: Kim, Aye)`, as California's Brown Act requires; student/advisory votes are marked and not counted. In a voice vote with no nay or abstain, every member is an Aye. When a board member's nay or abstain is heard but not tied to a name, the line gives only the result ("Carried, with abstentions") and lists no board members, since Transcribe can't tell who said a one-word vote. A reason for an abstention is given only for a declared conflict of interest, as real minutes do.
+- Other parts: names are spelled as the agenda or roster writes them; the agenda's board list (or the roster) decides attendance, and a member is absent only if the roll call or chair says so; unknown header fields say "Not recorded"; unspoken times (adjournment) are counted from the call to order using the transcript timestamps; people are named by title and name, not pronouns; nothing about the transcript or recording, no opinions or quotes.
+- Known limits (Foothill-De Anza, Aug 10, 2026, 12 test runs): wrong vote names average about 2 per run (the old prompt had 5-6), but the 2023 minutes approvals (5.1, 5.2) are still a coin flip because the transcript can't show which voices abstained, and the 9.2 mover comes out as Landsberger because that's who the transcript names ("Thank you, Trusty Lancesberger"), while the official minutes say Gvatua. Output runs about 1,800-2,100 words and a few he/she slip into report summaries.
+- Avoid literal braces other than the two placeholders (the handler uses `str.format`), and avoid runs of underscores (Python-Markdown turns them into bold/italic).
+
+**Fallback Agenda** (`lambda/src/process_transcript/fallback-agenda.txt`): a generic school board agenda used for `{agenda}` when no agenda was processed.
+
+**Agenda Analysis Prompt** (`lambda/src/agenda_processor/agenda_analysis_prompt.txt`):
+
+- Structured JSON extraction for meeting metadata
+- Participant identification
+- Agenda item analysis
+
+### 5.2 Testing the minutes prompt without the pipeline
+
+`prompt-test.py` runs only the minutes call on saved meetings, so a prompt change can be checked in seconds or minutes instead of a full upload. It fills the prompt with each meeting's saved `transcript.txt` and `agenda.txt` (the exact texts the analyzer puts in), calls the real analyzer function, and writes the minutes plus a word count, timing and the old minutes' length for comparison.
+
+The saved meetings live outside this public repo in `../semantic-lighthouse-data/prompt-test/fixtures/`, one folder per meeting. Runs go to `prompt-test/runs/<timestamp>/` next to them, with a copy of the prompt used.
+
+```bash
+cd processor
+python3 -m venv .venv && .venv/bin/pip install boto3 -r lambda/src/process_transcript/requirements.txt
+AWS_PROFILE=semlighthouse .venv/bin/python prompt-test.py                      # all saved meetings
+AWS_PROFILE=semlighthouse .venv/bin/python prompt-test.py 2-tempe-2026-04-01-1h14m --prompt draft.txt
+TRANSCRIPT_MODEL_ID=us.anthropic.claude-sonnet-5-5 AWS_PROFILE=semlighthouse .venv/bin/python prompt-test.py   # another model
+```
+
+## 6. CRITICAL INTEGRATION POINTS FOR STACK MERGING
+
+### 6.1 Environment Variables That Need Database Integration
+
+**Current Environment Variable Sources → Suggested Database Replacements**:
+
+1. **Email Configuration**:
+
+   - **Current**: `NOTIFICATION_EMAIL` env var in `email_sender`
+   - **Database**: User preferences table with email settings
+   - **Code Change**: Replace `os.environ.get("NOTIFICATION_EMAIL")` with database lookup
+
+2. **AI Model Configuration**:
+   - **Current**: Multiple model ID env vars
+   - **Database**: System configuration table
+   - **Variables**: `TRANSCRIPT_MODEL_ID`, `AGENDA_MODEL_ID`, `TRANSCRIPT_MAX_TOKENS`, etc.
+
+### 6.2 Hardcoded Values Requiring Parameterization
+
+1. **AWS Account/Region Specific**:
+
+   - MediaConvert role ARN (line 103 in mediaconvert_trigger)
+   - MediaConvert queue ARN (line 121 in mediaconvert_trigger)
+   - Multiple Bedrock model ARNs in CDK
+
+2. **Processing Configuration**:
+   - Video chunk duration (4 hours)
+   - Presigned URL expiration times
+   - Textract polling intervals
+
+### 6.3 Resource Naming Strategy
+
+**Current CDK Naming**:
+
+```typescript
+const stackSuffix = cdk.Names.uniqueId(this)
+  .toLowerCase()
+  .replace(/[^a-zA-Z0-9-]/g, "")
+  .slice(0, 8);
+const uniquePrefix = `${resourcePrefix}-${stackSuffix}`;
+```
+
+**Function Names**:
+
+- `${uniquePrefix}-video-to-audio-converter`
+- `${uniquePrefix}-processing-status-monitor`
+- `${uniquePrefix}-ai-meeting-analyzer`
+- etc.
+
+### 6.4 S3 Bucket Configuration
+
+**Current**: Can use explicit bucket name or auto-generate
+
+```typescript
+bucketName: props.s3BucketName, // Optional explicit name
+```
+
+**Integration Consideration**: Other stack may need shared bucket access
+
+### 6.5 SNS Topic Integration
+
+**Current**: Creates own topic
+
+```typescript
+topicName: `${uniquePrefix}-notifications`;
+```
+
+**Integration**: May need to use shared notification infrastructure
+
+## 7. DEPENDENCIES & EXTERNAL SERVICES
+
+### 7.1 AWS Services Used
+
+- **S3**: File storage and event triggers
+- **Lambda**: Compute functions
+- **Step Functions**: Workflow orchestration
+- **MediaConvert**: Video-to-audio conversion
+- **Transcribe**: Speech-to-text
+- **Textract**: PDF text extraction
+- **Bedrock**: AI model inference (Claude, Nova)
+- **SNS**: Email notifications
+- **EventBridge**: S3 event routing
+- **IAM**: Permissions management
+
+### 7.2 Lambda Layers
+
+- **pymediainfo_layer**: Video metadata extraction
+- **weasyprint**: PDF generation with fonts and dependencies
+
+### 7.3 Python Dependencies
+
+- **transcript processor**: `markdown==3.5.1`
+- **Other functions**: Standard AWS SDK and built-in libraries
+
+## 8. SECURITY & PERMISSIONS MODEL
+
+### 8.1 IAM Role Structure
+
+- Each Lambda has individual execution role
+- Step Functions has its own service role
+- Cross-service permissions granted via CDK
+
+### 8.2 S3 Permissions
+
+- Read/write access to specific prefixes
+- EventBridge notifications enabled
+- Block all public access
+
+### 8.3 Bedrock Permissions
+
+- Different models for different functions
+- Regional fallback model ARNs
+- Inference profile permissions
+
+## 9. MONITORING & ERROR HANDLING
+
+### 9.1 Step Functions Error Handling
+
+- Retry policies on all Lambda invocations
+- Catch blocks with specific error handling
+- Multiple failure states with descriptive errors
+
+### 9.2 Lambda Timeout Configuration
+
+- Video processing: 15 minutes
+- PDF generation: 5 minutes
+- AI analysis: 15 minutes
+- Others: 1-5 minutes
+
+## 10. RECOMMENDATIONS FOR STACK INTEGRATION
+
+### 10.1 Immediate Actions Required
+
+1. **Replace hardcoded account IDs** in MediaConvert configurations
+2. **Parameterize email configuration** for database integration
+3. **Review resource naming** for consistency with other stack
+4. **Assess bucket sharing strategy** between stacks
+
+### 10.2 Database Schema Suggestions
+
+```sql
+-- User preferences
+CREATE TABLE user_preferences (
+    user_id VARCHAR(255) PRIMARY KEY,
+    notification_email VARCHAR(255),
+    preferred_output_format VARCHAR(50)
+);
+
+-- System configuration
+CREATE TABLE system_config (
+    config_key VARCHAR(255) PRIMARY KEY,
+    config_value TEXT,
+    description TEXT
+);
+```
+
+### 10.3 Code Modification Points
+
+- **Email sender**: Replace env var lookup with database query
+- **Model configuration**: Centralize in database
+- **Resource ARNs**: Use CDK parameters instead of hardcoded values
+
+This documentation provides the exact information needed to understand data sources, integration points, and modification requirements for merging your stack with the other half of the application.

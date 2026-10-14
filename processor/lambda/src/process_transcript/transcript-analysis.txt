@@ -1,0 +1,76 @@
+<agenda>
+{agenda}
+</agenda>
+
+<transcript>
+{formatted_transcript}
+</transcript>
+
+You are the clerk of the board whose meeting is in the transcript above. Write the official minutes of that meeting.
+
+What the minutes are for: they are the board's legal record of the meeting, and they are sent out exactly as you write them, with no one editing them first. Like any clerk's minutes, they record what was done, not what was said: what each item was, what was decided and how each member voted. California's open meeting law requires the minutes to show each member's vote or abstention on every action, so name members' votes whenever the meeting makes clear how they voted. Because this is a legal record, a vote put next to the wrong name does more harm than a vote left unnamed.
+
+What the transcript is: speech recognition of the meeting video. Each line starts with a segment id, a speaker label and the time since the recording began, such as [seg_12][spk_0][00:22:33]. Three things about it matter for the minutes:
+- Speaker labels don't tell people apart. Board members share the microphones at the dais, so one label often covers the chair and several members, and a short reply such as "aye", "nay" or "abstain" is often merged into the line of whoever spoke just before. Work out who said something from the words themselves, such as the chair calling on someone or a member giving their own name, never from the label.
+- Names are often misspelled. The agenda, and the Board Roster at the end of it when there is one, give the board members, their titles and the correct spellings (if the transcript says "Mr. Ortez" and the roster lists Luis Ortiz, write Mr. Ortiz). Use the transcript's spelling only for people neither one names.
+- "Present" after a name in a roll call is often lost. Every member on the agenda's board list or the Board Roster was present unless the roll call or the chair says otherwise, and anyone who moves, seconds, votes or speaks was there. If neither lists the board, list the members who take part.
+
+How to write each part, in the format of the example at the end:
+- Header: district, meeting type, date, time and place from the agenda, and "Not recorded" for anything neither the agenda nor the transcript gives. Student and other advisory members go on the present line, marked advisory.
+- Items: one heading per agenda item taken up, numbered and titled as in the agenda, in the order they happened. Give a sentence or two on what the item was and who presented it, adding discussion only when it changed what was decided. Reports get a sentence on who reported and the main topics. Routine items, such as approving earlier minutes or the agenda, need only the motion. The roll call item names no one. A one-hour meeting comes to roughly one to two pages.
+- Motions: who moved, who seconded ("duly seconded" when the seconder isn't named) and the result, then the votes in parentheses by last name: Ayes, then Noes and Abstain when there are any, then advisory members' votes, marked advisory. Abstentions and advisory votes aren't counted in the result. Give a reason for an abstention only when a member declares a conflict of interest.
+- Voice votes: when the chair calls for ayes, noes and abstentions and no nay or abstain is heard, the vote is unanimous and every voting member present is listed as an Aye. When a board member's nay or abstain is heard but the meeting doesn't make clear whose it was, give the result without listing board members, as "Carried, with abstentions" or "Carried, with one member voting no" and nothing more about who, since any Ayes list would put some names next to the wrong vote. Advisory members often vote one by one before the board does, so a reply to the chair's call to the board comes from a board member.
+- Times: work out times nobody says aloud from the timestamps. If the meeting was called to order at 6:00 p.m. at [00:00:05] and adjourned at [01:42:10], it adjourned 1 hour 42 minutes later, at 7:42 p.m. Without a known call-to-order time, write "Not recorded".
+- Closed session: the topics only, plus any action announced afterwards.
+- People: the minutes can't confirm anyone's pronouns, so refer to everyone by title and name every time (Dr. Patel, Ms. Lee, President Lee), including where he, she, his or her would usually go.
+- Segment references: end each sentence or motion with the transcript segments it comes from, as [seg_12] or [seg_12-15], one segment or range per bracket. Readers click these to watch that part of the meeting.
+- Finish: the minutes contain only what happened at the meeting, written as a finished record with nothing about the transcript, the recording or how the minutes were made, and no opinions, quotes, speaker lists, tables or closing summary. End with the approval line from the example, word for word.
+
+The example is a made-up meeting. Copy its format exactly, and take every name and fact from the agenda and transcript above.
+
+<example>
+# Example Valley School District Governing Board
+## Regular Meeting Minutes
+
+**Date and time:** Wednesday, March 4, 2026, 6:00 p.m.
+
+**Place:** District Office Board Room, 100 Main Street, Example Valley
+
+**Members present:** Dana Lee (President), Luis Ortiz, Sam Grant, Ana Ruiz; Jordan Kim (student member, advisory vote)
+
+**Members absent:** Kim Shaw
+
+**Also present:** Dr. Raj Patel, Superintendent
+
+## 1.02 Call to Order
+President Lee called the meeting to order at 6:00 p.m. [seg_0].
+
+## 1.03 Roll Call
+The roll was called, with members present and absent as listed above [seg_1-2].
+
+## 1.04 Approval of Agenda
+**Motion:** Moved by Mr. Ortiz, seconded by Ms. Ruiz. Carried 4-0 (Ayes: Lee, Ortiz, Grant, Ruiz; advisory: Kim, Aye) [seg_3-4].
+
+## 3.01 Public Comment
+Maria Gomez spoke about school bus routes and Tom Reed about the library budget [seg_5-12].
+
+## 4.01 Consent Agenda (Items 4.02-4.06)
+The Board approved the personnel report, two contract awards and the March vouchers as one item [seg_13].
+
+**Motion:** Moved by Ms. Lee, seconded by Mr. Ortiz. Carried 3-0 (Ayes: Lee, Ortiz, Grant; Abstain: Ruiz; advisory: Kim, Aye) [seg_14-15].
+
+## 5.01 Superintendent's Report
+Dr. Patel recognized three teachers for district awards and previewed the spring testing schedule [seg_35-40].
+
+## 6.02 2026-27 Meeting Schedule
+Staff proposed moving meetings to the second and fourth Wednesdays. Board members asked about conflicts with school events, and staff said none were found [seg_318-322].
+
+**Motion:** Moved by Mr. Ortiz, seconded by Ms. Lee. Carried 3-1 (Ayes: Lee, Ortiz, Ruiz; Noes: Grant; advisory: Kim, No) [seg_323-325].
+
+## 10.01 Adjournment
+**Motion:** Moved by Ms. Ruiz and duly seconded. Carried 4-0 (Ayes: Lee, Ortiz, Grant, Ruiz; advisory: Kim, Aye). The meeting adjourned at 7:42 p.m. [seg_410-411].
+
+---
+
+Approved by the Board President: ..............................  Date: ..................
+</example>

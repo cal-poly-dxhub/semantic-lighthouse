@@ -70,7 +70,7 @@ minute-maker is an automated solution that transforms board meeting videos and a
 
 ### Architecture Diagram
 
-![arch-diagram](minute-maker-v1-light.drawio.svg)
+![arch-diagram](minute-maker-v2-light.drawio.svg)
 
 The solution consists of several key components:
 
@@ -114,7 +114,7 @@ Additionally other AWS services are used for additional functionality
 1. Bootstrap your AWS account:
 
 ```bash
-cd ui
+cd cdk
 cdk bootstrap
 cd ..
 ```
@@ -122,7 +122,7 @@ cd ..
 2. Deploy the stack
 
 ```bash
-cd ui
+cd cdk
 cdk deploy
 cd ..
 ```
@@ -136,16 +136,16 @@ cd ..
    - Ensure you're working in the correct AWS region/branch for your deployment
 
 2. **Application Configuration:** (After Deployment)
-   - Access the provided application URL (if you get an AccessDenied screen, wait a few minutes for the website build to complete)
+   - Access the provided application URL (the website is built and uploaded during `cdk deploy`, so it's live when the deploy finishes)
    - Create the initial admin user (first user to sign up)
    - Additional users can be created through the admin interface
 
 ### 3. Using the System
 
-1. Upload meeting video (MP4) and agenda (PDF)
+1. Upload meeting video (MP4) and agenda (PDF). Optionally list the board members (one per line, with roles such as "student trustee") so the minutes spell names right and list each member's vote; it's saved to your account
 2. System will automatically begin processing
 3. Progress can be monitored in the dashboard
-4. Download generated minutes when processing completes
+4. When processing completes you get an email with a link to the minutes page (sign in to open it). It has the PDF, ready to send, and an interactive version that links each item to that moment in the video
 
 ## Troubleshooting
 

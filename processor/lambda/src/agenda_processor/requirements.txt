@@ -1,0 +1,2 @@
+# Claude on Bedrock for agenda analysis
+anthropic[bedrock]==1.12.0
